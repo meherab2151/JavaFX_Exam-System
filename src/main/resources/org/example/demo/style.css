@@ -1,12 +1,11 @@
 .role-button {
     -fx-background-color: #3498db;
     -fx-text-fill: white;
-    -fx-padding: 10 20;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
     -fx-cursor: hand;
 }
 
 .role-button:hover {
-    -fx-background-color: #14a844 !important;
-    -fx-scale-x: 1.1;
-    -fx-scale-y: 1.1;
+    -fx-background-color: #56d537;
 }

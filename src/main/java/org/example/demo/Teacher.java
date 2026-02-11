@@ -13,5 +13,6 @@ public class Teacher {
 
     // Getters for login check
     public String getEmail() { return email; }
+    public String getUser(){ return fullName; }
     public String getPassword() { return password; }
 }

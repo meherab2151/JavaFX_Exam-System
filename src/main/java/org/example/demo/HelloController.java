@@ -12,7 +12,7 @@ public class HelloController {
 
     @FXML
     protected void onHelloButtonClick() {
-        welcomeText.setText("Welcome to JavaFX Application! How are you?");
+        welcomeText.setText("Welcome to JavaFX Application!");
     }
 
     public void buttonPressed(ActionEvent actionEvent) {
