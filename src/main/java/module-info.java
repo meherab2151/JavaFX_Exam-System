@@ -1,8 +1,9 @@
-module com.example.exam_system {
+module org.example.demo {
     requires javafx.controls;
     requires javafx.fxml;
+    requires java.desktop;
 
 
-    opens com.example.exam_system to javafx.fxml;
-    exports com.example.exam_system;
+    opens org.example.demo to javafx.fxml;
+    exports org.example.demo;
 }
