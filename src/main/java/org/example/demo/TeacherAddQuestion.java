@@ -131,6 +131,7 @@ public class TeacherAddQuestion {
         UIUtils.applyButtonEffects(btnSave, "#f22c99");
 
         btnSave.setOnAction(e -> {
+            // 1. Basic Validation: Ensure Subject, Class, and Question Text are present
             if (cbSubject.getValue() == null || cbClass.getValue() == null) {
                 mainApp.showError("Missing Info", "Please select Subject and Class.");
                 return;
@@ -140,38 +141,72 @@ public class TeacherAddQuestion {
                 return;
             }
 
-            if (rbMcq.isSelected()) {
-                for (TextField opt : mcqOptions) {
-                    if (opt.getText().trim().isEmpty()) {
-                        mainApp.showError("Missing Info", "All four MCQ options must be filled.");
-                        return;
-                    }
-                }
-                if (mcqToggleGroup.getSelectedToggle() == null) {
-                    mainApp.showError("Missing Info", "Please select the correct MCQ answer.");
-                    return;
-                }
-            } else {
-                if (cbAnsType.getValue().equals("Exact Answer")) {
-                    if (exactAnsField.getText().trim().isEmpty()) {
-                        mainApp.showError("Missing Info", "Please provide the exact answer.");
-                        return;
-                    }
-                } else {
-                    if (minField.getText().trim().isEmpty() || maxField.getText().trim().isEmpty()) {
-                        mainApp.showError("Missing Info", "Please provide both Min and Max values.");
-                        return;
-                    }
-                }
-            }
+            try {
+                String subject = cbSubject.getValue();
+                int grade = cbClass.getValue();
+                String questionText = globalQuestionArea.getText().trim();
 
-            mainApp.showInfo("Bank Updated", "Question has been saved successfully!");
-            globalQuestionArea.clear();
-            if (rbMcq.isSelected()) {
-                for (TextField opt : mcqOptions) opt.clear();
-                mcqToggleGroup.selectToggle(null);
-            } else {
-                exactAnsField.clear(); minField.clear(); maxField.clear();
+                if (rbMcq.isSelected()) {
+                    String[] options = new String[4];
+                    for (int i = 0; i < 4; i++) {
+                        String optText = mcqOptions[i].getText().trim();
+                        if (optText.isEmpty()) {
+                            mainApp.showError("Missing Info", "All four MCQ options must be filled.");
+                            return;
+                        }
+                        options[i] = optText;
+                    }
+
+                    if (mcqToggleGroup.getSelectedToggle() == null) {
+                        mainApp.showError("Missing Info", "Please select the correct MCQ answer.");
+                        return;
+                    }
+
+                    int correctIdx = mcqToggleGroup.getToggles().indexOf(mcqToggleGroup.getSelectedToggle());
+
+                    QuestionBank.allQuestions.add(new MCQ(subject, grade, questionText, options, correctIdx));
+                }
+
+                else {
+                    if (cbAnsType.getValue().equals("Exact Answer")) {
+                        if (exactAnsField.getText().trim().isEmpty()) {
+                            mainApp.showError("Missing Info", "Please provide the exact answer.");
+                            return;
+                        }
+                        double ans = Double.parseDouble(exactAnsField.getText().trim());
+                        QuestionBank.allQuestions.add(new TextQuestion(subject, grade, questionText, ans));
+                    }
+                    else {
+                        if (minField.getText().trim().isEmpty() || maxField.getText().trim().isEmpty()) {
+                            mainApp.showError("Missing Info", "Please provide both Min and Max values.");
+                            return;
+                        }
+
+                        double minVal = Double.parseDouble(minField.getText().trim());
+                        double maxVal = Double.parseDouble(maxField.getText().trim());
+
+                        if (minVal >= maxVal) {
+                            mainApp.showError("Logic Error", "Min value must be less than Max value.");
+                            return;
+                        }
+                        QuestionBank.allQuestions.add(new RangeQuestion(subject, grade, questionText, minVal, maxVal));
+                    }
+                }
+
+                mainApp.showInfo("Question Bank Updated", "Question has been saved successfully!");
+
+                globalQuestionArea.clear();
+                if (rbMcq.isSelected()) {
+                    for (TextField opt : mcqOptions) opt.clear();
+                    mcqToggleGroup.selectToggle(null);
+                } else {
+                    exactAnsField.clear();
+                    minField.clear();
+                    maxField.clear();
+                }
+
+            } catch (NumberFormatException ex) {
+                mainApp.showError("Input Error", "Please enter valid numbers for the answers (e.g., 10.5).");
             }
         });
 
