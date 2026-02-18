@@ -55,8 +55,14 @@ public class TeacherDashboard {
             btn.setOnAction(e -> {
                 contentArea.getChildren().clear();
                 if (item.equals("Add Question")) {
-                    TeacherAddQuestion.showAddQuestionForm(contentArea, mainApp);
+                    TeacherAddQuestion.showAddQuestionForm(contentArea, mainApp, null, null);
                 }
+
+                else if (item.equals("Create Exam")) {
+                    // This links your new class to the dashboard
+                    TeacherCreateExam.showCreateExamForm(contentArea, mainApp);
+                }
+
                 else {
                     Label placeholder = new Label(item + " View Coming Soon...");
                     placeholder.setLayoutX(50); placeholder.setLayoutY(50);

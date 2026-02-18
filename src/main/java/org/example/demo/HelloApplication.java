@@ -36,7 +36,6 @@ public class HelloApplication extends Application {
         btnStudent.setLayoutX(120); btnStudent.setLayoutY(180); btnStudent.setPrefSize(160, 50);
         btnTeacher.setLayoutX(320); btnTeacher.setLayoutY(180); btnTeacher.setPrefSize(160, 50);
 
-        // Use the new effects with Blue and Purple hover colors
         UIUtils.applyButtonEffects(btnStudent, "#3498db");
         UIUtils.applyButtonEffects(btnTeacher, "#9b59b6");
 

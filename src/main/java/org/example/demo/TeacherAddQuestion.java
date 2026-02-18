@@ -12,15 +12,11 @@ public class TeacherAddQuestion {
     private static TextField minField, maxField;
     private static ComboBox<String> cbAnsType;
 
+    private static boolean returnToExam = false;
+    public static Question lastAddedQuestion = null;
+
     private static void applyInteractiveStyle(Control control) {
         control.setStyle("-fx-background-color: white; -fx-border-color: #dcdde1; -fx-border-radius: 5;");
-        control.focusedProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal) {
-                control.setStyle("-fx-background-color: white; -fx-border-color: #3498db; -fx-border-width: 2; -fx-border-radius: 5;");
-            } else {
-                control.setStyle("-fx-background-color: white; -fx-border-color: #dcdde1; -fx-border-width: 1; -fx-border-radius: 5;");
-            }
-        });
     }
 
     private static void renderMcqForm(Pane container) {
@@ -88,8 +84,9 @@ public class TeacherAddQuestion {
         container.getChildren().addAll(globalQuestionArea, cbAnsType, ansInputPane);
     }
 
-    public static void showAddQuestionForm(Pane contentArea, HelloApplication mainApp) {
+    public static void showAddQuestionForm(Pane contentArea, HelloApplication mainApp, String initialSubject, Integer initialGrade) {
         contentArea.getChildren().clear();
+        returnToExam = (initialSubject != null);
 
         Label lblTitle = new Label("Add New Question");
         lblTitle.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
@@ -104,6 +101,11 @@ public class TeacherAddQuestion {
         for (int i = 6; i <= 12; i++) cbClass.getItems().add(i);
         cbClass.setPromptText("Class");
         cbClass.setLayoutX(160); cbClass.setLayoutY(75);
+
+        if (returnToExam) {
+            cbSubject.setValue(initialSubject);
+            cbClass.setValue(initialGrade);
+        }
 
         ToggleGroup typeGroup = new ToggleGroup();
         RadioButton rbMcq = new RadioButton("MCQ");
@@ -122,91 +124,54 @@ public class TeacherAddQuestion {
         rbMcq.setOnAction(e -> renderMcqForm(dynamicForm));
         rbText.setOnAction(e -> renderTextForm(dynamicForm));
 
-        // Save Button with UIUtils effects
         Button btnSave = new Button("Save to Question Bank");
-        btnSave.setPrefSize(220, 45);
-        btnSave.setLayoutX(30);
-        btnSave.setLayoutY(520);
-
+        btnSave.setPrefSize(220, 45); btnSave.setLayoutX(30); btnSave.setLayoutY(520);
         UIUtils.applyButtonEffects(btnSave, "#f22c99");
 
         btnSave.setOnAction(e -> {
-            // 1. Basic Validation: Ensure Subject, Class, and Question Text are present
-            if (cbSubject.getValue() == null || cbClass.getValue() == null) {
-                mainApp.showError("Missing Info", "Please select Subject and Class.");
+            // Validation
+            if (cbSubject.getValue() == null || cbClass.getValue() == null || globalQuestionArea.getText().trim().isEmpty()) {
+                mainApp.showError("Missing Info", "Please complete all fields.");
                 return;
             }
-            if (globalQuestionArea.getText().trim().isEmpty()) {
-                mainApp.showError("Missing Info", "Please enter the question text.");
+
+            // MCQ Specific Validation: Check if answer selected
+            if (rbMcq.isSelected() && mcqToggleGroup.getSelectedToggle() == null) {
+                mainApp.showError("Missing Answer", "Please select the correct answer for the MCQ.");
                 return;
             }
 
             try {
-                String subject = cbSubject.getValue();
-                int grade = cbClass.getValue();
-                String questionText = globalQuestionArea.getText().trim();
+                String sub = cbSubject.getValue();
+                int gr = cbClass.getValue();
+                String text = globalQuestionArea.getText().trim();
+                Question newQ = null;
 
                 if (rbMcq.isSelected()) {
-                    String[] options = new String[4];
-                    for (int i = 0; i < 4; i++) {
-                        String optText = mcqOptions[i].getText().trim();
-                        if (optText.isEmpty()) {
-                            mainApp.showError("Missing Info", "All four MCQ options must be filled.");
-                            return;
-                        }
-                        options[i] = optText;
-                    }
-
-                    if (mcqToggleGroup.getSelectedToggle() == null) {
-                        mainApp.showError("Missing Info", "Please select the correct MCQ answer.");
-                        return;
-                    }
-
+                    String[] opts = new String[4];
+                    for (int i = 0; i < 4; i++) opts[i] = mcqOptions[i].getText();
                     int correctIdx = mcqToggleGroup.getToggles().indexOf(mcqToggleGroup.getSelectedToggle());
-
-                    QuestionBank.allQuestions.add(new MCQ(subject, grade, questionText, options, correctIdx));
-                }
-
-                else {
-                    if (cbAnsType.getValue().equals("Exact Answer")) {
-                        if (exactAnsField.getText().trim().isEmpty()) {
-                            mainApp.showError("Missing Info", "Please provide the exact answer.");
-                            return;
-                        }
-                        double ans = Double.parseDouble(exactAnsField.getText().trim());
-                        QuestionBank.allQuestions.add(new TextQuestion(subject, grade, questionText, ans));
-                    }
-                    else {
-                        if (minField.getText().trim().isEmpty() || maxField.getText().trim().isEmpty()) {
-                            mainApp.showError("Missing Info", "Please provide both Min and Max values.");
-                            return;
-                        }
-
-                        double minVal = Double.parseDouble(minField.getText().trim());
-                        double maxVal = Double.parseDouble(maxField.getText().trim());
-
-                        if (minVal >= maxVal) {
-                            mainApp.showError("Logic Error", "Min value must be less than Max value.");
-                            return;
-                        }
-                        QuestionBank.allQuestions.add(new RangeQuestion(subject, grade, questionText, minVal, maxVal));
-                    }
-                }
-
-                mainApp.showInfo("Question Bank Updated", "Question has been saved successfully!");
-
-                globalQuestionArea.clear();
-                if (rbMcq.isSelected()) {
-                    for (TextField opt : mcqOptions) opt.clear();
-                    mcqToggleGroup.selectToggle(null);
+                    newQ = new MCQ(sub, gr, text, opts, correctIdx);
                 } else {
-                    exactAnsField.clear();
-                    minField.clear();
-                    maxField.clear();
+                    if (cbAnsType.getValue().equals("Exact Answer")) {
+                        newQ = new TextQuestion(sub, gr, text, Double.parseDouble(exactAnsField.getText()));
+                    } else {
+                        newQ = new RangeQuestion(sub, gr, text, Double.parseDouble(minField.getText()), Double.parseDouble(maxField.getText()));
+                    }
                 }
 
-            } catch (NumberFormatException ex) {
-                mainApp.showError("Input Error", "Please enter valid numbers for the answers (e.g., 10.5).");
+                QuestionBank.allQuestions.add(newQ);
+                lastAddedQuestion = newQ;
+                mainApp.showInfo("Success", "Question added to bank.");
+
+                if (returnToExam) {
+                    TeacherCreateExam.showCreateExamForm(contentArea, mainApp);
+                } else {
+                    // Only clear the question text field
+                    globalQuestionArea.clear();
+                }
+            } catch (Exception ex) {
+                mainApp.showError("Input Error", "Please enter valid numeric answers.");
             }
         });
 
