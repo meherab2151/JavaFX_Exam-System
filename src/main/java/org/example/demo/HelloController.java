@@ -20,3 +20,4 @@ public class HelloController {
         label.setText("Wow");
     }
 }
+
