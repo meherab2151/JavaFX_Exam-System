@@ -77,6 +77,16 @@ public class TeacherCreateExam {
         UIUtils.applyButtonEffects(btnCreate, "#27ae60");
         btnCreate.setOnAction(e -> handleCreateExam(mainApp, contentArea));
 
+        Button btnCancel = new Button("CANCEL");
+        btnCancel.setPrefSize(100, 45); btnCancel.setLayoutX(500); btnCancel.setLayoutY(475);
+        UIUtils.applyButtonEffects(btnCancel, "#95a5a6");
+        btnCancel.setOnAction(e -> {
+            clearState();
+            examBeingEdited = null;
+            TeacherDashboard.renderDashboardHome(contentArea, mainApp);
+        });
+        contentArea.getChildren().add(btnCancel);
+
         contentArea.getChildren().addAll(lblTitle, cbSubject, cbClass, txtTotalMark, txtDuration, lblMarkStatus, scrollPane, btnAddMore, btnCreate);
         updateMarkLabel();
     }
@@ -117,7 +127,11 @@ public class TeacherCreateExam {
                 UIUtils.applyButtonEffects(btnEdit, "#f39c12");
                 btnEdit.setOnAction(e -> showEditPopup(q, mainApp));
 
-                topRow.getChildren().addAll(cb, lblQuestion, txtMark, btnEdit);
+                Button btnDelete = new Button("Delete");
+                UIUtils.applyButtonEffects(btnDelete, "#e74c3c"); // Red for delete
+                btnDelete.setOnAction(e -> showDeletePopup(q, mainApp, sub, cls));
+
+                topRow.getChildren().addAll(cb, lblQuestion, txtMark, btnEdit, btnDelete);
 
                 VBox answerInfo = new VBox(5);
                 answerInfo.setPadding(new Insets(0, 0, 0, 35));
@@ -237,29 +251,94 @@ public class TeacherCreateExam {
         stage.showAndWait();
     }
 
-    private static void handleCreateExam(HelloApplication mainApp, Pane contentArea) {
-        // Validation for ALL configuration fields
+    private static void showDeletePopup(Question q, HelloApplication mainApp, String sub, Integer cls) {
+        Stage stage = new Stage();
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Confirm Deletion");
+
+        VBox layout = new VBox(20);
+        layout.setPadding(new Insets(25));
+        layout.setAlignment(Pos.CENTER);
+        layout.setStyle("-fx-background-color: #ffffff;");
+
+        Label lblMsg = new Label("Are you sure you want to delete this question?");
+        lblMsg.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
+        Label lblPreview = new Label("\"" + q.getQuestionText() + "\"");
+        lblPreview.setWrapText(true);
+        lblPreview.setStyle("-fx-font-style: italic; -fx-text-fill: #7f8c8d;");
+        lblPreview.setMaxWidth(300);
+
+        HBox buttons = new HBox(15);
+        buttons.setAlignment(Pos.CENTER);
+
+        Button btnYes = new Button("Delete");
+        UIUtils.applyButtonEffects(btnYes, "#e74c3c");
+        btnYes.setPrefWidth(100);
+
+        Button btnNo = new Button("Cancel");
+        UIUtils.applyButtonEffects(btnNo, "#95a5a6");
+        btnNo.setPrefWidth(100);
+
+        btnYes.setOnAction(e -> {
+            QuestionBank.allQuestions.remove(q);
+            selectedWithMarks.remove(q); // Ensure it's removed from current exam selection
+            stage.close();
+            refreshList(sub, cls, mainApp); // Refresh the main view
+        });
+
+        btnNo.setOnAction(e -> stage.close());
+
+        buttons.getChildren().addAll(btnYes, btnNo);
+        layout.getChildren().addAll(lblMsg, lblPreview, buttons);
+
+        stage.setScene(new Scene(layout, 350, 200));
+        stage.showAndWait();
+    }
+
+    public static void handleCreateExam(HelloApplication mainApp, Pane contentArea) {
         if (savedSubject == null || savedGrade == null || savedTotalMark.isEmpty() || savedDuration.isEmpty()) {
-            mainApp.showError("Missing Fields", "Please fill in all details (Subject, Class, Marks, and Duration).");
+            mainApp.showError("Missing Fields", "Please fill in all details.");
             return;
         }
 
         if (selectedWithMarks.isEmpty()) {
-            mainApp.showError("No Questions", "Please select at least one question for the exam.");
+            mainApp.showError("No Questions", "Please select at least one question.");
             return;
         }
 
         try {
             double target = Double.parseDouble(savedTotalMark);
             if (currentSelectedMarks != target) {
-                mainApp.showError("Mark Mismatch", "Total marks assigned (" + currentSelectedMarks + ") must exactly match target (" + target + ").");
+                mainApp.showError("Mark Mismatch", "Marks (" + currentSelectedMarks + ") must match target (" + target + ").");
                 return;
             }
-            mainApp.showInfo("Success", "Exam Created Successfully!");
+
+            // Create the new data object
+            Exam updatedData = new Exam(savedSubject, savedGrade, target, savedDuration, new HashMap<>(selectedWithMarks));
+
+            if (examBeingEdited != null) {
+                updatedData.setLive(examBeingEdited.isLive());
+                updatedData.setScheduleDetails(examBeingEdited.getScheduleDetails());
+                updatedData.setLiveWindow(examBeingEdited.getLiveWindow());
+
+                // Replace the old exam in the bank
+                int index = ExamBank.allExams.indexOf(examBeingEdited);
+                if (index != -1) {
+                    ExamBank.allExams.set(index, updatedData);
+                }
+                examBeingEdited = null;
+                mainApp.showInfo("Success", "Exam details have been updated!");
+            } else {
+                // CREATE MODE: Add new
+                ExamBank.allExams.add(0, updatedData);
+                mainApp.showInfo("Success", "New exam created successfully!");
+            }
+
             clearState();
-            showCreateExamForm(contentArea, mainApp);
+            TeacherDashboard.renderDashboardHome(contentArea, mainApp);
         } catch (Exception ex) {
-            mainApp.showError("Input Error", "Check total marks input format.");
+            mainApp.showError("Input Error", "Check total marks format.");
         }
     }
 
@@ -272,5 +351,20 @@ public class TeacherCreateExam {
     private static void clearState() {
         savedSubject = null; savedGrade = null; savedTotalMark = ""; savedDuration = "";
         selectedWithMarks.clear(); currentSelectedMarks = 0;
+    }
+
+    private static Exam examBeingEdited = null;
+
+    public static void loadExamForEditing(Exam exam, Pane contentArea, HelloApplication mainApp) {
+        examBeingEdited = exam; // Keep a reference instead of deleting
+        savedSubject = exam.getSubject();
+        savedGrade = exam.getGrade();
+        savedTotalMark = String.valueOf(exam.getTotalMarks());
+        savedDuration = exam.getDuration();
+
+        selectedWithMarks.clear();
+        selectedWithMarks.putAll(exam.getQuestionsMap());
+
+        showCreateExamForm(contentArea, mainApp);
     }
 }

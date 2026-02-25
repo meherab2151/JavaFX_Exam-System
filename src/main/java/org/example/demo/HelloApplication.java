@@ -6,6 +6,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.Pane;
 import javafx.stage.Stage;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class HelloApplication extends Application {
 
@@ -16,6 +17,27 @@ public class HelloApplication extends Application {
     public void start(Stage stage) {
         // Test account
         teacherList.add(new Teacher("A", "a", "a"));
+
+        QuestionBank.allQuestions.add(new MCQ(
+                "Physics", 6, "What is the unit of Force?",
+                new String[]{"Newton", "Joule", "Watt", "Pascal"}, 0
+        ));
+        QuestionBank.allQuestions.add(new TextQuestion(
+                "Physics", 6, "What is the square root of 144?", 12.0
+        ));
+        QuestionBank.allQuestions.add(new RangeQuestion(
+                "Physics", 6, "What is the boiling point of pure water in Celsius at 1 atm?",
+                99.5, 100.5
+        ));
+
+        HashMap<Question, Double> physicsExamQuestions = new HashMap<>();
+        for (Question q : QuestionBank.allQuestions) {
+            if (q.getSubject().equals("Physics") && q.getGrade() == 6) {
+                physicsExamQuestions.put(q, 5.0);
+            }
+        }
+        Exam physicsMidterm = new Exam("Physics", 6, 15.0, "20", physicsExamQuestions);
+        ExamBank.allExams.add(physicsMidterm);
 
         stage.setTitle("Online Exam System");
         stage.setScene(createMainScene(stage));

@@ -160,7 +160,7 @@ public class TeacherAddQuestion {
                     }
                 }
 
-                QuestionBank.allQuestions.add(newQ);
+                QuestionBank.allQuestions.add(0, newQ);
                 lastAddedQuestion = newQ;
                 mainApp.showInfo("Success", "Question added to bank.");
 
