@@ -7,6 +7,7 @@ public class Exam {
     private double totalMarks;
     private String duration; // e.g., "20"
     private HashMap<Question, Double> questions;
+    private String examCode = "";
 
     // Status Logic
     private boolean isLive = false;
@@ -37,5 +38,18 @@ public class Exam {
     }
     public java.util.Collection<Question> getQuestions() {
         return questions.keySet();
+    }
+    public String getExamCode() { return examCode; }
+    public void setExamCode(String examCode) { this.examCode = examCode; }
+    public void generateCode() {
+        if (this.examCode == null || this.examCode.isEmpty()) {
+            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            StringBuilder sb = new StringBuilder();
+            java.util.Random rnd = new java.util.Random();
+            for (int i = 0; i < 6; i++) {
+                sb.append(chars.charAt(rnd.nextInt(chars.length())));
+            }
+            this.examCode = sb.toString();
+        }
     }
 }

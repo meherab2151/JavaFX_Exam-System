@@ -31,11 +31,22 @@ public class StudentLoginManager {
         UIUtils.applyButtonEffects(btnLogin, "#2ecc71");
 
         btnLogin.setOnAction(e -> {
-            boolean success = studentList.stream()
-                    .anyMatch(s -> (s.getID().equalsIgnoreCase(txtInput.getText()) || s.getEmail().equalsIgnoreCase(txtInput.getText()))
-                            && s.getPassword().equals(txtPass.getText()));
-            if (success) mainApp.showInfo("Success", "Logged in!");
-            else mainApp.showError("Failed", "Invalid credentials.");
+            String input = txtInput.getText();
+            String pass = txtPass.getText();
+
+            // 1. Find the student (Matching your Teacher search logic)
+            Student foundStudent = studentList.stream()
+                    .filter(s -> (s.getID().equals(input) || s.getEmail().equals(input))
+                            && s.getPassword().equals(pass))
+                    .findFirst()
+                    .orElse(null);
+
+            if (foundStudent != null) {
+                // 2. Direct Scene Switch (Just like you did for the Teacher)
+                stage.setScene(StudentDashboard.createStudentDashboard(stage, foundStudent, mainApp));
+            } else {
+                mainApp.showError("Login Failed", "Invalid Student ID/Email or Password.");
+            }
         });
 
         Hyperlink linkSignup = new Hyperlink("Don't have an account? Sign up here");

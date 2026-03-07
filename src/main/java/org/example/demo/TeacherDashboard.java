@@ -87,8 +87,9 @@ public class TeacherDashboard {
         Label ohMrk = new Label("Marks");   ohMrk.setMinWidth(120);
         Label ohAtt = new Label("Attendance"); ohAtt.setMinWidth(110);
         Label ohHigh = new Label("Highest"); ohHigh.setMinWidth(100);
+        Label ohCode = new Label("Code"); ohCode.setMinWidth(100);
+        ongoingHeader.getChildren().addAll(ohSub, ohCls, ohMrk, ohCode, ohAtt, ohHigh);
 
-        ongoingHeader.getChildren().addAll(ohSub, ohCls, ohMrk, ohAtt, ohHigh);
         ongoingHeader.setStyle(ongoingHeader.getStyle() + "-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: white;");
 
         VBox ongoingList = new VBox(10);
@@ -106,6 +107,7 @@ public class TeacherDashboard {
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.setPadding(new Insets(10, 20, 10, 20));
                 row.setStyle("-fx-background-color: white; -fx-border-color: #27ae60; -fx-border-radius: 8;");
+                e.generateCode();
 
                 Label lblSub = new Label(e.getSubject());
                 lblSub.setMinWidth(140);
@@ -118,6 +120,18 @@ public class TeacherDashboard {
                 Label lblMrk = new Label(e.getTotalMarks() + " Marks");
                 lblMrk.setMinWidth(120);
                 lblMrk.setStyle("-fx-font-size: 18px; -fx-text-fill: #7f8c8d;");
+
+                Label lblCode = new Label(e.getExamCode());
+                lblCode.setMinWidth(100);
+                lblCode.setStyle("-fx-text-fill: #8e44ad; -fx-font-weight: bold; -fx-cursor: hand;");
+
+                lblCode.setOnMouseClicked(event -> {
+                    javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+                    javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+                    content.putString(e.getExamCode());
+                    clipboard.setContent(content);
+                    mainApp.showInfo("Copied!", "Exam code " + e.getExamCode() + " copied to clipboard.");
+                });
 
                 Label lblAtt = new Label("0%"); lblAtt.setMinWidth(110);
                 lblAtt.setStyle("-fx-text-fill: #2980b9; -fx-font-weight: bold;");
@@ -159,7 +173,7 @@ public class TeacherDashboard {
                     renderDashboardHome(contentArea, mainApp);
                 });
 
-                row.getChildren().addAll(lblSub, lblCls, lblMrk, lblAtt, lblHigh, spacer, options);
+                row.getChildren().addAll(lblSub, lblCls, lblMrk, lblCode, lblAtt, lblHigh, spacer, options);
                 ongoingList.getChildren().add(row);
                 hasLive = true;
             }
@@ -268,16 +282,17 @@ public class TeacherDashboard {
         root.setAlignment(Pos.CENTER);
         root.setStyle("-fx-background-color: #ffffff;");
 
-        Label lbl = new Label("Set Exam Duration:");
+        Label lbl = new Label("Set Exam Availability Window:");
         lbl.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;");
 
-        // Inputs for hours and minutes
+        // Helpful hint so the teacher knows the minimum requirement
+        Label lblMinReq = new Label("(Min required: " + exam.getDuration() + " mins)");
+        lblMinReq.setStyle("-fx-font-size: 11px; -fx-text-fill: #e67e22;");
+
         HBox inputs = new HBox(10);
         inputs.setAlignment(Pos.CENTER);
-
         TextField hField = new TextField(); hField.setPromptText("0"); hField.setPrefWidth(50);
         TextField mField = new TextField(); mField.setPromptText("30"); mField.setPrefWidth(50);
-
         inputs.getChildren().addAll(hField, new Label("hr"), mField, new Label("min"));
 
         Button btnLaunch = new Button("Launch Exam Now");
@@ -286,33 +301,49 @@ public class TeacherDashboard {
 
         btnLaunch.setOnAction(e -> {
             try {
-                String hours = hField.getText().isEmpty() ? "0" : hField.getText();
-                String mins = mField.getText().isEmpty() ? "0" : mField.getText();
+                int inputHours = hField.getText().isEmpty() ? 0 : Integer.parseInt(hField.getText());
+                int inputMins = mField.getText().isEmpty() ? 0 : Integer.parseInt(mField.getText());
+                int totalInputMinutes = (inputHours * 60) + inputMins;
 
-                // Validate numbers
-                Integer.parseInt(hours);
-                Integer.parseInt(mins);
+                int requiredMins = Integer.parseInt(exam.getDuration());
 
+                if (totalInputMinutes < requiredMins) {
+                    mainApp.showError("Time Error", "Availability window cannot be less than exam duration.");
+                    return;
+                }
+
+                // --- EXISTING LOGIC ---
                 exam.setLive(true);
-
-                // 1. Set the duration window text (e.g., "1h 23m")
-                exam.setLiveWindow(hours + "h " + mins + "m");
-
-                // 2. Automatically set start time to NOW
+                exam.generateCode();
+                exam.setLiveWindow(inputHours + "h " + inputMins + "m");
                 java.time.LocalDateTime now = java.time.LocalDateTime.now();
-                java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-                exam.setScheduleDetails(now.format(dtf));
+                exam.setScheduleDetails(now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+
+                // --- NEW: AUTO-EXPIRY TIMER ---
+                javafx.animation.PauseTransition expiryTimer = new javafx.animation.PauseTransition(javafx.util.Duration.minutes(totalInputMinutes));
+                expiryTimer.setOnFinished(event -> {
+                    if (exam.isLive()) { // Check if it hasn't been stopped manually already
+                        exam.setLive(false);
+                        exam.setScheduleDetails("Ended: " + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+
+                        // Refresh UI if the teacher is currently looking at the dashboard
+                        renderDashboardHome(contentArea, mainApp);
+
+                        mainApp.showInfo("Exam Expired", "The exam '" + exam.getSubject() + "' has reached its time limit and moved to Past Exams.");
+                    }
+                });
+                expiryTimer.play();
 
                 stage.close();
                 renderDashboardHome(contentArea, mainApp);
 
             } catch (NumberFormatException ex) {
-                mainApp.showError("Invalid Input", "Please enter numbers for hours and minutes.");
+                mainApp.showError("Invalid Input", "Please enter valid numbers.");
             }
         });
 
-        root.getChildren().addAll(lbl, inputs, btnLaunch);
-        stage.setScene(new Scene(root, 320, 200));
+        root.getChildren().addAll(lbl, lblMinReq, inputs, btnLaunch);
+        stage.setScene(new Scene(root, 320, 240)); // Increased height slightly for the hint label
         stage.show();
     }
 
