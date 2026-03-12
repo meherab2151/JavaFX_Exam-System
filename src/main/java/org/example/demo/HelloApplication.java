@@ -10,6 +10,10 @@ import javafx.scene.shape.*;
 import javafx.stage.Stage;
 import java.util.ArrayList;
 import java.util.HashMap;
+
+// ═══════════════════════════════════════════════════════════
+//  HelloApplication.java  –  App entry point + home screen
+// ═══════════════════════════════════════════════════════════
 public class HelloApplication extends Application {
 
     private static final ArrayList<Teacher> teachers = new ArrayList<>();
@@ -51,7 +55,7 @@ public class HelloApplication extends Application {
         left.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
 
         Label logo  = new Label("🏫");
-        logo.setStyle("-fx-font-size:72px;");
+        logo.setStyle("-fx-font-size:72px;-fx-text-fill:white;");
         Label brand = new Label("EduExam");
         brand.setStyle("-fx-font-size:42px;-fx-font-weight:bold;-fx-text-fill:white;");
         Label tag   = new Label("The Smart Online Assessment Platform");

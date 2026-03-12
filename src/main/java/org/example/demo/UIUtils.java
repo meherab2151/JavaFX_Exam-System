@@ -184,7 +184,7 @@ public class UIUtils {
         VBox body = new VBox(4);
         body.setPadding(new Insets(16, 18, 16, 18));
         body.setAlignment(Pos.CENTER_LEFT);
-        Label ico = new Label(icon); ico.setStyle("-fx-font-size:22px;");
+        Label ico = new Label(icon); ico.setStyle("-fx-font-size:22px;-fx-text-fill:" + textDark() + ";");
         Label val = new Label(value); val.setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:" + textDark() + ";");
         Label lbl = new Label(label); lbl.setStyle("-fx-font-size:12px;-fx-text-fill:" + textMid() + ";");
         body.getChildren().addAll(ico, val, lbl);

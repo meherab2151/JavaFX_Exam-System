@@ -46,7 +46,7 @@ public class TeacherPortal {
                 );
 
                 Label iconL = new Label(icon);
-                iconL.setStyle("-fx-font-size:16px;");
+                iconL.setStyle("-fx-font-size:16px;-fx-text-fill:white;");
 
                 Label msgL = new Label(message);
                 msgL.setStyle("-fx-text-fill:white;-fx-font-size:13px;-fx-font-weight:bold;");
@@ -110,7 +110,7 @@ public class TeacherPortal {
         VBox accent = new VBox(0);
         accent.setPrefWidth(340); accent.setAlignment(Pos.CENTER); accent.setPadding(new Insets(50, 36, 50, 36));
         accent.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
-        Label logo  = new Label("📚"); logo.setStyle("-fx-font-size:52px;");
+        Label logo  = new Label("📚"); logo.setStyle("-fx-font-size:52px;-fx-text-fill:white;");
         Label brand = new Label("EduExam"); brand.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:white;");
         Label tag   = new Label("Smart Assessment Platform");
         tag.setStyle("-fx-font-size:13px;-fx-text-fill:#64748b;");
@@ -169,7 +169,7 @@ public class TeacherPortal {
         VBox accent = new VBox(0);
         accent.setPrefWidth(340); accent.setAlignment(Pos.CENTER); accent.setPadding(new Insets(50, 36, 50, 36));
         accent.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
-        Label sLogo  = new Label("🎓"); sLogo.setStyle("-fx-font-size:52px;");
+        Label sLogo  = new Label("🎓"); sLogo.setStyle("-fx-font-size:52px;-fx-text-fill:white;");
         Label sBrand = new Label("Join EduExam"); sBrand.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:white;");
         Label sTag   = new Label("Create your teacher account");
         sTag.setStyle("-fx-font-size:13px;-fx-text-fill:#64748b;");
@@ -217,10 +217,17 @@ public class TeacherPortal {
         return scene;
     }
 
+    // Remembers which nav tab is active so theme toggle returns to same page
+    static int activeNavIndex = 0;
+
     // ╔══════════════════════════════════════════════════════╗
     //  2. DASHBOARD SHELL
     // ╚══════════════════════════════════════════════════════╝
     static Scene createDashboardScene(Stage stage, Teacher teacher, HelloApplication app) {
+        return createDashboardScene(stage, teacher, app, activeNavIndex);
+    }
+
+    static Scene createDashboardScene(Stage stage, Teacher teacher, HelloApplication app, int startPage) {
         BorderPane root = new BorderPane();
 
         VBox sidebar = new VBox(8);
@@ -244,7 +251,7 @@ public class TeacherPortal {
 
         // ── Theme switch — top of sidebar, above avatar ───────
         StackPane themeSwitch = UIUtils.themeToggleSwitch(() ->
-                stage.setScene(createDashboardScene(stage, teacher, app))
+                stage.setScene(createDashboardScene(stage, teacher, app, activeNavIndex))
         );
         HBox switchRow = new HBox(themeSwitch);
         switchRow.setAlignment(Pos.CENTER_LEFT);
@@ -274,6 +281,7 @@ public class TeacherPortal {
             final String color = nav[i][2];
             navBtns[i] = UIUtils.sidebarBtn(nav[i][0], nav[i][1], color);
             navBtns[i].setOnAction(e -> {
+                activeNavIndex = idx;
                 for (int j = 0; j < navBtns.length; j++) {
                     UIUtils.sidebarBtn(navBtns[j], nav[j][0], nav[j][1], nav[j][2]);
                 }
@@ -315,8 +323,16 @@ public class TeacherPortal {
         root.setLeft(sidebar);
         root.setCenter(contentArea);
 
-        renderDashboardHome(contentArea, app);
-        UIUtils.setSidebarBtnActive(navBtns[0], UIUtils.ACCENT_BLUE);
+        // Restore the active page (important after theme toggle)
+        UIUtils.setSidebarBtnActive(navBtns[startPage], nav[startPage][2]);
+        contentArea.getChildren().clear();
+        switch (startPage) {
+            case 0 -> renderDashboardHome(contentArea, app);
+            case 1 -> ExamEditor.show(contentArea, app);
+            case 2 -> QuestionEditor.show(contentArea, app, null, null);
+            case 3 -> QuestionBankBrowser.render(contentArea, app);
+            case 4 -> PastExams.render(contentArea, app);
+        }
 
         return new Scene(root, 1000, 600);
     }
@@ -452,7 +468,7 @@ public class TeacherPortal {
         card.setEffect(ds);
 
         Label ico = new Label(icon);
-        ico.setStyle("-fx-font-size:42px;");
+        ico.setStyle("-fx-font-size:42px;-fx-text-fill:" + UIUtils.textDark() + ";");
 
         Label hdr = new Label(heading);
         hdr.setStyle("-fx-font-size:16px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
@@ -488,7 +504,7 @@ public class TeacherPortal {
         HBox topRow = new HBox(12);
         topRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:16px;");
+        Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:16px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
         VBox info = new VBox(2);
         String displayTitle = (e.getTitle() != null && !e.getTitle().isEmpty()) ? e.getTitle() : e.getSubject();
         Label subL = new Label(displayTitle);
@@ -2057,7 +2073,7 @@ public class TeacherPortal {
                 empty.setAlignment(Pos.CENTER);
                 empty.setPadding(new Insets(40));
                 Label ico = new Label("🔍");
-                ico.setStyle("-fx-font-size:36px;");
+                ico.setStyle("-fx-font-size:36px;-fx-text-fill:" + UIUtils.textDark() + ";");
                 Label msg = new Label("No questions match your filters");
                 msg.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textMid() + ";");
                 empty.getChildren().addAll(ico, msg);
@@ -2081,7 +2097,7 @@ public class TeacherPortal {
                 Label typeBadge = UIUtils.badge(type, tColor);
 
                 // Subject + grade chip
-                Label metaBadge = UIUtils.badge(q.getSubject() + " · G" + q.getGrade(), UIUtils.TEXT_MID);
+                Label metaBadge = UIUtils.badge(q.getSubject() + " · G" + q.getGrade(), UIUtils.ACCENT_BLUE);
 
                 // Question text
                 Label qText = new Label(q.getQuestionText());

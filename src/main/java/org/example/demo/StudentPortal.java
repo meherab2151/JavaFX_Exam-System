@@ -29,7 +29,7 @@ public class StudentPortal {
         accent.setPadding(new Insets(50));
         accent.setStyle("-fx-background-color:#052e16;"); // Deep green for students
         accent.getChildren().addAll(
-                new Label("🎓") {{ setStyle("-fx-font-size:64px;"); }},
+                new Label("🎓") {{ setStyle("-fx-font-size:64px;-fx-text-fill:white;"); }},
                 new Label("EduExam") {{ setStyle("-fx-font-size:32px;-fx-font-weight:bold;-fx-text-fill:white;"); }},
                 new Label("Student Assessment Portal") {{ setStyle("-fx-font-size:14px;-fx-text-fill:#6ee7b7;"); }}
         );
@@ -95,7 +95,7 @@ public class StudentPortal {
         accent.setPrefWidth(340); accent.setAlignment(Pos.CENTER); accent.setPadding(new Insets(50));
         accent.setStyle("-fx-background-color:#052e16;");
         accent.getChildren().addAll(
-                new Label("📝") {{ setStyle("-fx-font-size:64px;"); }},
+                new Label("📝") {{ setStyle("-fx-font-size:64px;-fx-text-fill:white;"); }},
                 new Label("Join EduExam") {{ setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:white;"); }},
                 new Label("Create your student account") {{ setStyle("-fx-font-size:14px;-fx-text-fill:#6ee7b7;"); }}
         );
@@ -274,7 +274,7 @@ public class StudentPortal {
         } else {
             for (Exam ex : ExamBank.getLiveExams()) {
                 HBox row = new HBox(10); row.setAlignment(Pos.CENTER_LEFT);
-                Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:14px;");
+                Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:14px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
                 Label subj = new Label(ex.getSubject() + " — Grade " + ex.getGrade());
                 subj.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
                 Label dur = UIUtils.badge(ex.getDuration() + " min", UIUtils.ACCENT_ORG);
