@@ -1,90 +1,162 @@
 package org.example.demo;
 
 import javafx.application.Application;
-import javafx.scene.Scene;
+import javafx.geometry.*;
+import javafx.scene.*;
 import javafx.scene.control.*;
-import javafx.scene.layout.Pane;
+import javafx.scene.layout.*;
+import javafx.scene.paint.*;
+import javafx.scene.shape.*;
 import javafx.stage.Stage;
 import java.util.ArrayList;
 import java.util.HashMap;
-
 public class HelloApplication extends Application {
 
-    private static ArrayList<Teacher> teacherList = new ArrayList<>();
-    private static ArrayList<Student> studentList = new ArrayList<>();
+    private static final ArrayList<Teacher> teachers = new ArrayList<>();
+    private static final ArrayList<Student> students = new ArrayList<>();
 
     @Override
     public void start(Stage stage) {
-        // Test account
-        teacherList.add(new Teacher("A", "a", "a"));
+        // ── Seed data ─────────────────────────────────────────
+        teachers.add(new Teacher("A", "a", "a"));
 
-        QuestionBank.allQuestions.add(new MCQ(
-                "Physics", 6, "What is the unit of Force?",
-                new String[]{"Newton", "Joule", "Watt", "Pascal"}, 0
-        ));
-        QuestionBank.allQuestions.add(new TextQuestion(
-                "Physics", 6, "What is the square root of 144?", 12.0
-        ));
-        QuestionBank.allQuestions.add(new RangeQuestion(
-                "Physics", 6, "What is the boiling point of pure water in Celsius at 1 atm?",
-                99.5, 100.5
-        ));
+        QuestionBank.allQuestions.add(new MCQ("Physics", 6,
+                "What is the SI unit of force?",
+                new String[]{"Newton", "Joule", "Watt", "Pascal"}, 0));
+        QuestionBank.allQuestions.add(new TextQuestion("Physics", 6,
+                "What is the square root of 144?", 12.0));
+        QuestionBank.allQuestions.add(new RangeQuestion("Physics", 6,
+                "Boiling point of pure water in Celsius at 1 atm?", 99.5, 100.5));
 
-        HashMap<Question, Double> physicsExamQuestions = new HashMap<>();
-        for (Question q : QuestionBank.allQuestions) {
-            if (q.getSubject().equals("Physics") && q.getGrade() == 6) {
-                physicsExamQuestions.put(q, 5.0);
-            }
-        }
-        Exam physicsMidterm = new Exam("Physics", 6, 15.0, "20", physicsExamQuestions);
-        ExamBank.allExams.add(physicsMidterm);
+        HashMap<Question, Double> qMap = new HashMap<>();
+        for (Question q : QuestionBank.allQuestions)
+            if (q.getSubject().equals("Physics") && q.getGrade() == 6) qMap.put(q, 5.0);
+        ExamBank.allExams.add(new Exam("Physics", 6, 15.0, "20", qMap));
 
-        stage.setTitle("Online Exam System");
+        stage.setTitle("EduExam – Online Assessment System");
         stage.setScene(createMainScene(stage));
+        stage.setResizable(false);
         stage.show();
     }
 
     public Scene createMainScene(Stage stage) {
-        Pane root = new Pane();
-        root.setStyle("-fx-background-color: #f8f9fa;"); // Matches dashboard bg
+        // ── Root: dark left + light right split ───────────────
+        BorderPane root = new BorderPane();
 
-        Label lblWelcome = new Label("Online Exam System");
-        lblWelcome.setStyle("-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
-        lblWelcome.setLayoutX(170); lblWelcome.setLayoutY(80);
+        // LEFT – branding panel
+        VBox left = new VBox(24);
+        left.setPrefWidth(430);
+        left.setAlignment(Pos.CENTER);
+        left.setPadding(new Insets(60));
+        left.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
 
-        Button btnStudent = new Button("Student Portal");
-        Button btnTeacher = new Button("Teacher Portal");
+        Label logo  = new Label("🏫");
+        logo.setStyle("-fx-font-size:72px;");
+        Label brand = new Label("EduExam");
+        brand.setStyle("-fx-font-size:42px;-fx-font-weight:bold;-fx-text-fill:white;");
+        Label tag   = new Label("The Smart Online Assessment Platform");
+        tag.setStyle("-fx-font-size:15px;-fx-text-fill:#64748b;-fx-text-alignment:center;");
+        tag.setWrapText(true); tag.setMaxWidth(300); tag.setAlignment(Pos.CENTER);
 
-        btnStudent.setLayoutX(120); btnStudent.setLayoutY(180); btnStudent.setPrefSize(160, 50);
-        btnTeacher.setLayoutX(320); btnTeacher.setLayoutY(180); btnTeacher.setPrefSize(160, 50);
+        // Decorative dots
+        HBox dots = new HBox(10);
+        dots.setAlignment(Pos.CENTER);
+        for (String c : new String[]{UIUtils.ACCENT_BLUE, UIUtils.ACCENT_GREEN, UIUtils.ACCENT_PURP}) {
+            Circle dot = new Circle(6, Color.web(c));
+            dots.getChildren().add(dot);
+        }
 
-        UIUtils.applyButtonEffects(btnStudent, "#3498db");
-        UIUtils.applyButtonEffects(btnTeacher, "#9b59b6");
+        left.getChildren().addAll(logo, brand, tag, dots);
 
-        btnStudent.setOnAction(e -> stage.setScene(StudentLoginManager.createLoginScene(stage, studentList, this)));
-        btnTeacher.setOnAction(e -> stage.setScene(TeacherLoginManager.createLoginScene(stage, teacherList, this)));
+        // RIGHT – portal selection
+        VBox right = new VBox(30);
+        right.setAlignment(Pos.CENTER);
+        right.setPadding(new Insets(60, 70, 60, 70));
+        right.setStyle("-fx-background-color:" + UIUtils.BG_LIGHT + ";");
 
-        root.getChildren().addAll(lblWelcome, btnStudent, btnTeacher);
+        Label selTitle = new Label("Choose Your Portal");
+        selTitle.setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
+        Label selSub = UIUtils.subheading("Select your role to continue");
 
-        Scene scene = new Scene(root, 600, 400);
+        // Student card
+        VBox studentCard = buildPortalCard(
+                "🎓", "Student",
+                "Join live exams and track your scores",
+                UIUtils.ACCENT_GREEN, "#052e16",
+                () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
+        );
+
+        // Teacher card
+        VBox teacherCard = buildPortalCard(
+                "📚", "Teacher",
+                "Create exams, manage questions and results",
+                UIUtils.ACCENT_BLUE, UIUtils.BG_DARK,
+                () -> stage.setScene(TeacherPortal.createLoginScene(stage, teachers, this))
+        );
+
+        right.getChildren().addAll(selTitle, selSub, studentCard, teacherCard);
+
+        root.setLeft(left);
+        root.setCenter(right);
+
+        Scene scene = new Scene(root, 1000, 600);
         UIUtils.applyStyle(scene);
-        UIUtils.playTransition(root, false);
+        UIUtils.slideIn(right, true);
         return scene;
     }
 
-    public void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+    private VBox buildPortalCard(String icon, String title, String desc,
+                                 String accent, String darkBg, Runnable action) {
+        VBox card = new VBox(10);
+        card.setPrefWidth(320);
+        card.setPadding(new Insets(22));
+        card.setStyle("-fx-background-color:white;-fx-background-radius:16;"
+                + "-fx-border-color:" + UIUtils.BORDER + ";-fx-border-radius:16;-fx-cursor:hand;");
+        javafx.scene.effect.DropShadow ds = new javafx.scene.effect.DropShadow();
+        ds.setColor(Color.color(0,0,0,0.07)); ds.setRadius(14); ds.setOffsetY(4);
+        card.setEffect(ds);
+
+        HBox top = new HBox(14); top.setAlignment(Pos.CENTER_LEFT);
+        Circle iconBg = new Circle(24, Color.web(accent + "22"));
+        Label  iconL  = new Label(icon); iconL.setStyle("-fx-font-size:22px;");
+        StackPane iconStack = new StackPane(iconBg, iconL);
+
+        VBox text = new VBox(3);
+        Label t = new Label(title);
+        t.setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
+        Label d = new Label(desc);
+        d.setStyle("-fx-font-size:13px;-fx-text-fill:"+UIUtils.TEXT_MID+";");
+        d.setWrapText(true);
+        text.getChildren().addAll(t, d);
+        top.getChildren().addAll(iconStack, text);
+
+        Button btn = UIUtils.primaryBtn("→", "Enter " + title + " Portal", accent);
+        btn.setPrefWidth(Double.MAX_VALUE);
+        btn.setOnAction(e -> action.run());
+
+        card.getChildren().addAll(top, btn);
+
+        // Hover lift effect
+        card.setOnMouseEntered(e -> {
+            ds.setRadius(22); ds.setOffsetY(8); ds.setColor(Color.web(accent, 0.18));
+            card.setTranslateY(-3);
+        });
+        card.setOnMouseExited(e -> {
+            ds.setRadius(14); ds.setOffsetY(4); ds.setColor(Color.color(0,0,0,0.07));
+            card.setTranslateY(0);
+        });
+        return card;
     }
 
+    // ── Alert helpers ────────────────────────────────────────
+    public void showError(String title, String message) {
+        Alert a = new Alert(Alert.AlertType.ERROR);
+        a.setTitle(title); a.setHeaderText(null); a.setContentText(message);
+        a.showAndWait();
+    }
     public void showInfo(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle(title); a.setHeaderText(null); a.setContentText(message);
+        a.showAndWait();
     }
 }
