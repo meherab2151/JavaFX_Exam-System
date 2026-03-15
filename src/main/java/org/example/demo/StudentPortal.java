@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 // ═══════════════════════════════════════════════════════════
 //  StudentPortal.java
-//  Merges: StudentLoginManager, StudentDashboard
+//  CHANGED: Login and signup now use UserDAO (DB-backed).
 // ═══════════════════════════════════════════════════════════
 public class StudentPortal {
 
