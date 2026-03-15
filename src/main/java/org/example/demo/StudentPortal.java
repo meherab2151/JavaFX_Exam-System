@@ -22,12 +22,11 @@ public class StudentPortal {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.BG_LIGHT + ";");
 
-        // ── Left accent panel ────────────────────────────────
         VBox accent = new VBox(20);
         accent.setPrefWidth(340);
         accent.setAlignment(Pos.CENTER);
         accent.setPadding(new Insets(50));
-        accent.setStyle("-fx-background-color:#052e16;"); // Deep green for students
+        accent.setStyle("-fx-background-color:#052e16;");
         accent.getChildren().addAll(
                 new Label("🎓") {{ setStyle("-fx-font-size:64px;-fx-text-fill:white;"); }},
                 new Label("EduExam") {{ setStyle("-fx-font-size:32px;-fx-font-weight:bold;-fx-text-fill:white;"); }},
@@ -35,7 +34,6 @@ public class StudentPortal {
         );
         root.setLeft(accent);
 
-        // ── Right form ────────────────────────────────────────
         VBox form = new VBox(18);
         form.setAlignment(Pos.CENTER);
         form.setPadding(new Insets(60, 70, 60, 70));
@@ -57,13 +55,27 @@ public class StudentPortal {
         Button btnBack = UIUtils.ghostBtn("←", "Back", UIUtils.TEXT_MID);
 
         btnLogin.setOnAction(e -> {
-            String in = txtID.getText(), pw = txtPass.getText();
-            Student found = list.stream()
-                    .filter(s -> (s.getID().equals(in) || s.getEmail().equals(in)) && s.getPassword().equals(pw))
-                    .findFirst().orElse(null);
-            if (found != null) stage.setScene(createDashboardScene(stage, found, app));
-            else app.showError("Login Failed", "Invalid Student ID/Email or Password.");
+            String in = txtID.getText().trim();
+            String pw = txtPass.getText();
+
+            if (in.isEmpty() || pw.isEmpty()) {
+                app.showError("Missing Fields", "Please enter your ID/email and password.");
+                return;
+            }
+
+            // ── DB login ──────────────────────────────────────
+            Student found = UserDAO.loginStudent(in, pw);
+            if (found != null) {
+                // Keep in-memory list in sync
+                if (list.stream().noneMatch(s -> s.getID().equals(found.getID()))) {
+                    list.add(found);
+                }
+                stage.setScene(createDashboardScene(stage, found, app));
+            } else {
+                app.showError("Login Failed", "Invalid Student ID/Email or Password.");
+            }
         });
+
         linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
         btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
 
@@ -110,7 +122,7 @@ public class StudentPortal {
         PasswordField txtPass    = UIUtils.styledPassword("Create Password");
         PasswordField txtConfirm = UIUtils.styledPassword("Confirm Password");
 
-        // Restrict Student ID to digits only — block non-numeric input live
+        // Restrict Student ID to digits only
         txtID.textProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal.matches("\\d*")) txtID.setText(newVal.replaceAll("[^\\d]", ""));
         });
@@ -120,19 +132,38 @@ public class StudentPortal {
         Button btnBack = UIUtils.ghostBtn("←", "Back to Login", UIUtils.TEXT_MID);
 
         btnReg.setOnAction(e -> {
-            if (!txtPass.getText().equals(txtConfirm.getText())) {
-                app.showError("Mismatch", "Passwords do not match!"); return;
-            }
-            if (txtID.getText().isEmpty() || txtName.getText().isEmpty()) {
+            String id      = txtID.getText().trim();
+            String name    = txtName.getText().trim();
+            String email   = txtEmail.getText().trim();
+            String pass    = txtPass.getText();
+            String confirm = txtConfirm.getText();
+
+            // ── Validation ────────────────────────────────────
+            if (id.isEmpty() || name.isEmpty() || email.isEmpty() || pass.isEmpty()) {
                 app.showError("Missing Info", "Please fill in all fields."); return;
             }
-            if (!txtID.getText().matches("\\d+")) {
+            if (!id.matches("\\d+")) {
                 app.showError("Invalid ID", "Student ID must contain numbers only."); return;
             }
-            list.add(new Student(txtID.getText(), txtName.getText(), txtEmail.getText(), txtPass.getText()));
-            app.showInfo("✅ Registered!", "Account created. You can now log in.");
-            stage.setScene(createLoginScene(stage, list, app));
+            if (!pass.equals(confirm)) {
+                app.showError("Mismatch", "Passwords do not match!"); return;
+            }
+            if (UserDAO.studentIdExists(id)) {
+                app.showError("ID Taken", "A student with ID " + id + " already exists."); return;
+            }
+
+            // ── Save to DB ────────────────────────────────────
+            boolean ok = UserDAO.registerStudent(id, name, email, pass);
+            if (ok) {
+                Student newStudent = new Student(id, name, email, pass);
+                list.add(newStudent);
+                app.showInfo("✅ Registered!", "Account created. You can now log in.");
+                stage.setScene(createLoginScene(stage, list, app));
+            } else {
+                app.showError("Error", "Registration failed. Please try again.");
+            }
         });
+
         btnBack.setOnAction(e -> stage.setScene(createLoginScene(stage, list, app)));
 
         String lblStyle = "-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.TEXT_MID + ";";
@@ -157,13 +188,12 @@ public class StudentPortal {
     }
 
     // ╔══════════════════════════════════════════════════════╗
-    //  3. STUDENT DASHBOARD
+    //  3. STUDENT DASHBOARD  (unchanged from original)
     // ╚══════════════════════════════════════════════════════╝
     public static Scene createDashboardScene(Stage stage, Student student, HelloApplication app) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.BG_LIGHT + ";");
 
-        // ── Dark sidebar ─────────────────────────────────────
         VBox sidebar = new VBox(18);
         sidebar.setPrefWidth(210);
         sidebar.setPadding(new Insets(0, 10, 20, 10));
@@ -186,10 +216,8 @@ public class StudentPortal {
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color:#064e3b;");
 
-        // Placeholder nav items (for future expansion)
-        Button btnExam    = UIUtils.sidebarBtn("🏠", "Join Exam",    UIUtils.ACCENT_GREEN);
-        Button btnHistory = UIUtils.sidebarBtn("📋", "My Results",   UIUtils.ACCENT_BLUE);
-
+        Button btnExam    = UIUtils.sidebarBtn("🏠", "Join Exam",  UIUtils.ACCENT_GREEN);
+        Button btnHistory = UIUtils.sidebarBtn("📋", "My Results", UIUtils.ACCENT_BLUE);
         UIUtils.setSidebarBtnActive(btnExam, UIUtils.ACCENT_GREEN);
 
         Region spacer = new Region(); VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -208,21 +236,18 @@ public class StudentPortal {
 
         sidebar.getChildren().addAll(avatarBox, sep, btnExam, btnHistory, spacer, btnLogout);
 
-        // ── Main content ──────────────────────────────────────
         ScrollPane sp = new ScrollPane();
         sp.setPrefSize(790, 600);
         sp.setStyle("-fx-background:transparent;-fx-background-color:"+UIUtils.BG_LIGHT+";");
         sp.setFitToWidth(true);
 
         VBox page = new VBox(28);
-        page.setPadding(new Insets(36, 36, 36, 36));
+        page.setPadding(new Insets(36));
 
-        // Welcome header
         Label welcome = new Label("Welcome back, " + student.getName() + " 👋");
         welcome.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
         Label sub2 = UIUtils.subheading("Enter your exam code below to join a live exam");
 
-        // ── Join exam card ────────────────────────────────────
         VBox joinCard = UIUtils.card(500);
         joinCard.setMaxWidth(500);
         joinCard.setPadding(new Insets(30));
@@ -251,7 +276,6 @@ public class StudentPortal {
                         "Entering " + found.getSubject() + " exam.\n"
                                 + "Duration: " + found.getDuration() + " minutes.\n"
                                 + "Total Marks: " + found.getTotalMarks());
-                // Future: stage.setScene(StudentExamView.create(stage, student, found, app));
             } else {
                 app.showError("❌ Not Found", "No live exam found with that code.\nDouble-check with your teacher!");
             }
@@ -259,7 +283,6 @@ public class StudentPortal {
 
         joinCard.getChildren().addAll(cardTitle, cardSub, UIUtils.divider(), codeField, btnJoin);
 
-        // ── Live exams info panel ─────────────────────────────
         VBox infoCard = UIUtils.card(500);
         infoCard.setMaxWidth(500);
         infoCard.setPadding(new Insets(24));
@@ -269,12 +292,11 @@ public class StudentPortal {
 
         long liveCount = ExamBank.getLiveExams().size();
         if (liveCount == 0) {
-            Label noLive = UIUtils.subheading("No exams are live right now.");
-            infoCard.getChildren().add(noLive);
+            infoCard.getChildren().add(UIUtils.subheading("No exams are live right now."));
         } else {
             for (Exam ex : ExamBank.getLiveExams()) {
                 HBox row = new HBox(10); row.setAlignment(Pos.CENTER_LEFT);
-                Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:14px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
+                Label dot  = new Label("🟢"); dot.setStyle("-fx-font-size:14px;");
                 Label subj = new Label(ex.getSubject() + " — Grade " + ex.getGrade());
                 subj.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
                 Label dur = UIUtils.badge(ex.getDuration() + " min", UIUtils.ACCENT_ORG);

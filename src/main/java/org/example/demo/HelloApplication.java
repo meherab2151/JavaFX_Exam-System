@@ -9,10 +9,11 @@ import javafx.scene.paint.*;
 import javafx.scene.shape.*;
 import javafx.stage.Stage;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 // ═══════════════════════════════════════════════════════════
 //  HelloApplication.java  –  App entry point + home screen
+//  CHANGED: DB init, load teachers/students from DB,
+//           close DB on exit, removed hardcoded seed data.
 // ═══════════════════════════════════════════════════════════
 public class HelloApplication extends Application {
 
@@ -21,21 +22,20 @@ public class HelloApplication extends Application {
 
     @Override
     public void start(Stage stage) {
-        // ── Seed data ─────────────────────────────────────────
-        teachers.add(new Teacher("A", "a", "a"));
 
-        QuestionBank.allQuestions.add(new MCQ("Physics", 6,
-                "What is the SI unit of force?",
-                new String[]{"Newton", "Joule", "Watt", "Pascal"}, 0));
-        QuestionBank.allQuestions.add(new TextQuestion("Physics", 6,
-                "What is the square root of 144?", 12.0));
-        QuestionBank.allQuestions.add(new RangeQuestion("Physics", 6,
-                "Boiling point of pure water in Celsius at 1 atm?", 99.5, 100.5));
+        // ── 1. Init database (creates file + tables if needed) ─
+        DatabaseManager.init();
 
-        HashMap<Question, Double> qMap = new HashMap<>();
-        for (Question q : QuestionBank.allQuestions)
-            if (q.getSubject().equals("Physics") && q.getGrade() == 6) qMap.put(q, 5.0);
-        ExamBank.allExams.add(new Exam("Physics", 6, 15.0, "20", qMap));
+        // ── 2. Load persisted users from DB ───────────────────
+        teachers.addAll(UserDAO.loadAllTeachers());
+        students.addAll(UserDAO.loadAllStudents());
+
+        // ── 3. Load persisted questions from DB ───────────────
+        QuestionBank.allQuestions.addAll(QuestionDAO.loadAll());
+        System.out.println("[App] Loaded " + QuestionBank.allQuestions.size() + " questions from DB.");
+
+        // ── 4. Close DB cleanly when window is closed ─────────
+        stage.setOnCloseRequest(e -> DatabaseManager.close());
 
         stage.setTitle("EduExam – Online Assessment System");
         stage.setScene(createMainScene(stage));
@@ -44,7 +44,6 @@ public class HelloApplication extends Application {
     }
 
     public Scene createMainScene(Stage stage) {
-        // ── Root: dark left + light right split ───────────────
         BorderPane root = new BorderPane();
 
         // LEFT – branding panel
@@ -62,7 +61,6 @@ public class HelloApplication extends Application {
         tag.setStyle("-fx-font-size:15px;-fx-text-fill:#64748b;-fx-text-alignment:center;");
         tag.setWrapText(true); tag.setMaxWidth(300); tag.setAlignment(Pos.CENTER);
 
-        // Decorative dots
         HBox dots = new HBox(10);
         dots.setAlignment(Pos.CENTER);
         for (String c : new String[]{UIUtils.ACCENT_BLUE, UIUtils.ACCENT_GREEN, UIUtils.ACCENT_PURP}) {
@@ -82,7 +80,6 @@ public class HelloApplication extends Application {
         selTitle.setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
         Label selSub = UIUtils.subheading("Select your role to continue");
 
-        // Student card
         VBox studentCard = buildPortalCard(
                 "🎓", "Student",
                 "Join live exams and track your scores",
@@ -90,7 +87,6 @@ public class HelloApplication extends Application {
                 () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
         );
 
-        // Teacher card
         VBox teacherCard = buildPortalCard(
                 "📚", "Teacher",
                 "Create exams, manage questions and results",
@@ -140,7 +136,6 @@ public class HelloApplication extends Application {
 
         card.getChildren().addAll(top, btn);
 
-        // Hover lift effect
         card.setOnMouseEntered(e -> {
             ds.setRadius(22); ds.setOffsetY(8); ds.setColor(Color.web(accent, 0.18));
             card.setTranslateY(-3);
@@ -152,12 +147,12 @@ public class HelloApplication extends Application {
         return card;
     }
 
-    // ── Alert helpers ────────────────────────────────────────
     public void showError(String title, String message) {
         Alert a = new Alert(Alert.AlertType.ERROR);
         a.setTitle(title); a.setHeaderText(null); a.setContentText(message);
         a.showAndWait();
     }
+
     public void showInfo(String title, String message) {
         Alert a = new Alert(Alert.AlertType.INFORMATION);
         a.setTitle(title); a.setHeaderText(null); a.setContentText(message);

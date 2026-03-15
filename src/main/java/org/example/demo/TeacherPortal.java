@@ -136,12 +136,18 @@ public class TeacherPortal {
         Button btnBack = UIUtils.ghostBtn("←", "Back", UIUtils.TEXT_MID);
 
         btnLogin.setOnAction(e -> {
-            String in = txtUser.getText(), pw = txtPass.getText();
-            Teacher found = list.stream()
-                    .filter(t -> (t.getEmail().equals(in) || t.getUser().equals(in)) && t.getPassword().equals(pw))
-                    .findFirst().orElse(null);
-            if (found != null) stage.setScene(createDashboardScene(stage, found, app));
-            else app.showError("Login Failed", "Invalid credentials. Please try again.");
+            String in = txtUser.getText().trim(), pw = txtPass.getText();
+            if (in.isEmpty() || pw.isEmpty()) {
+                app.showError("Missing Fields", "Please enter your email and password."); return;
+            }
+            // DB login
+            Teacher found = UserDAO.loginTeacher(in, pw);
+            if (found != null) {
+                if (list.stream().noneMatch(t -> t.getEmail().equals(found.getEmail()))) list.add(found);
+                stage.setScene(createDashboardScene(stage, found, app));
+            } else {
+                app.showError("Login Failed", "Invalid credentials. Please try again.");
+            }
         });
         linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
         btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
@@ -190,11 +196,20 @@ public class TeacherPortal {
         Button btnBack = UIUtils.ghostBtn("←", "Back to Login", UIUtils.TEXT_MID);
 
         btnReg.setOnAction(e -> {
-            if (!txtPass.getText().equals(txtConfirm.getText())) { app.showError("Mismatch", "Passwords do not match!"); return; }
-            if (txtName.getText().isEmpty() || txtEmail.getText().isEmpty()) { app.showError("Missing Info", "Please fill in all fields."); return; }
-            list.add(new Teacher(txtName.getText(), txtEmail.getText(), txtPass.getText()));
-            app.showInfo("✅ Success", "Account created! You can now log in.");
-            stage.setScene(createLoginScene(stage, list, app));
+            String name  = txtName.getText().trim();
+            String email = txtEmail.getText().trim();
+            String pass  = txtPass.getText();
+            if (!pass.equals(txtConfirm.getText())) { app.showError("Mismatch", "Passwords do not match!"); return; }
+            if (name.isEmpty() || email.isEmpty() || pass.isEmpty()) { app.showError("Missing Info", "Please fill in all fields."); return; }
+            if (UserDAO.teacherEmailExists(email)) { app.showError("Email Taken", "A teacher with that email already exists."); return; }
+            boolean ok = UserDAO.registerTeacher(name, email, pass);
+            if (ok) {
+                list.add(new Teacher(name, email, pass));
+                app.showInfo("✅ Success", "Account created! You can now log in.");
+                stage.setScene(createLoginScene(stage, list, app));
+            } else {
+                app.showError("Error", "Registration failed. Please try again.");
+            }
         });
         btnBack.setOnAction(e -> stage.setScene(createLoginScene(stage, list, app)));
 
@@ -1667,7 +1682,8 @@ public class TeacherPortal {
                             nq = new RangeQuestion(s, g, txt, mn, mx);
                         }
                     }
-                    QuestionBank.allQuestions.add(0, nq);
+                    QuestionBank.allQuestions.addFirst(nq);
+                    QuestionDAO.save(nq);
                     lastAdded = nq;
                     Toast.success(ca, "Question saved to the bank!");
                     if (returnToExam) ExamEditor.show(ca, app);
@@ -2150,6 +2166,7 @@ public class TeacherPortal {
                     a.showAndWait().ifPresent(r -> {
                         if (r == ButtonType.YES) {
                             QuestionBank.allQuestions.remove(q);
+                            QuestionDAO.delete(q);
                             results.getChildren().remove(row);
                             Toast.success(ca, "Question deleted");
                             totalLbl.setText((Integer.parseInt(totalLbl.getText().split(" ")[0]) - 1)
