@@ -1,6 +1,5 @@
 /* ═══════════════════════════════════════════════════
    EduExam – Global Stylesheet
-   Clean minimal aesthetic — Notion / Linear inspired
    ═══════════════════════════════════════════════════ */
 
 /* ── Root font smoothing ────────────────────────────
@@ -84,52 +83,54 @@
     -fx-faint-focus-color: transparent;
 }
 
-/* ── ComboBox — clean and consistent ────────────────*/
-.combo-box {
-    -fx-background-color: white;
-    -fx-border-color: #e2e8f0;
-    -fx-border-radius: 8;
-    -fx-background-radius: 8;
-    -fx-font-size: 13px;
-    -fx-padding: 6 10;
-    -fx-effect: none;
+/* ── ComboBox — B×C fusion ───────────────────────────────
+   Trigger: underline-only border set via inline Java style.
+   Arrow + value cell styled here.
+   Popup: Java glassify() owns bg/border/shadow — CSS transparent. */
+
+.combo-box { -fx-effect: none; -fx-cursor: hand; }
+.combo-box:focused { -fx-effect: none; }
+.combo-box .arrow-button { -fx-background-color: transparent; -fx-padding: 0 12 0 0; }
+.combo-box .arrow {
+    -fx-background-color: #6366f1;
+    -fx-shape: "M1 1 L5 5 L9 1";
+    -fx-scale-shape: true;
+    -fx-pref-width: 9px;
+    -fx-pref-height: 5px;
 }
-.combo-box:focused {
-    -fx-border-color: #2563eb;
-    -fx-border-width: 1.5;
-    -fx-effect: dropshadow(gaussian, #2563eb28, 8, 0, 0, 0);
-}
-.combo-box:hover {
-    -fx-border-color: #cbd5e1;
-}
+.combo-box:hover .arrow { -fx-background-color: #818cf8; }
 .combo-box .list-cell {
     -fx-text-fill: #0f172a;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-background-color: transparent;
+    -fx-padding: 0;
 }
-.combo-box-popup .list-view {
-    -fx-background-color: white;
-    -fx-border-color: #e2e8f0;
-    -fx-background-radius: 10;
-    -fx-border-radius: 10;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.10), 16, 0, 0, 4);
-    -fx-padding: 4;
+
+/* ── Popup — transparent so Java Background (Color.rgb alpha) wins ── */
+.combo-box-popup .list-view,
+.combo-box-popup .list-view:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-padding: 5;
 }
-.combo-box-popup .list-cell {
-    -fx-background-radius: 6;
-    -fx-padding: 8 12;
-    -fx-font-size: 13px;
-    -fx-text-fill: #0f172a;
+/* Rows — Java CellFactory.paint() owns ALL colours via setBackground().
+   Setting -fx-background-color here would override it. Blank everything. */
+.combo-box-popup .list-cell,
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled,
+.combo-box-popup .list-cell:selected,
+.combo-box-popup .list-cell:focused,
+.combo-box-popup .list-cell:selected:hover,
+.combo-box-popup .list-cell:selected:focused {
+    -fx-background-color: transparent;
+    -fx-text-fill: transparent;
+    -fx-background-radius: 9;
+    -fx-padding: 0;
+    -fx-cursor: hand;
 }
-.combo-box-popup .list-cell:hover {
-    -fx-background-color: #eff6ff;
-    -fx-text-fill: #2563eb;
-}
-.combo-box-popup .list-cell:selected {
-    -fx-background-color: #eff6ff;
-    -fx-text-fill: #2563eb;
-    -fx-font-weight: bold;
-}
+.combo-box-popup .list-cell .label { -fx-graphic-text-gap: 10; }
 
 /* ── Alert / Dialog — modernized ────────────────────*/
 .dialog-pane {

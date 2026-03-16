@@ -216,9 +216,18 @@ public class StudentPortal {
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color:#064e3b;");
 
-        Button btnExam    = UIUtils.sidebarBtn("🏠", "Join Exam",  UIUtils.ACCENT_GREEN);
-        Button btnHistory = UIUtils.sidebarBtn("📋", "My Results", UIUtils.ACCENT_BLUE);
-        UIUtils.setSidebarBtnActive(btnExam, UIUtils.ACCENT_GREEN);
+        StackPane btnExam    = UIUtils.modernSidebarBtn("🏠", "Join Exam",  UIUtils.ACCENT_GREEN);
+        StackPane btnHistory = UIUtils.modernSidebarBtn("📋", "My Results", UIUtils.ACCENT_BLUE);
+        UIUtils.modernSidebarSetActive(btnExam);
+
+        btnExam.setOnMouseClicked(e -> {
+            UIUtils.modernSidebarSetActive(btnExam);
+            UIUtils.modernSidebarSetInactive(btnHistory);
+        });
+        btnHistory.setOnMouseClicked(e -> {
+            UIUtils.modernSidebarSetActive(btnHistory);
+            UIUtils.modernSidebarSetInactive(btnExam);
+        });
 
         Region spacer = new Region(); VBox.setVgrow(spacer, Priority.ALWAYS);
         Button btnLogout = UIUtils.primaryBtn("🚪", "Log Out", UIUtils.ACCENT_RED);

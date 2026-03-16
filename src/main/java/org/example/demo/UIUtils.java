@@ -7,6 +7,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.GaussianBlur;
 import javafx.scene.layout.*;
 import javafx.scene.paint.*;
 import javafx.scene.shape.Circle;
@@ -243,6 +244,261 @@ public class UIUtils {
         return ta;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  MODERN COMBOBOX — B×C fusion
+    //  Trigger : underline-only (Style C / Material)
+    //  Popup   : frosted glass card — background set via Java
+    //            API (Color.rgb with alpha) because JavaFX CSS
+    //            does NOT support rgba(). CSS transparent so
+    //            Java Background wins unconditionally.
+    //  Rows    : animated 3px left accent bar (ScaleTransition)
+    //            + text scale-up on selected (Style C effects)
+    // ═══════════════════════════════════════════════════════════
+
+    // ── Popup / row colour constants ─────────────────────────
+    private static final Color   IND_600    = Color.web("#6366f1");
+    private static final Color   IND_400    = Color.web("#818cf8");
+    private static final Color   GREEN_CHK  = Color.web("#10b981");
+    private static final Color   POPUP_BG   = Color.rgb(248, 249, 255, 0.96);
+    private static final Color   POPUP_BDR  = Color.rgb( 99, 102, 241, 0.22);
+    private static final Color   ROW_HOV_BG = Color.rgb( 99, 102, 241, 0.08);
+    private static final Color   ROW_SEL_BG = Color.rgb( 99, 102, 241, 0.13);
+    private static final Color   ROW_TXT    = Color.web("#475569");
+    private static final Color   ROW_TXT_ON = Color.web("#1e1b4b");
+    private static final javafx.scene.layout.CornerRadii ROW_RX
+            = new javafx.scene.layout.CornerRadii(9);
+
+    private static String hex(Color c) {
+        return String.format("#%02x%02x%02x",
+                (int)(c.getRed()*255),(int)(c.getGreen()*255),(int)(c.getBlue()*255));
+    }
+
+    /** Apply glass card to popup ListView. Sets transparent CSS first so Java Background wins. */
+    private static void glassify(javafx.scene.control.ListView<?> lv) {
+        lv.setStyle("-fx-background-color:transparent;-fx-border-color:transparent;"
+                + "-fx-background-radius:14;-fx-border-radius:14;");
+        lv.setBackground(new Background(new BackgroundFill(
+                POPUP_BG, new javafx.scene.layout.CornerRadii(14), Insets.EMPTY)));
+        lv.setBorder(new javafx.scene.layout.Border(new javafx.scene.layout.BorderStroke(
+                POPUP_BDR, javafx.scene.layout.BorderStrokeStyle.SOLID,
+                new javafx.scene.layout.CornerRadii(14),
+                new javafx.scene.layout.BorderWidths(0.8))));
+        DropShadow ds = new DropShadow();
+        ds.setColor(Color.rgb(80, 70, 180, 0.18));
+        ds.setRadius(44); ds.setOffsetY(14); ds.setSpread(0.02);
+        lv.setEffect(ds);
+        lv.setPadding(new Insets(5));
+        // open animation
+        lv.setOpacity(0); lv.setScaleX(0.97); lv.setScaleY(0.95);
+        FadeTransition ft = new FadeTransition(Duration.millis(180), lv); ft.setToValue(1);
+        ScaleTransition sx = new ScaleTransition(Duration.millis(180), lv);
+        sx.setToX(1); sx.setInterpolator(Interpolator.EASE_OUT);
+        ScaleTransition sy = new ScaleTransition(Duration.millis(180), lv);
+        sy.setToY(1); sy.setInterpolator(Interpolator.EASE_OUT);
+        new ParallelTransition(ft, sx, sy).play();
+    }
+
+    /** Get popup ListView from skin — works JavaFX 17+ without cast to internal class. */
+    private static javafx.scene.control.ListView<?> popupLv(Skin<?> skin) {
+        try { // JavaFX 20+ public API
+            var m = skin.getClass().getMethod("getListView");
+            return (javafx.scene.control.ListView<?>) m.invoke(skin);
+        } catch (Exception ignored) {}
+        Class<?> c = skin.getClass();  // JavaFX 17-19 field reflection
+        while (c != null) {
+            try {
+                var f = c.getDeclaredField("listView");
+                f.setAccessible(true);
+                return (javafx.scene.control.ListView<?>) f.get(skin);
+            } catch (NoSuchFieldException e) { c = c.getSuperclass(); }
+            catch (Exception e)            { break; }
+        }
+        return null;
+    }
+
+    public static <T> StackPane styledCombo(String floatLabel) {
+        ComboBox<T> cb = new ComboBox<>();
+        cb.setPrefHeight(48);
+        cb.setMaxWidth(Double.MAX_VALUE);
+
+        final String BASE_STYLE =
+                "-fx-background-color:" + bgSurface() + ";" +
+                        "-fx-border-color:transparent transparent #6366f1 transparent;" +
+                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
+                        "-fx-font-size:14px;-fx-padding:10 12 10 12;-fx-cursor:hand;";
+        final String SELECTED_STYLE =
+                "-fx-background-color:" + bgSurface() + ";" +
+                        "-fx-border-color:transparent transparent #6366f1 transparent;" +
+                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
+                        "-fx-font-size:14px;-fx-padding:18 12 4 12;-fx-cursor:hand;";
+        final String ERROR_STYLE =
+                "-fx-background-color:" + bgSurface() + ";" +
+                        "-fx-border-color:transparent transparent #ef4444 transparent;" +
+                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
+                        "-fx-font-size:14px;-fx-padding:10 12 10 12;-fx-cursor:hand;";
+        cb.setStyle(BASE_STYLE);
+
+        Label lbl = new Label(floatLabel);
+        lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle()
+                + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
+        lbl.setMouseTransparent(true);
+        lbl.setTranslateX(14);
+
+        StackPane wrapper = new StackPane(cb, lbl);
+        wrapper.setAlignment(Pos.CENTER_LEFT);
+        wrapper.setUserData(cb);
+        wrapper.setId(BASE_STYLE + "||" + SELECTED_STYLE + "||" + ERROR_STYLE);
+
+        cb.valueProperty().addListener((obs, o, n) -> {
+            if (n != null) {
+                TranslateTransition tt = new TranslateTransition(Duration.millis(170), lbl);
+                tt.setToY(-14); tt.setInterpolator(Interpolator.EASE_OUT); tt.play();
+                lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;"
+                        + "-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
+                cb.setStyle(SELECTED_STYLE);
+            } else {
+                TranslateTransition tt = new TranslateTransition(Duration.millis(170), lbl);
+                tt.setToY(0); tt.setInterpolator(Interpolator.EASE_OUT); tt.play();
+                lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle()
+                        + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
+                cb.setStyle(BASE_STYLE);
+            }
+        });
+
+        cb.setOnMouseEntered(e -> { if (cb.getValue()==null) cb.setStyle(BASE_STYLE.replace("#6366f1","#818cf8")); });
+        cb.setOnMouseExited(e  -> { if (cb.getValue()==null) cb.setStyle(BASE_STYLE); });
+
+        javafx.application.Platform.runLater(() -> {
+            if (cb.getValue() != null) {
+                lbl.setTranslateY(-14);
+                lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;"
+                        + "-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
+                cb.setStyle(SELECTED_STYLE);
+            }
+        });
+
+        // ── CellFactory — Style C: left bar + text scale ─────
+        // RULES: setText(null) always. Graphic = HBox row.
+        // setBackground() via Java API — no setStyle() on cell body.
+        cb.setCellFactory(lv -> new javafx.scene.control.ListCell<T>() {
+
+            private final Rectangle bar    = new Rectangle(3, 26, IND_600);
+            private final Circle    dot    = new Circle(7, GREEN_CHK);
+            private final Label     chkTxt = new Label("✓");
+            private final StackPane chk    = new StackPane(dot, chkTxt);
+            private final StackPane slot   = new StackPane();
+            private final Label     rowLbl = new Label();
+            private final HBox      row;
+
+            {
+                bar.setArcWidth(3); bar.setArcHeight(3);
+                bar.setScaleY(0);   bar.setOpacity(0);
+                chkTxt.setStyle("-fx-font-size:9px;-fx-font-weight:bold;-fx-text-fill:white;");
+                chk.setPrefSize(16,16);  chk.setMaxSize(16,16);
+                slot.setPrefSize(16,16); slot.setMaxSize(16,16);
+                rowLbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + hex(ROW_TXT) + ";");
+                Region g1 = new Region(); g1.setPrefWidth(10);
+                Region g2 = new Region(); g2.setPrefWidth(8);
+                row = new HBox(0, bar, g1, slot, g2, rowLbl);
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.setPadding(new Insets(9, 14, 9, 0));
+                setText(null);
+                setGraphic(row);
+                setPadding(Insets.EMPTY);
+                setBackground(Background.EMPTY);
+                setCursor(javafx.scene.Cursor.HAND);
+            }
+
+            private void animBar(boolean show) {
+                ScaleTransition st = new ScaleTransition(Duration.millis(180), bar);
+                st.setToY(show ? 1.0 : 0.0); st.setInterpolator(Interpolator.EASE_OUT);
+                FadeTransition ft = new FadeTransition(Duration.millis(180), bar);
+                ft.setToValue(show ? 1.0 : 0.0);
+                new ParallelTransition(st, ft).play();
+            }
+
+            private void animText(boolean sel) {
+                ScaleTransition st = new ScaleTransition(Duration.millis(160), rowLbl);
+                st.setToX(sel ? 1.04 : 1.0); st.setToY(sel ? 1.04 : 1.0);
+                st.setInterpolator(Interpolator.EASE_OUT); st.play();
+            }
+
+            private void paint(boolean sel, boolean hov) {
+                Color bg = sel ? ROW_SEL_BG : hov ? ROW_HOV_BG : Color.TRANSPARENT;
+                setBackground(new Background(new BackgroundFill(bg, ROW_RX, Insets.EMPTY)));
+                Color tc = (sel || hov) ? ROW_TXT_ON : ROW_TXT;
+                rowLbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + hex(tc)
+                        + ";-fx-font-weight:" + (sel ? "bold" : "normal") + ";");
+                bar.setFill(sel ? IND_600 : IND_400);
+                slot.getChildren().setAll(sel ? chk : new Region());
+            }
+
+            @Override protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
+                    setGraphic(null); setBackground(Background.EMPTY); return;
+                }
+                rowLbl.setText(item.toString());
+                setGraphic(row);
+                boolean sel = isSelected();
+                paint(sel, false);
+                bar.setScaleY(sel ? 1.0 : 0.0); bar.setOpacity(sel ? 1.0 : 0.0);
+                rowLbl.setScaleX(sel ? 1.04 : 1.0); rowLbl.setScaleY(sel ? 1.04 : 1.0);
+            }
+
+            {
+                setOnMouseEntered(e -> { paint(isSelected(), true);  if (!isSelected()) animBar(true);  });
+                setOnMouseExited(e  -> { paint(isSelected(), false); if (!isSelected()) animBar(false); });
+                selectedProperty().addListener((obs, was, now) -> {
+                    paint(now, false); animBar(now); animText(now);
+                });
+            }
+        });
+
+        // ── Glass popup — hook via skin (lookup() won't work) ─
+        Runnable wire = () -> {
+            Skin<?> skin = cb.getSkin();
+            if (skin == null) return;
+            javafx.scene.control.ListView<?> popupList = popupLv(skin);
+            if (popupList != null) glassify(popupList);
+        };
+        cb.skinProperty().addListener((obs, o, n) -> { if (n!=null) javafx.application.Platform.runLater(wire); });
+        cb.setOnShowing(e -> javafx.application.Platform.runLater(wire));
+
+        return wrapper;
+    }
+
+    public static <T> StackPane styledCombo(String floatLabel, String ignoredPrompt) {
+        return styledCombo(floatLabel);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> ComboBox<T> getCombo(StackPane wrapper) {
+        return (ComboBox<T>) wrapper.getUserData();
+    }
+
+    public static void comboError(StackPane wrapper) {
+        ComboBox<?> cb = getCombo(wrapper);
+        String[] styles = wrapper.getId().split("\\|\\|");
+        cb.setStyle(styles[2]);
+        Label lbl = (Label) wrapper.getChildren().get(1);
+        if (cb.getValue() == null)
+            lbl.setStyle("-fx-font-size:14px;-fx-text-fill:#ef4444;-fx-font-weight:normal;-fx-mouse-transparent:true;");
+    }
+
+    public static void comboClear(StackPane wrapper) {
+        ComboBox<?> cb = getCombo(wrapper);
+        String[] styles = wrapper.getId().split("\\|\\|");
+        Label lbl = (Label) wrapper.getChildren().get(1);
+        if (cb.getValue() != null) {
+            cb.setStyle(styles[1]);
+            lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
+        } else {
+            cb.setStyle(styles[0]);
+            lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
+        }
+    }
     // ── PRIMARY button ────────────────────────────────────────
     public static Button primaryBtn(String icon, String text, String color) {
         String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
@@ -287,7 +543,7 @@ public class UIUtils {
         return b;
     }
 
-    // ── SIDEBAR buttons ───────────────────────────────────────
+    // ── SIDEBAR buttons (legacy — kept for backward compat) ───
     public static void sidebarBtn(Button b, String icon, String label, String color) {
         b.setText(icon + "   " + label);
         String inactive =
@@ -333,6 +589,195 @@ public class UIUtils {
                         "-fx-cursor:hand;-fx-alignment:center-left;" +
                         "-fx-border-color:" + color + ";-fx-border-width:0 0 0 2.5;-fx-border-radius:0;"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  MODERN SIDEBAR NAV  — Icon box + frosted glass + pill
+    //
+    //  Returns a StackPane (the full clickable row).
+    //  Call modernSidebarSetActive / modernSidebarSetInactive
+    //  to toggle state. Both methods are animation-safe.
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Build a modern sidebar nav row.
+     *
+     * Layout:  [pill] [icon-box] [label text]   (all in a StackPane→HBox)
+     *
+     * The returned StackPane is the clickable unit; attach setOnMouseClicked to it.
+     * Tag it with setId(color) so the helpers can read the accent back later.
+     */
+    public static StackPane modernSidebarBtn(String icon, String label, String color) {
+
+        // ── Left pill indicator (hidden until active) ─────────
+        Rectangle pill = new Rectangle(3, 22);
+        pill.setArcWidth(3); pill.setArcHeight(3);
+        pill.setFill(Color.web(color));
+        pill.setOpacity(0);                     // starts invisible
+        StackPane pillWrap = new StackPane(pill);
+        pillWrap.setPrefWidth(6);
+        pillWrap.setAlignment(Pos.CENTER_LEFT);
+
+        // ── Icon box ──────────────────────────────────────────
+        Label iconLbl = new Label(icon);
+        iconLbl.setStyle("-fx-font-size:15px;");
+
+        Rectangle iconBg = new Rectangle(32, 32);
+        iconBg.setArcWidth(9); iconBg.setArcHeight(9);
+        iconBg.setFill(Color.web("#ffffff", 0.06));   // subtle inactive tint
+
+        StackPane iconBox = new StackPane(iconBg, iconLbl);
+        iconBox.setPrefSize(32, 32);
+        iconBox.setAlignment(Pos.CENTER);
+
+        // ── Label ─────────────────────────────────────────────
+        Label textLbl = new Label(label);
+        textLbl.setStyle(
+                "-fx-font-size:13px;-fx-font-weight:normal;" +
+                        "-fx-text-fill:#94a3b8;"   // TEXT_SUBTLE
+        );
+
+        // ── Row ───────────────────────────────────────────────
+        HBox row = new HBox(10, pillWrap, iconBox, textLbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 8, 0, 2));
+
+        // ── Frosted-glass background (hidden until active) ────
+        //    We fake blur with a semi-transparent rounded rect
+        //    layered behind the row. Opacity animated on toggle.
+        Rectangle glass = new Rectangle();
+        glass.setArcWidth(10); glass.setArcHeight(10);
+        glass.setFill(Color.web("#ffffff", 0.09));
+        glass.setStroke(Color.web("#ffffff", 0.11));
+        glass.setStrokeWidth(0.8);
+        glass.setOpacity(0);
+
+        // ── Outer wrapper (StackPane) ─────────────────────────
+        StackPane wrapper = new StackPane(glass, row);
+        wrapper.setPrefWidth(190);
+        wrapper.setPrefHeight(44);
+        wrapper.setAlignment(Pos.CENTER_LEFT);
+        wrapper.setCursor(javafx.scene.Cursor.HAND);
+        wrapper.setId(color);   // store accent for helpers
+
+        // Keep glass rect always same size as wrapper
+        wrapper.widthProperty().addListener((obs, o, n) -> glass.setWidth(n.doubleValue() - 4));
+        glass.setWidth(186); glass.setHeight(40);
+        glass.heightProperty().bind(wrapper.heightProperty().subtract(4));
+        wrapper.setTranslateX(2);
+
+        // ── Hover effect (inactive state) ─────────────────────
+        wrapper.setOnMouseEntered(e -> {
+            if (glass.getOpacity() < 0.5) {   // not already active
+                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
+                ft.setToValue(0.45); ft.play();
+                textLbl.setStyle(
+                        "-fx-font-size:13px;-fx-font-weight:normal;" +
+                                "-fx-text-fill:#cbd5e1;"
+                );
+            }
+        });
+        wrapper.setOnMouseExited(e -> {
+            if (glass.getOpacity() < 0.8) {   // not active
+                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
+                ft.setToValue(0); ft.play();
+                textLbl.setStyle(
+                        "-fx-font-size:13px;-fx-font-weight:normal;" +
+                                "-fx-text-fill:#94a3b8;"
+                );
+            }
+        });
+
+        // Click press micro-animation
+        wrapper.setOnMousePressed(e  -> wrapper.setScaleX(0.97));
+        wrapper.setOnMouseReleased(e -> wrapper.setScaleX(1.0));
+
+        return wrapper;
+    }
+
+    /** Animate the nav item into its active state. */
+    public static void modernSidebarSetActive(StackPane wrapper) {
+        String color = wrapper.getId();
+
+        Rectangle glass   = (Rectangle) wrapper.getChildren().get(0);
+        HBox      row     = (HBox)      wrapper.getChildren().get(1);
+        StackPane pillWrap = (StackPane) row.getChildren().get(0);
+        StackPane iconBox  = (StackPane) row.getChildren().get(1);
+        Label     textLbl  = (Label)     row.getChildren().get(2);
+        Rectangle pill     = (Rectangle) pillWrap.getChildren().get(0);
+        Rectangle iconBg   = (Rectangle) iconBox.getChildren().get(0);
+
+        // Frosted glass fade-in
+        FadeTransition glassFade = new FadeTransition(Duration.millis(200), glass);
+        glassFade.setToValue(1); glassFade.play();
+
+        // Pill slide-in (scale from 0 → 1 on Y)
+        pill.setScaleY(0);
+        FadeTransition pillFade = new FadeTransition(Duration.millis(200), pill);
+        pillFade.setToValue(1);
+        ScaleTransition pillScale = new ScaleTransition(Duration.millis(220), pill);
+        pillScale.setToY(1);
+        pillScale.setInterpolator(Interpolator.EASE_OUT);
+        new ParallelTransition(pillFade, pillScale).play();
+
+        // Icon box fill with accent color
+        iconBg.setFill(Color.web(color));
+
+        // Text bold + accent color
+        textLbl.setStyle(
+                "-fx-font-size:13px;-fx-font-weight:bold;" +
+                        "-fx-text-fill:" + color + ";"
+        );
+
+        // Hover overrides when active — keep glass at 1
+        wrapper.setOnMouseEntered(null);
+        wrapper.setOnMouseExited(null);
+    }
+
+    /** Reset a nav item back to its inactive state. */
+    public static void modernSidebarSetInactive(StackPane wrapper) {
+        String color = wrapper.getId();
+
+        Rectangle glass   = (Rectangle) wrapper.getChildren().get(0);
+        HBox      row     = (HBox)      wrapper.getChildren().get(1);
+        StackPane pillWrap = (StackPane) row.getChildren().get(0);
+        StackPane iconBox  = (StackPane) row.getChildren().get(1);
+        Label     textLbl  = (Label)     row.getChildren().get(2);
+        Rectangle pill     = (Rectangle) pillWrap.getChildren().get(0);
+        Rectangle iconBg   = (Rectangle) iconBox.getChildren().get(0);
+
+        // Glass out
+        FadeTransition glassFade = new FadeTransition(Duration.millis(150), glass);
+        glassFade.setToValue(0); glassFade.play();
+
+        // Pill out
+        FadeTransition pillFade = new FadeTransition(Duration.millis(150), pill);
+        pillFade.setToValue(0); pillFade.play();
+
+        // Icon box back to subtle tint
+        iconBg.setFill(Color.web("#ffffff", 0.06));
+
+        // Text back to subtle
+        textLbl.setStyle(
+                "-fx-font-size:13px;-fx-font-weight:normal;" +
+                        "-fx-text-fill:#94a3b8;"
+        );
+
+        // Restore hover handlers
+        wrapper.setOnMouseEntered(e -> {
+            if (glass.getOpacity() < 0.5) {
+                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
+                ft.setToValue(0.45); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#cbd5e1;");
+            }
+        });
+        wrapper.setOnMouseExited(e -> {
+            if (glass.getOpacity() < 0.8) {
+                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
+                ft.setToValue(0); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
+            }
+        });
     }
 
     // ── Divider ───────────────────────────────────────────────

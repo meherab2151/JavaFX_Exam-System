@@ -32,7 +32,7 @@ public class TeacherPortal {
                 switch (type) {
                     case SUCCESS -> { bg = UIUtils.ACCENT_GREEN; icon = "✅"; }
                     case ERROR   -> { bg = UIUtils.ACCENT_RED;   icon = "❌"; }
-                    default      -> { bg = UIUtils.ACCENT_BLUE;  icon = "ℹ"; }
+                    default      -> { bg = UIUtils.ACCENT_BLUE;  icon = "!"; }
                 }
 
                 HBox toast = new HBox(10);
@@ -290,17 +290,17 @@ public class TeacherPortal {
                 {"📚", "Question Bank",  UIUtils.ACCENT_GREEN},
                 {"📂", "Past Exams",     UIUtils.ACCENT_ORG},
         };
-        Button[] navBtns = new Button[nav.length];
+        StackPane[] navBtns = new StackPane[nav.length];
         for (int i = 0; i < nav.length; i++) {
             final int idx = i;
             final String color = nav[i][2];
-            navBtns[i] = UIUtils.sidebarBtn(nav[i][0], nav[i][1], color);
-            navBtns[i].setOnAction(e -> {
+            navBtns[i] = UIUtils.modernSidebarBtn(nav[i][0], nav[i][1], color);
+            navBtns[i].setOnMouseClicked(e -> {
                 activeNavIndex = idx;
                 for (int j = 0; j < navBtns.length; j++) {
-                    UIUtils.sidebarBtn(navBtns[j], nav[j][0], nav[j][1], nav[j][2]);
+                    UIUtils.modernSidebarSetInactive(navBtns[j]);
                 }
-                UIUtils.setSidebarBtnActive(navBtns[idx], color);
+                UIUtils.modernSidebarSetActive(navBtns[idx]);
                 contentArea.getChildren().clear();
                 // Clear any in-progress exam editing when navigating away
                 if (idx != 1) { ExamEditor.clearState(); ExamEditor.editing = null; }
@@ -339,7 +339,7 @@ public class TeacherPortal {
         root.setCenter(contentArea);
 
         // Restore the active page (important after theme toggle)
-        UIUtils.setSidebarBtnActive(navBtns[startPage], nav[startPage][2]);
+        UIUtils.modernSidebarSetActive(navBtns[startPage]);
         contentArea.getChildren().clear();
         switch (startPage) {
             case 0 -> renderDashboardHome(contentArea, app);
@@ -1173,14 +1173,16 @@ public class TeacherPortal {
             Label cfglbl = sectionLabel("Exam Configuration");
             HBox cfg = new HBox(14); cfg.setAlignment(Pos.CENTER_LEFT);
 
-            ComboBox<String>  cbSub = new ComboBox<>();
+            StackPane wrapSub = UIUtils.styledCombo("Subject", "Select subject…");
+            ComboBox<String> cbSub = UIUtils.getCombo(wrapSub);
             cbSub.getItems().addAll("Physics", "Chemistry", "Math", "Biology", "English");
-            cbSub.setPromptText("📚 Subject"); cbSub.setStyle("-fx-font-size:14px;-fx-pref-height:42px;");
+            wrapSub.setPrefWidth(180);
             if (sSub != null) cbSub.setValue(sSub);
 
-            ComboBox<Integer> cbGrd = new ComboBox<>();
+            StackPane wrapGrd = UIUtils.styledCombo("Class", "Select class…");
+            ComboBox<Integer> cbGrd = UIUtils.getCombo(wrapGrd);
             for (int i = 6; i <= 12; i++) cbGrd.getItems().add(i);
-            cbGrd.setPromptText("🎓 Class"); cbGrd.setStyle("-fx-font-size:14px;-fx-pref-height:42px;");
+            wrapGrd.setPrefWidth(160);
             if (sGrd != null) cbGrd.setValue(sGrd);
 
             TextField fMark = UIUtils.styledField("Total Marks"); fMark.setPrefWidth(120);
@@ -1192,7 +1194,7 @@ public class TeacherPortal {
             fMark.setOnKeyReleased(e -> { sMrk = fMark.getText(); updateMark(); clearFieldError(fMark); });
             fDur.setOnKeyReleased(e  -> { sDur = fDur.getText(); clearFieldError(fDur); });
 
-            cfg.getChildren().addAll(cbSub, cbGrd, fMark, fDur);
+            cfg.getChildren().addAll(wrapSub, wrapGrd, fMark, fDur);
 
             // ── Mark tracker ──────────────────────────────────
             markLbl = new Label("Selected: 0 / 0 Marks");
@@ -1204,8 +1206,8 @@ public class TeacherPortal {
 
             if (sSub != null && sGrd != null) refreshList(sSub, sGrd, app);
 
-            cbSub.setOnAction(e -> { sSub = cbSub.getValue(); clearComboError(cbSub); sel.clear(); refreshList(sSub, sGrd, app); });
-            cbGrd.setOnAction(e -> { sGrd = cbGrd.getValue(); clearComboError(cbGrd); sel.clear(); refreshList(sSub, sGrd, app); });
+            cbSub.setOnAction(e -> { sSub = cbSub.getValue(); UIUtils.comboClear(wrapSub); sel.clear(); refreshList(sSub, sGrd, app); });
+            cbGrd.setOnAction(e -> { sGrd = cbGrd.getValue(); UIUtils.comboClear(wrapGrd); sel.clear(); refreshList(sSub, sGrd, app); });
 
             // ── Action buttons ────────────────────────────────
             HBox actions = new HBox(14);
@@ -1214,7 +1216,7 @@ public class TeacherPortal {
             Button btnCancel = UIUtils.ghostBtn("✕", "Cancel", UIUtils.TEXT_MID);
 
             btnMore.setOnAction(e -> QuestionEditor.show(ca, app, cbSub.getValue(), cbGrd.getValue()));
-            btnCreate.setOnAction(e -> handleCreate(app, ca, cbSub, cbGrd, fMark, fDur));
+            btnCreate.setOnAction(e -> handleCreate(app, ca, wrapSub, wrapGrd, fMark, fDur));
             btnCancel.setOnAction(e -> { clearState(); editing = null; renderDashboardHome(ca, app); });
             actions.getChildren().addAll(btnMore, btnCreate, btnCancel);
 
@@ -1504,20 +1506,14 @@ public class TeacherPortal {
                     .replace("-fx-border-color:#ef4444", "-fx-border-color:" + UIUtils.BORDER);
             f.setStyle(s);
         }
-        private static void markComboError(ComboBox<?> c) {
-            c.setStyle(c.getStyle() + "-fx-border-color:#ef4444;-fx-border-width:1.5;-fx-border-radius:8;");
-        }
-        private static void clearComboError(ComboBox<?> c) {
-            c.setStyle(c.getStyle()
-                    .replace("-fx-border-color:#ef4444;-fx-border-width:1.5;-fx-border-radius:8;", ""));
-        }
-
         private static void handleCreate(HelloApplication app, Pane ca,
-                                         ComboBox<String> cbSub, ComboBox<Integer> cbGrd,
+                                         StackPane wrapSub, StackPane wrapGrd,
                                          TextField fMark, TextField fDur) {
+            ComboBox<String>  cbSub = UIUtils.getCombo(wrapSub);
+            ComboBox<Integer> cbGrd = UIUtils.getCombo(wrapGrd);
             boolean valid = true;
-            if (sSub == null) { markComboError(cbSub); valid = false; }
-            if (sGrd == null) { markComboError(cbGrd); valid = false; }
+            if (sSub == null) { UIUtils.comboError(wrapSub); valid = false; }
+            if (sGrd == null) { UIUtils.comboError(wrapGrd); valid = false; }
             if (sMrk.isEmpty()) { markFieldError(fMark); valid = false; }
             if (sDur.isEmpty()) { markFieldError(fDur);  valid = false; }
             if (!valid) {
@@ -1614,12 +1610,14 @@ public class TeacherPortal {
             Label sub2  = UIUtils.subheading("Add MCQ, text, or range questions to the question bank");
 
             HBox cfg = new HBox(14); cfg.setAlignment(Pos.CENTER_LEFT);
-            ComboBox<String>  cbSub = new ComboBox<>();
+            StackPane wrapSub = UIUtils.styledCombo("Subject", "Select subject…");
+            ComboBox<String>  cbSub = UIUtils.getCombo(wrapSub);
             cbSub.getItems().addAll("Physics", "Chemistry", "Math", "Biology", "English");
-            cbSub.setPromptText("📚 Subject"); cbSub.setStyle("-fx-font-size:14px;-fx-pref-height:42px;");
-            ComboBox<Integer> cbGrd = new ComboBox<>();
+            wrapSub.setPrefWidth(180);
+            StackPane wrapGrd = UIUtils.styledCombo("Class", "Select class…");
+            ComboBox<Integer> cbGrd = UIUtils.getCombo(wrapGrd);
             for (int i = 6; i <= 12; i++) cbGrd.getItems().add(i);
-            cbGrd.setPromptText("🎓 Class"); cbGrd.setStyle("-fx-font-size:14px;-fx-pref-height:42px;");
+            wrapGrd.setPrefWidth(160);
             if (initSub != null) { cbSub.setValue(initSub); cbGrd.setValue(initGrd); }
 
             ToggleGroup tg = new ToggleGroup();
@@ -1650,7 +1648,7 @@ public class TeacherPortal {
             typeRow.setAlignment(Pos.CENTER_LEFT);
             typeRow.setPadding(new Insets(4, 0, 4, 0));
 
-            cfg.getChildren().addAll(cbSub, cbGrd);
+            cfg.getChildren().addAll(wrapSub, wrapGrd);
 
             VBox dynForm = new VBox();
             renderMcqForm(dynForm);
@@ -1661,8 +1659,8 @@ public class TeacherPortal {
             btnSave.setPrefHeight(46);
             btnSave.setOnAction(e -> {
                 boolean valid = true;
-                if (cbSub.getValue() == null) { cbSub.setStyle(cbSub.getStyle() + "-fx-border-color:#ef4444;-fx-border-radius:8;"); valid = false; }
-                if (cbGrd.getValue() == null) { cbGrd.setStyle(cbGrd.getStyle() + "-fx-border-color:#ef4444;-fx-border-radius:8;"); valid = false; }
+                if (cbSub.getValue() == null) { UIUtils.comboError(wrapSub); valid = false; }
+                if (cbGrd.getValue() == null) { UIUtils.comboError(wrapGrd); valid = false; }
                 if (qArea.getText().trim().isEmpty()) {
                     qArea.setStyle("-fx-font-size:14px;-fx-background-radius:8;-fx-border-color:#ef4444;-fx-border-width:1.5;");
                     valid = false;
@@ -1757,10 +1755,11 @@ public class TeacherPortal {
             ansHdr.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.TEXT_MID
                     + ";-fx-letter-spacing:0.5px;");
 
-            cbAnsType = new ComboBox<>();
+            StackPane wrapAns = UIUtils.styledCombo("Answer Type", "Select type…");
+            cbAnsType = UIUtils.getCombo(wrapAns);
             cbAnsType.getItems().addAll("Exact Answer", "Allow Deviate (Range)");
             cbAnsType.setValue("Exact Answer");
-            cbAnsType.setStyle("-fx-font-size:13px;-fx-pref-height:38px;");
+            wrapAns.setPrefWidth(240);
 
             exactF = UIUtils.styledField("Exact numeric answer"); exactF.setPrefWidth(220);
             minF   = UIUtils.styledField("Min value"); minF.setPrefWidth(160);
@@ -1776,7 +1775,7 @@ public class TeacherPortal {
                 else ansSlot.getChildren().add(rangeRow);
             });
 
-            form.getChildren().addAll(qArea, ansHdr, cbAnsType, ansSlot);
+            form.getChildren().addAll(qArea, ansHdr, wrapAns, ansSlot);
             c.getChildren().add(form);
         }
     }
@@ -2018,28 +2017,31 @@ public class TeacherPortal {
             TextField searchField = UIUtils.styledField("🔍  Search questions…");
             searchField.setPrefWidth(260);
 
-            ComboBox<String> cbSubFilter = new ComboBox<>();
+            StackPane wrapSubF = UIUtils.styledCombo("Subject", "All Subjects");
+            ComboBox<String> cbSubFilter = UIUtils.getCombo(wrapSubF);
             cbSubFilter.getItems().add("All Subjects");
             cbSubFilter.getItems().addAll("Physics", "Chemistry", "Math", "Biology", "English");
             cbSubFilter.setValue("All Subjects");
-            cbSubFilter.setStyle("-fx-font-size:13px;-fx-pref-height:38px;");
+            wrapSubF.setPrefWidth(170);
 
-            ComboBox<String> cbGrdFilter = new ComboBox<>();
+            StackPane wrapGrdF = UIUtils.styledCombo("Grade", "All Grades");
+            ComboBox<String> cbGrdFilter = UIUtils.getCombo(wrapGrdF);
             cbGrdFilter.getItems().add("All Grades");
             for (int i = 6; i <= 12; i++) cbGrdFilter.getItems().add("Grade " + i);
             cbGrdFilter.setValue("All Grades");
-            cbGrdFilter.setStyle("-fx-font-size:13px;-fx-pref-height:38px;");
+            wrapGrdF.setPrefWidth(155);
 
-            ComboBox<String> cbTypeFilter = new ComboBox<>();
+            StackPane wrapTypF = UIUtils.styledCombo("Type", "All Types");
+            ComboBox<String> cbTypeFilter = UIUtils.getCombo(wrapTypF);
             cbTypeFilter.getItems().addAll("All Types", "MCQ", "Text", "Range");
             cbTypeFilter.setValue("All Types");
-            cbTypeFilter.setStyle("-fx-font-size:13px;-fx-pref-height:38px;");
+            wrapTypF.setPrefWidth(145);
 
             Label totalLbl = new Label();
             totalLbl.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
 
             Region fsp = new Region(); HBox.setHgrow(fsp, Priority.ALWAYS);
-            filterRow.getChildren().addAll(searchField, cbSubFilter, cbGrdFilter, cbTypeFilter, fsp, totalLbl);
+            filterRow.getChildren().addAll(searchField, wrapSubF, wrapGrdF, wrapTypF, fsp, totalLbl);
 
             // ── Results container ─────────────────────────────
             VBox results = new VBox(10);
