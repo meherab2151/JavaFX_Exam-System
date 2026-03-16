@@ -16,7 +16,7 @@ import javafx.util.Duration;
 
 public class UIUtils {
 
-    // ── Theme state — light by default ───────────────────────
+    // ── Theme state — light by default ───────────────────
     public static boolean darkMode = false;
 
     // Dynamic color getters
@@ -249,8 +249,7 @@ public class UIUtils {
     //  Trigger : underline-only (Style C / Material)
     //  Popup   : frosted glass card — background set via Java
     //            API (Color.rgb with alpha) because JavaFX CSS
-    //            does NOT support rgba(). CSS transparent so
-    //            Java Background wins unconditionally.
+    //            does NOT support rgba() unlike context-menu.
     //  Rows    : animated 3px left accent bar (ScaleTransition)
     //            + text scale-up on selected (Style C effects)
     // ═══════════════════════════════════════════════════════════
@@ -499,6 +498,174 @@ public class UIUtils {
             lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
         }
     }
+
+    // ═══════════════════════════════════════════════════════════
+    //  MODERN MENU ITEM — Effects A + B + C, hover via CustomMenuItem
+    //
+    //  Root cause of the persistent indigo hover:
+    //  MenuItem.setGraphic() sets a CHILD node. JavaFX's MenuItemSkin
+    //  still owns and repaints the row background itself — so any
+    //  Background we set on the graphic HBox gets painted under the
+    //  skin layer and loses.
+    //
+    //  Fix — CustomMenuItem:
+    //  CustomMenuItem.setContent() replaces the skin's entire cell
+    //  node with our HBox. There is no separate skin paint layer.
+    //  setBackground() on the HBox is exactly equivalent to
+    //  setBackground() on a ComboBox ListCell — the same API that
+    //  makes the ComboBox hover work correctly.
+    //
+    //  A — Semantic chip colour + scale pop
+    //  B — Accent bar grows + text slides
+    //  C — Ring glow on chip
+    //  Text: normal at rest → bold on hover, colour = chipColor
+    //
+    //  Usage:
+    //    MenuItem edit   = UIUtils.modernMenuItem("✏️","Edit",   "#047857", false);
+    //    MenuItem delete = UIUtils.modernMenuItem("🗑️","Delete", "#ef4444", true);
+    //    MenuButton btn  = new MenuButton("Actions");
+    //    btn.getItems().addAll(edit, new SeparatorMenuItem(), delete);
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Creates a CustomMenuItem with effects A (semantic chip + scale pop),
+     * B (accent bar grows + text slide), and C (ring glow on chip).
+     * Uses CustomMenuItem.setContent() so setBackground() on the row
+     * wins over the skin — same mechanism as the ComboBox ListCell hover.
+     *
+     * @param emoji     Icon emoji e.g. "✏️"
+     * @param label     Display text
+     * @param chipColor Semantic hex colour for chip / bar / glow / hover text
+     * @param isDanger  true → red hover tint row bg, adds "danger" style class
+     */
+    public static MenuItem modernMenuItem(String emoji, String label,
+                                          String chipColor, boolean isDanger) {
+        // ── Accent colour components ──────────────────────────
+        Color accent = Color.web(chipColor);
+        int cr = (int)(accent.getRed()   * 255);
+        int cg = (int)(accent.getGreen() * 255);
+        int cb = (int)(accent.getBlue()  * 255);
+
+        // ── B — Accent bar ────────────────────────────────────
+        Rectangle bar = new Rectangle(3, 22);
+        bar.setArcWidth(3); bar.setArcHeight(3);
+        bar.setFill(Color.web(chipColor));
+        bar.setScaleY(0); bar.setOpacity(0); bar.setVisible(false);
+        StackPane barWrap = new StackPane(bar);
+        barWrap.setPrefWidth(5); barWrap.setPrefHeight(28);
+        barWrap.setAlignment(Pos.CENTER);
+
+        // ── A — Semantic chip ─────────────────────────────────
+        final String chipBgRest    = String.format(
+                "-fx-background-radius:8;-fx-background-color:rgba(%d,%d,%d,0.11);", cr, cg, cb);
+        final String chipBgHovered = String.format(
+                "-fx-background-radius:8;-fx-background-color:rgba(%d,%d,%d,0.20);", cr, cg, cb);
+
+        Label iconLbl = new Label(emoji);
+        iconLbl.setStyle("-fx-font-size:14px;");
+        StackPane chip = new StackPane(iconLbl);
+        chip.setPrefSize(28, 28); chip.setMinSize(28, 28); chip.setMaxSize(28, 28);
+        chip.setStyle(chipBgRest);
+
+        // ── C — Ring glow ─────────────────────────────────────
+        DropShadow glow = new DropShadow();
+        glow.setColor(Color.web(chipColor, 0.0));
+        glow.setRadius(10); glow.setSpread(0);
+        glow.setOffsetX(0); glow.setOffsetY(0);
+        chip.setEffect(glow);
+
+        // ── Label ─────────────────────────────────────────────
+        Label textLbl = new Label(label);
+        final String textRest = isDanger
+                ? "-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#dc2626;"
+                : "-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#374151;";
+        final String textHov  = isDanger
+                ? "-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:#dc2626;"
+                : String.format("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:%s;", chipColor);
+        textLbl.setStyle(textRest);
+
+        // ── Row — this IS the cell node (CustomMenuItem.setContent) ──
+        Region spacer = new Region(); spacer.setPrefWidth(8);
+        HBox row = new HBox(0, barWrap, spacer, chip,
+                new Region() {{ setPrefWidth(10); }}, textLbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setPadding(new Insets(7, 12, 7, 0));
+
+        // Row Background constants — same API as ComboBox ListCell.paint()
+        final javafx.scene.layout.CornerRadii RX = new javafx.scene.layout.CornerRadii(9);
+        final Background BG_REST  = Background.EMPTY;
+        final Background BG_HOVER = isDanger
+                ? new Background(new BackgroundFill(Color.rgb(239, 68, 68, 0.08), RX, Insets.EMPTY))
+                : new Background(new BackgroundFill(Color.rgb(15,  23, 42, 0.05), RX, Insets.EMPTY));
+        row.setBackground(BG_REST);
+
+        // ── Hover ON ──────────────────────────────────────────
+        row.setOnMouseEntered(e -> {
+            row.setBackground(BG_HOVER);                        // row bg — no skin to fight
+            chip.setStyle(chipBgHovered);                       // A — chip brightens
+            textLbl.setStyle(textHov);                          // text bold + colour
+
+            ScaleTransition popOut = new ScaleTransition(Duration.millis(110), iconLbl);
+            popOut.setToX(1.18); popOut.setToY(1.18);
+            popOut.setInterpolator(Interpolator.EASE_OUT);
+            ScaleTransition popIn  = new ScaleTransition(Duration.millis(90),  iconLbl);
+            popIn.setToX(1.0);  popIn.setToY(1.0);
+            popIn.setInterpolator(Interpolator.EASE_IN);
+            new SequentialTransition(popOut, popIn).play();     // A — emoji pop
+
+            bar.setVisible(true);
+            bar.setOpacity(1);
+            ScaleTransition barGrow = new ScaleTransition(Duration.millis(180), bar);
+            barGrow.setToY(1); barGrow.setInterpolator(Interpolator.EASE_OUT);
+            barGrow.play();                                     // B — bar grows
+
+            TranslateTransition slide = new TranslateTransition(Duration.millis(150), textLbl);
+            slide.setToX(3); slide.setInterpolator(Interpolator.EASE_OUT);
+            slide.play();                                       // B — text slides
+
+            new Timeline(
+                    new KeyFrame(Duration.ZERO,          new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.0))),
+                    new KeyFrame(Duration.millis(180),   new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.45)))
+            ).play();                                           // C — glow fades in
+        });
+
+        // ── Hover OFF ─────────────────────────────────────────
+        row.setOnMouseExited(e -> {
+            row.setBackground(BG_REST);
+            chip.setStyle(chipBgRest);
+            textLbl.setStyle(textRest);
+
+            ScaleTransition barShrink = new ScaleTransition(Duration.millis(140), bar);
+            barShrink.setToY(0); barShrink.setInterpolator(Interpolator.EASE_IN);
+            barShrink.setOnFinished(ev -> { bar.setOpacity(0); bar.setVisible(false); });
+            barShrink.play();
+
+            TranslateTransition slideBack = new TranslateTransition(Duration.millis(130), textLbl);
+            slideBack.setToX(0); slideBack.setInterpolator(Interpolator.EASE_IN);
+            slideBack.play();
+
+            new Timeline(
+                    new KeyFrame(Duration.ZERO,          new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.45))),
+                    new KeyFrame(Duration.millis(150),   new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.0)))
+            ).play();
+        });
+
+        // ── CustomMenuItem — row IS the cell, no skin paint layer ──
+        CustomMenuItem item = new CustomMenuItem(row, true); // hideOnClick = true
+        item.setStyle("-fx-padding:0;");                     // skin adds default padding — zero it
+        if (isDanger) item.getStyleClass().add("danger");
+        return item;
+    }
+
+    /**
+     * Convenience overload — chipColor defaults to blue for normal, red for danger.
+     */
+    public static MenuItem modernMenuItem(String emoji, String label, boolean isDanger) {
+        return modernMenuItem(emoji, label,
+                isDanger ? "#ef4444" : "#047857", isDanger);
+    }
+
     // ── PRIMARY button ────────────────────────────────────────
     public static Button primaryBtn(String icon, String text, String color) {
         String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
@@ -563,128 +730,65 @@ public class UIUtils {
 
     public static Button sidebarBtn(String icon, String label, String color) {
         Button b = new Button(icon + "   " + label);
-        b.setPrefWidth(190); b.setPrefHeight(42);
+        b.setMaxWidth(Double.MAX_VALUE);
         b.setAlignment(Pos.CENTER_LEFT);
-        String inactive =
-                "-fx-background-color:transparent;-fx-text-fill:" + TEXT_SUBTLE + ";" +
-                        "-fx-font-size:13px;-fx-font-weight:normal;" +
-                        "-fx-background-radius:8;-fx-padding:10 12 10 16;" +
-                        "-fx-cursor:hand;-fx-alignment:center-left;";
-        String hov =
-                "-fx-background-color:" + color + "14;-fx-text-fill:" + color + ";" +
-                        "-fx-font-size:13px;-fx-font-weight:bold;" +
-                        "-fx-background-radius:8;-fx-padding:10 12 10 16;" +
-                        "-fx-cursor:hand;-fx-alignment:center-left;";
-        b.setStyle(inactive);
-        b.setOnMouseEntered(e -> b.setStyle(hov));
-        b.setOnMouseExited(e  -> b.setStyle(inactive));
+        sidebarBtn(b, icon, label, color);
         return b;
     }
 
-    public static void setSidebarBtnActive(Button b, String color) {
-        b.setStyle(
-                "-fx-background-color:" + color + "1a;-fx-text-fill:" + color + ";" +
-                        "-fx-font-size:13px;-fx-font-weight:bold;" +
-                        "-fx-background-radius:8;-fx-padding:10 12 10 16;" +
-                        "-fx-cursor:hand;-fx-alignment:center-left;" +
-                        "-fx-border-color:" + color + ";-fx-border-width:0 0 0 2.5;-fx-border-radius:0;"
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    //  MODERN SIDEBAR NAV  — Icon box + frosted glass + pill
-    //
-    //  Returns a StackPane (the full clickable row).
-    //  Call modernSidebarSetActive / modernSidebarSetInactive
-    //  to toggle state. Both methods are animation-safe.
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Build a modern sidebar nav row.
-     *
-     * Layout:  [pill] [icon-box] [label text]   (all in a StackPane→HBox)
-     *
-     * The returned StackPane is the clickable unit; attach setOnMouseClicked to it.
-     * Tag it with setId(color) so the helpers can read the accent back later.
-     */
-    public static StackPane modernSidebarBtn(String icon, String label, String color) {
-
-        // ── Left pill indicator (hidden until active) ─────────
-        Rectangle pill = new Rectangle(3, 22);
-        pill.setArcWidth(3); pill.setArcHeight(3);
-        pill.setFill(Color.web(color));
-        pill.setOpacity(0);                     // starts invisible
-        StackPane pillWrap = new StackPane(pill);
-        pillWrap.setPrefWidth(6);
-        pillWrap.setAlignment(Pos.CENTER_LEFT);
-
-        // ── Icon box ──────────────────────────────────────────
-        Label iconLbl = new Label(icon);
-        iconLbl.setStyle("-fx-font-size:15px;");
-
-        Rectangle iconBg = new Rectangle(32, 32);
-        iconBg.setArcWidth(9); iconBg.setArcHeight(9);
-        iconBg.setFill(Color.web("#ffffff", 0.06));   // subtle inactive tint
-
-        StackPane iconBox = new StackPane(iconBg, iconLbl);
-        iconBox.setPrefSize(32, 32);
-        iconBox.setAlignment(Pos.CENTER);
-
-        // ── Label ─────────────────────────────────────────────
-        Label textLbl = new Label(label);
-        textLbl.setStyle(
-                "-fx-font-size:13px;-fx-font-weight:normal;" +
-                        "-fx-text-fill:#94a3b8;"   // TEXT_SUBTLE
-        );
-
-        // ── Row ───────────────────────────────────────────────
-        HBox row = new HBox(10, pillWrap, iconBox, textLbl);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 8, 0, 2));
-
-        // ── Frosted-glass background (hidden until active) ────
-        //    We fake blur with a semi-transparent rounded rect
-        //    layered behind the row. Opacity animated on toggle.
-        Rectangle glass = new Rectangle();
+    // ── Modern sidebar nav item ───────────────────────────────
+    public static StackPane modernSidebarBtn(String icon, String text, String accentColor) {
+        // Frosted glass hover layer
+        Rectangle glass = new Rectangle(220, 44);
         glass.setArcWidth(10); glass.setArcHeight(10);
-        glass.setFill(Color.web("#ffffff", 0.09));
-        glass.setStroke(Color.web("#ffffff", 0.11));
-        glass.setStrokeWidth(0.8);
+        glass.setFill(Color.web("#ffffff", 0.07));
         glass.setOpacity(0);
 
-        // ── Outer wrapper (StackPane) ─────────────────────────
+        // Active indicator pill (left edge)
+        Rectangle pill = new Rectangle(3, 24);
+        pill.setArcWidth(3); pill.setArcHeight(3);
+        pill.setFill(Color.web(accentColor));
+        pill.setOpacity(0);
+        StackPane pillWrap = new StackPane(pill);
+        pillWrap.setPrefSize(3, 44);
+        pillWrap.setAlignment(Pos.CENTER);
+
+        // Icon box
+        Rectangle iconBg = new Rectangle(30, 30);
+        iconBg.setArcWidth(8); iconBg.setArcHeight(8);
+        iconBg.setFill(Color.web("#ffffff", 0.06));
+        Label iconLbl = new Label(icon);
+        iconLbl.setStyle("-fx-font-size:14px;-fx-text-fill:white;");
+        StackPane iconBox = new StackPane(iconBg, iconLbl);
+        iconBox.setPrefSize(30, 30);
+
+        // Text label
+        Label textLbl = new Label(text);
+        textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
+
+        HBox row = new HBox(10, pillWrap, iconBox, textLbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 12, 0, 8));
+
         StackPane wrapper = new StackPane(glass, row);
-        wrapper.setPrefWidth(190);
-        wrapper.setPrefHeight(44);
+        wrapper.setPrefSize(220, 44);
         wrapper.setAlignment(Pos.CENTER_LEFT);
         wrapper.setCursor(javafx.scene.Cursor.HAND);
-        wrapper.setId(color);   // store accent for helpers
+        wrapper.setId(accentColor); // store accent for set-active helpers
 
-        // Keep glass rect always same size as wrapper
-        wrapper.widthProperty().addListener((obs, o, n) -> glass.setWidth(n.doubleValue() - 4));
-        glass.setWidth(186); glass.setHeight(40);
-        glass.heightProperty().bind(wrapper.heightProperty().subtract(4));
-        wrapper.setTranslateX(2);
-
-        // ── Hover effect (inactive state) ─────────────────────
+        // Hover handlers (inactive state only — active state clears these)
         wrapper.setOnMouseEntered(e -> {
-            if (glass.getOpacity() < 0.5) {   // not already active
+            if (glass.getOpacity() < 0.5) {
                 FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
                 ft.setToValue(0.45); ft.play();
-                textLbl.setStyle(
-                        "-fx-font-size:13px;-fx-font-weight:normal;" +
-                                "-fx-text-fill:#cbd5e1;"
-                );
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#cbd5e1;");
             }
         });
         wrapper.setOnMouseExited(e -> {
-            if (glass.getOpacity() < 0.8) {   // not active
+            if (glass.getOpacity() < 0.8) {
                 FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
                 ft.setToValue(0); ft.play();
-                textLbl.setStyle(
-                        "-fx-font-size:13px;-fx-font-weight:normal;" +
-                                "-fx-text-fill:#94a3b8;"
-                );
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
             }
         });
 

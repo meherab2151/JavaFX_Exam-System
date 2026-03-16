@@ -33,8 +33,22 @@ public class HelloApplication extends Application {
         QuestionBank.allQuestions.addAll(QuestionDAO.loadAll());
         System.out.println("[App] Loaded " + QuestionBank.allQuestions.size() + " questions from DB.");
 
-        // 4. Load persisted exams
+        // 4. Load persisted exams, then clean up any that were still marked live
+        //    when the app was closed (their liveEndMillis is now in the past).
+        //    Without this, the dashboard ticker fires immediately and "ends" them
+        //    in front of the teacher the moment they log in.
         ExamBank.allExams.addAll(ExamDAO.loadAll());
+        long now = System.currentTimeMillis();
+        for (Exam e : ExamBank.allExams) {
+            if (e.isLive() && e.getLiveEndMillis() > 0 && now >= e.getLiveEndMillis()) {
+                e.setLive(false);
+                if (e.getScheduleDetails() == null || !e.getScheduleDetails().startsWith("Ended"))
+                    e.setScheduleDetails("Ended: " + java.time.LocalDateTime.now()
+                            .format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")));
+                ExamDAO.save(e);
+                System.out.println("[App] Cleaned up expired live exam id=" + e.getDbId());
+            }
+        }
 
         // 5. Close DB cleanly on exit
         stage.setOnCloseRequest(e -> DatabaseManager.close());

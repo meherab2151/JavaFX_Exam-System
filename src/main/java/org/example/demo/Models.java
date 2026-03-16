@@ -159,16 +159,27 @@ class Exam {
         return String.format("%02d:%02d:%02d", h, m, s);
     }
 
-    /** Remaining millis in live window; 0 if not live or expired. */
-    public long    getRemainingMillis() {
-        if (!isLive || liveEndMillis == 0) return 0;
+    /** Remaining millis in live window.
+     *  Returns 0 if not live.
+     *  Returns Long.MAX_VALUE if live but liveEndMillis is 0 (no end time set — never auto-expire).
+     *  Returns actual remaining millis (≥ 0) when a real end time exists. */
+    public long getRemainingMillis() {
+        if (!isLive) return 0;
+        if (liveEndMillis == 0) return Long.MAX_VALUE;
         long rem = liveEndMillis - System.currentTimeMillis();
         return Math.max(rem, 0);
     }
 
-    /** Formatted remaining time string HH:MM:SS */
-    public String  getRemainingFormatted() {
-        long ms  = getRemainingMillis();
+    /** True only when the exam is live AND a real end time was set AND that time has passed.
+     *  Safe to use in the countdown ticker — never fires on an unset liveEndMillis. */
+    public boolean isExpired() {
+        return isLive && liveEndMillis > 0 && System.currentTimeMillis() >= liveEndMillis;
+    }
+
+    /** Formatted remaining time string HH:MM:SS, or "--:--:--" if no end time set. */
+    public String getRemainingFormatted() {
+        long ms = getRemainingMillis();
+        if (ms == Long.MAX_VALUE) return "--:--:--";
         long sec = ms / 1000;
         long h   = sec / 3600;
         long m   = (sec % 3600) / 60;

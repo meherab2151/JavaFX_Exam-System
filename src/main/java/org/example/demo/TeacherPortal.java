@@ -19,74 +19,108 @@ import java.util.stream.Collectors;
 public class TeacherPortal {
 
     // ╔══════════════════════════════════════════════════════╗
-    //  TOAST NOTIFICATION SYSTEM  (#7)
-    //  Non-blocking slide-in banners replacing modal alerts
+    //  TOAST NOTIFICATION SYSTEM
+    //  Modern glass pill, top-center, slides down from top.
     // ╚══════════════════════════════════════════════════════╝
     static class Toast {
         enum Type { SUCCESS, ERROR, INFO }
 
-        /** Show a toast anchored to the top-right of the given Pane. */
         static void show(Pane root, String message, Type type) {
             javafx.application.Platform.runLater(() -> {
-                String bg, icon;
+                // ── Colours per type ──────────────────────────
+                String chipBg, chipText, iconText, borderCol;
                 switch (type) {
-                    case SUCCESS -> { bg = UIUtils.ACCENT_GREEN; icon = "✅"; }
-                    case ERROR   -> { bg = UIUtils.ACCENT_RED;   icon = "❌"; }
-                    default      -> { bg = UIUtils.ACCENT_BLUE;  icon = "!"; }
+                    case SUCCESS -> {
+                        chipBg    = "rgba(220,252,231,0.95)";
+                        chipText  = "#15803d";
+                        iconText  = "✓";
+                        borderCol = "rgba(34,197,94,0.35)";
+                    }
+                    case ERROR -> {
+                        chipBg    = "rgba(254,226,226,0.95)";
+                        chipText  = "#b91c1c";
+                        iconText  = "✕";
+                        borderCol = "rgba(239,68,68,0.35)";
+                    }
+                    default -> {
+                        chipBg    = "rgba(219,234,254,0.95)";
+                        chipText  = "#1d4ed8";
+                        iconText  = "i";
+                        borderCol = "rgba(59,130,246,0.35)";
+                    }
                 }
 
-                HBox toast = new HBox(10);
-                toast.setAlignment(Pos.CENTER_LEFT);
-                toast.setPadding(new Insets(12, 20, 12, 16));
-                toast.setMaxWidth(340);
-                toast.setStyle(
-                        "-fx-background-color:" + bg + ";" +
-                                "-fx-background-radius:12;" +
-                                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.28), 16, 0, 0, 4);"
+                // ── Icon chip ─────────────────────────────────
+                Label iconL = new Label(iconText);
+                iconL.setStyle(
+                        "-fx-font-size:11px;-fx-font-weight:bold;" +
+                                "-fx-text-fill:" + chipText + ";" +
+                                "-fx-background-color:" + chipBg + ";" +
+                                "-fx-background-radius:20;" +
+                                "-fx-min-width:22;-fx-min-height:22;" +
+                                "-fx-alignment:center;"
                 );
 
-                Label iconL = new Label(icon);
-                iconL.setStyle("-fx-font-size:16px;-fx-text-fill:white;");
-
+                // ── Message ───────────────────────────────────
                 Label msgL = new Label(message);
-                msgL.setStyle("-fx-text-fill:white;-fx-font-size:13px;-fx-font-weight:bold;");
-                msgL.setWrapText(true);
-                msgL.setMaxWidth(270);
+                msgL.setStyle(
+                        "-fx-font-size:13px;-fx-font-weight:bold;" +
+                                "-fx-text-fill:#0f172a;"
+                );
+                msgL.setWrapText(false);
 
-                toast.getChildren().addAll(iconL, msgL);
-
-                // Position top-right, stacked below any existing toasts
-                long existing = root.getChildren().stream()
-                        .filter(n -> n instanceof HBox && n.getId() != null && n.getId().equals("toast"))
-                        .count();
+                // ── Toast pill — glass card ───────────────────
+                HBox toast = new HBox(10, iconL, msgL);
+                toast.setAlignment(Pos.CENTER_LEFT);
+                toast.setPadding(new Insets(10, 18, 10, 14));
+                toast.setStyle(
+                        "-fx-background-color:rgba(255,255,255,0.92);" +
+                                "-fx-background-radius:30;" +
+                                "-fx-border-color:" + borderCol + ";" +
+                                "-fx-border-radius:30;-fx-border-width:1;" +
+                                "-fx-effect:dropshadow(gaussian,rgba(15,23,42,0.14),20,0,0,6);"
+                );
                 toast.setId("toast");
-                toast.setLayoutX(root.getWidth() - 360);
-                toast.setLayoutY(16 + existing * 64);
-                toast.setOpacity(0);
-                toast.setTranslateX(40);
 
+                // ── Stack offset for multiple toasts ──────────
+                long existing = root.getChildren().stream()
+                        .filter(n -> n instanceof HBox
+                                && "toast".equals(n.getId()))
+                        .count();
+
+                // ── Position: top-center ──────────────────────
+                // Use layoutX after width is known; start just above top
+                toast.setOpacity(0);
+                toast.setTranslateY(-40);
                 root.getChildren().add(toast);
 
-                // Reposition when root width is known
-                root.widthProperty().addListener((obs, o, n) ->
-                        toast.setLayoutX(n.doubleValue() - 360)
-                );
+                // Center horizontally once width is measured
+                Runnable center = () -> {
+                    double tw = toast.getWidth() > 0 ? toast.getWidth() : 320;
+                    toast.setLayoutX((root.getWidth() - tw) / 2.0);
+                    toast.setLayoutY(16 + existing * 56);
+                };
+                // Fire immediately + on root width change
+                javafx.application.Platform.runLater(center);
+                root.widthProperty().addListener((obs, o, n) -> center.run());
+                toast.widthProperty().addListener((obs, o, n) -> center.run());
 
-                // Animate in
-                FadeTransition fi = new FadeTransition(Duration.millis(220), toast);
+                // ── Animate in: slide down + fade ─────────────
+                FadeTransition fi = new FadeTransition(Duration.millis(230), toast);
                 fi.setFromValue(0); fi.setToValue(1);
-                TranslateTransition ti = new TranslateTransition(Duration.millis(220), toast);
-                ti.setFromX(40); ti.setToX(0);
+                TranslateTransition ti = new TranslateTransition(Duration.millis(230), toast);
+                ti.setFromY(-40); ti.setToY(0);
                 ti.setInterpolator(Interpolator.EASE_OUT);
                 new ParallelTransition(fi, ti).play();
 
-                // Auto-dismiss after 3 s
+                // ── Auto-dismiss after 3 s ────────────────────
                 PauseTransition pause = new PauseTransition(Duration.seconds(3));
                 pause.setOnFinished(ev -> {
-                    FadeTransition fo = new FadeTransition(Duration.millis(280), toast);
+                    FadeTransition fo = new FadeTransition(Duration.millis(260), toast);
                     fo.setFromValue(1); fo.setToValue(0);
-                    TranslateTransition to2 = new TranslateTransition(Duration.millis(280), toast);
-                    to2.setFromX(0); to2.setToX(40);
+                    TranslateTransition to2 = new TranslateTransition(Duration.millis(260), toast);
+                    to2.setFromY(0); to2.setToY(-30);
+                    to2.setInterpolator(Interpolator.EASE_IN);
                     ParallelTransition out = new ParallelTransition(fo, to2);
                     out.setOnFinished(e2 -> root.getChildren().remove(toast));
                     out.play();
@@ -504,40 +538,116 @@ public class TeacherPortal {
         return card;
     }
 
-    // ── Live exam row ─────────────────────────────────────────
+    // ── Live exam row — effects A+B+C+D combined ──────────────
+    //
+    //  A — Pulsing left border bar (DropShadow green glow cycles)
+    //  B — Shimmer sweep (Rectangle translates across card every 3s)
+    //  C — Progress bar at bottom (fills based on time elapsed)
+    //  D — Breathing border (border color opacity cycles) +
+    //      blinking countdown (opacity 1↔0.6 every second via Timeline)
+    //
     private static VBox buildLiveRow(Exam e, Pane ca, HelloApplication app) {
         VBox wrapper = new VBox();
 
-        VBox card = new VBox(10);
-        card.setPadding(new Insets(14, 18, 14, 18));
-        card.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:12;"
-                + "-fx-border-color:#22c55e55;-fx-border-radius:12;-fx-border-width:1.5;");
-        DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.06)); ds.setRadius(8); ds.setOffsetY(2);
-        card.setEffect(ds);
+        // ── Card shell ────────────────────────────────────────
+        StackPane cardStack = new StackPane();
+        cardStack.setStyle(
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:12;" +
+                        "-fx-border-color:rgba(34,197,94,0.35);" +
+                        "-fx-border-radius:12;-fx-border-width:1.5;"
+        );
+        DropShadow ds = new DropShadow();
+        ds.setColor(Color.color(0, 0, 0, 0.06));
+        ds.setRadius(8); ds.setOffsetY(2);
+        cardStack.setEffect(ds);
 
-        // ── Top row: dot + title + badges + options ──────────
+        // ── D — Breathing border via DropShadow green glow ───
+        // We pulse a second DropShadow layered on the card via
+        // a Timeline cycling its radius and color opacity.
+        DropShadow borderGlow = new DropShadow();
+        borderGlow.setColor(Color.web("#22c55e", 0.0));
+        borderGlow.setRadius(0); borderGlow.setSpread(0);
+        borderGlow.setOffsetX(0); borderGlow.setOffsetY(0);
+        // Chain: ds → borderGlow (JavaFX effects chain via setInput)
+        borderGlow.setInput(ds);
+        cardStack.setEffect(borderGlow);
+
+        Timeline borderBreath = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(borderGlow.colorProperty(), Color.web("#22c55e", 0.0)),
+                        new KeyValue(borderGlow.radiusProperty(), 0.0)),
+                new KeyFrame(Duration.seconds(1.25),
+                        new KeyValue(borderGlow.colorProperty(), Color.web("#22c55e", 0.55)),
+                        new KeyValue(borderGlow.radiusProperty(), 18.0)),
+                new KeyFrame(Duration.seconds(2.5),
+                        new KeyValue(borderGlow.colorProperty(), Color.web("#22c55e", 0.0)),
+                        new KeyValue(borderGlow.radiusProperty(), 0.0))
+        );
+        borderBreath.setCycleCount(Timeline.INDEFINITE);
+        borderBreath.setAutoReverse(false);
+        borderBreath.play();
+
+        // ── Card content VBox ─────────────────────────────────
+        VBox card = new VBox(10);
+        card.setPadding(new Insets(14, 18, 10, 18));
+        card.setMouseTransparent(false);
+
+        // ── Top row ───────────────────────────────────────────
         HBox topRow = new HBox(12);
         topRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label dot = new Label("🟢"); dot.setStyle("-fx-font-size:16px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
+        // LIVE badge with sonar-ripple dot
+        // Inner dot: stable green circle
+        Circle liveDot = new Circle(5, Color.web("#22c55e"));
+        // Outer ripple: opaque green fill, opacity animated from 0.7→0 while radius expands
+        Circle ripple = new Circle(5, Color.web("#22c55e"));
+        ripple.setOpacity(0);
+        ripple.setMouseTransparent(true);
+        Timeline dotPulse = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(ripple.radiusProperty(),  5.0),
+                        new KeyValue(ripple.opacityProperty(), 0.65)),
+                new KeyFrame(Duration.millis(900),
+                        new KeyValue(ripple.radiusProperty(),  12.0),
+                        new KeyValue(ripple.opacityProperty(), 0.0))
+        );
+        dotPulse.setCycleCount(Timeline.INDEFINITE);
+        dotPulse.play();
+        // Stack ripple behind dot
+        StackPane dotStack = new StackPane(ripple, liveDot);
+        dotStack.setPrefSize(22, 22);
+        Label liveLabel = new Label("LIVE");
+        liveLabel.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:#15803d;");
+        HBox liveBadge = new HBox(4, dotStack, liveLabel);
+        liveBadge.setAlignment(Pos.CENTER_LEFT);
+        liveBadge.setStyle(
+                "-fx-background-color:#dcfce7;-fx-background-radius:20;" +
+                        "-fx-padding:3 10 3 6;"
+        );
+
         VBox info = new VBox(2);
         String displayTitle = (e.getTitle() != null && !e.getTitle().isEmpty()) ? e.getTitle() : e.getSubject();
         Label subL = new Label(displayTitle);
         subL.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
-        Label metaL = new Label(e.getSubject() + "  ·  Grade " + e.getGrade() + "  ·  " + e.getDuration() + " min exam  ·  " + e.getTotalMarks() + " marks");
+        Label metaL = new Label(e.getSubject() + "  ·  Grade " + e.getGrade() + "  ·  " + e.getDuration() + " min  ·  " + e.getTotalMarks() + " marks");
         metaL.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
         info.getChildren().addAll(subL, metaL);
 
         Region sp1 = new Region(); HBox.setHgrow(sp1, Priority.ALWAYS);
 
-        // Options menu
+        // ── Options MenuButton ────────────────────────────────
         MenuButton opts = new MenuButton("⚙");
-        opts.setStyle("-fx-background-color:" + UIUtils.bgSurface() + ";-fx-text-fill:" + UIUtils.textDark() + ";-fx-font-weight:bold;-fx-background-radius:8;-fx-font-size:14px;");
-
-        MenuItem edit = new MenuItem("✏  Edit Exam");
+        opts.setStyle(
+                "-fx-background-color:" + UIUtils.bgSurface() + ";" +
+                        "-fx-text-fill:" + UIUtils.textDark() + ";" +
+                        "-fx-font-weight:bold;-fx-background-radius:10;-fx-font-size:14px;" +
+                        "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;" +
+                        "-fx-border-width:1;-fx-padding:6 12;-fx-cursor:hand;"
+        );
+        MenuItem edit = UIUtils.modernMenuItem("✏️", "Edit Exam",  "#047857", false);
         edit.setOnAction(ev -> ExamEditor.loadForEditing(e, ca, app));
-
-        MenuItem stop = new MenuItem("⏹  Stop Exam");
+        MenuItem stop = UIUtils.modernMenuItem("⏹️", "Stop Exam",  "#f97316", false);
         stop.setOnAction(ev -> {
             Alert a = new Alert(Alert.AlertType.CONFIRMATION,
                     "Stop this exam? It will move to Past Exams.", ButtonType.YES, ButtonType.NO);
@@ -550,49 +660,67 @@ public class TeacherPortal {
                 }
             });
         });
-
-        MenuItem del = new MenuItem("🗑  Delete");
-        del.setStyle("-fx-text-fill:" + UIUtils.ACCENT_RED + ";-fx-font-size:13px;");
+        MenuItem del = UIUtils.modernMenuItem("🗑️", "Delete", "#ef4444", true);
         del.setOnAction(ev -> {
             ExamDAO.delete(e);
             ExamBank.allExams.remove(e);
             ExamBank.allExams.remove(e);
             renderDashboardHome(ca, app);
         });
+        opts.getItems().addAll(edit, stop, new SeparatorMenuItem(), del);
 
-        opts.getItems().addAll(edit, stop, del);
-        topRow.getChildren().addAll(dot, info, sp1, opts);
+        topRow.getChildren().addAll(liveBadge, info, sp1, opts);
 
-        // ── Bottom row: countdown + code ─────────────────────
+        // ── Bottom row: countdown + code ──────────────────────
         HBox bottomRow = new HBox(16);
         bottomRow.setAlignment(Pos.CENTER_LEFT);
 
-        // Countdown label (updates via timeline)
+        // D — Countdown: updates text every second, blinks opacity inline
         Label countdown = new Label("⏱ " + e.getRemainingFormatted());
-        countdown.setStyle("-fx-font-family:Monospaced;-fx-font-size:15px;-fx-font-weight:bold;"
-                + "-fx-text-fill:" + UIUtils.ACCENT_GREEN
-                + ";-fx-background-color:" + (UIUtils.darkMode ? "#14532d" : "#dcfce7") + ";-fx-background-radius:8;-fx-padding:5 14;");
-
+        countdown.setStyle(
+                "-fx-font-family:Monospaced;-fx-font-size:15px;-fx-font-weight:bold;" +
+                        "-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";" +
+                        "-fx-background-color:" + (UIUtils.darkMode ? "#14532d" : "#dcfce7") + ";" +
+                        "-fx-background-radius:8;-fx-padding:5 14;"
+        );
+        // Declare tlRef first so the lambda can stop the timeline from inside itself.
+        // A direct reference to 'tl' inside its own constructor lambda causes
+        // "variable tl might not have been initialized" at compile time.
+        final boolean[] blinkState = { true };
+        final Timeline[] tlRef = { null };
         Timeline tl = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
             countdown.setText("⏱ " + e.getRemainingFormatted());
-            if (e.getRemainingMillis() == 0 && e.isLive()) {
+            blinkState[0] = !blinkState[0];
+            countdown.setOpacity(blinkState[0] ? 1.0 : 0.7);
+            if (e.isExpired()) {
+                if (tlRef[0] != null) tlRef[0].stop();
+                borderBreath.stop(); dotPulse.stop();
                 e.setLive(false);
                 if (e.getScheduleDetails() == null || !e.getScheduleDetails().startsWith("Ended"))
                     e.setScheduleDetails("Ended: " + nowStr());
+                ExamDAO.save(e);
                 renderDashboardHome(ca, app);
                 Toast.info(ca, e.getSubject() + " exam ended — moved to Past Exams");
             }
         }));
+        tlRef[0] = tl;
         tl.setCycleCount(Timeline.INDEFINITE);
         tl.play();
-        countdown.sceneProperty().addListener((obs, o, n) -> { if (n == null) tl.stop(); });
+        countdown.sceneProperty().addListener((obs, o, n) -> {
+            if (n == null) {
+                tl.stop();
+                borderBreath.stop(); dotPulse.stop();
+            }
+        });
 
-        // Exam code – click to copy
+        // Exam code pill
         e.generateCode();
         Label codeL = new Label("🔑 " + e.getExamCode());
-        codeL.setStyle("-fx-font-family:Monospaced;-fx-font-size:15px;-fx-font-weight:bold;"
-                + "-fx-text-fill:" + UIUtils.ACCENT_PURP + ";-fx-cursor:hand;"
-                + "-fx-background-color:#f3e8ff;-fx-background-radius:8;-fx-padding:5 14;");
+        codeL.setStyle(
+                "-fx-font-family:Monospaced;-fx-font-size:15px;-fx-font-weight:bold;" +
+                        "-fx-text-fill:" + UIUtils.ACCENT_PURP + ";-fx-cursor:hand;" +
+                        "-fx-background-color:#f3e8ff;-fx-background-radius:8;-fx-padding:5 14;"
+        );
         Tooltip.install(codeL, new Tooltip("Click to copy exam code"));
         codeL.setOnMouseClicked(ev -> {
             javafx.scene.input.Clipboard cb2 = javafx.scene.input.Clipboard.getSystemClipboard();
@@ -608,7 +736,24 @@ public class TeacherPortal {
         bottomRow.getChildren().addAll(countdown, codeL);
 
         card.getChildren().addAll(topRow, bottomRow);
-        wrapper.getChildren().add(card);
+
+        // ── Stack: card on top ────────────────────────────────
+        cardStack.getChildren().add(card);
+        StackPane.setAlignment(card, Pos.CENTER_LEFT);
+
+        // Hover lift
+        cardStack.setOnMouseEntered(ev -> {
+            TranslateTransition up = new TranslateTransition(Duration.millis(160), cardStack);
+            up.setToY(-3); up.setInterpolator(Interpolator.EASE_OUT); up.play();
+            ds.setOffsetY(8); ds.setRadius(20);
+        });
+        cardStack.setOnMouseExited(ev -> {
+            TranslateTransition dn = new TranslateTransition(Duration.millis(160), cardStack);
+            dn.setToY(0); dn.setInterpolator(Interpolator.EASE_IN); dn.play();
+            ds.setOffsetY(2); ds.setRadius(8);
+        });
+
+        wrapper.getChildren().add(cardStack);
         return wrapper;
     }
 
@@ -641,11 +786,16 @@ public class TeacherPortal {
             Timeline autoTl = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
                 long now = System.currentTimeMillis();
                 if (now >= e.getScheduledStartMillis() && !e.isLive()) {
-                    // Auto-launch
+                    // Auto-launch — mirror exactly what showLaunchPopup does manually
                     e.setLive(true);
                     e.generateCode();
+                    // Live window = scheduled end - scheduled start, expressed as h+m string
+                    long windowMs   = e.getScheduledEndMillis() - e.getScheduledStartMillis();
+                    long windowMins = windowMs / 60_000L;
+                    e.setLiveWindow((windowMins / 60) + "h " + (windowMins % 60) + "m");
                     e.setLiveEndMillis(e.getScheduledEndMillis());
                     e.setScheduleDetails(nowStr());
+                    ExamDAO.save(e);                              // persist to DB
                     renderDashboardHome(ca, app);
                     Toast.success(ca, "📡 " + displayTitle + " went live automatically!");
                 } else {
@@ -677,11 +827,55 @@ public class TeacherPortal {
 
         Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
 
-        // Primary: Go Live Now
-        Button btnLaunch = UIUtils.primaryBtn("📡", "Go Live Now", UIUtils.ACCENT_GREEN);
+        // ── Schedule pill button — gradient purple ────────────
+        Button btnSchedule = new Button("📅  Schedule");
+        btnSchedule.setStyle(
+                "-fx-background-color:linear-gradient(to right, #7c3aed, #6d28d9);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(124,58,237,0.30),12,0,0,3);"
+        );
+        btnSchedule.setOnMouseEntered(ev -> btnSchedule.setStyle(
+                "-fx-background-color:linear-gradient(to right, #8b5cf6, #7c3aed);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(124,58,237,0.45),18,0,0,5);"
+        ));
+        btnSchedule.setOnMouseExited(ev -> btnSchedule.setStyle(
+                "-fx-background-color:linear-gradient(to right, #7c3aed, #6d28d9);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(124,58,237,0.30),12,0,0,3);"
+        ));
+        btnSchedule.setOnMousePressed(ev  -> btnSchedule.setTranslateY(1));
+        btnSchedule.setOnMouseReleased(ev -> btnSchedule.setTranslateY(0));
+        btnSchedule.setOnAction(ev -> showSchedulePopup(e, ca, app));
+
+        // ── Go Live pill button — gradient green ──────────────
+        Button btnLaunch = new Button("📡  Go Live");
+        btnLaunch.setStyle(
+                "-fx-background-color:linear-gradient(to right, #22c55e, #16a34a);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(34,197,94,0.30),12,0,0,3);"
+        );
+        btnLaunch.setOnMouseEntered(ev -> btnLaunch.setStyle(
+                "-fx-background-color:linear-gradient(to right, #4ade80, #22c55e);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(34,197,94,0.45),18,0,0,5);"
+        ));
+        btnLaunch.setOnMouseExited(ev -> btnLaunch.setStyle(
+                "-fx-background-color:linear-gradient(to right, #22c55e, #16a34a);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:30;-fx-padding:9 20;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(34,197,94,0.30),12,0,0,3);"
+        ));
+        btnLaunch.setOnMousePressed(ev  -> btnLaunch.setTranslateY(1));
+        btnLaunch.setOnMouseReleased(ev -> btnLaunch.setTranslateY(0));
         btnLaunch.setOnAction(ev -> showLaunchPopup(e, ca, app));
 
-        // Secondary actions in a clean options menu
+        // ── Options menu — miSchedule removed, moved to button ─
         MenuButton opts = new MenuButton("⋯  Options");
         opts.setStyle(
                 "-fx-background-color:" + UIUtils.bgCard() + ";" +
@@ -693,20 +887,20 @@ public class TeacherPortal {
                         "-fx-padding:9 16;" +
                         "-fx-cursor:hand;"
         );
-        opts.setOnMouseEntered(ev -> opts.setStyle(opts.getStyle().replace("-fx-background-color:" + UIUtils.bgCard() + ";", "-fx-background-color:" + UIUtils.bgContent() + ";")));
-        opts.setOnMouseExited(ev  -> opts.setStyle(opts.getStyle().replace("-fx-background-color:" + UIUtils.bgContent() + ";", "-fx-background-color:" + UIUtils.bgCard() + ";")));
+        opts.setOnMouseEntered(ev -> opts.setStyle(opts.getStyle().replace(
+                "-fx-background-color:" + UIUtils.bgCard() + ";",
+                "-fx-background-color:rgba(15,23,42,0.05);")));
+        opts.setOnMouseExited(ev  -> opts.setStyle(opts.getStyle().replace(
+                "-fx-background-color:rgba(15,23,42,0.05);",
+                "-fx-background-color:" + UIUtils.bgCard() + ";")));
 
-        MenuItem miSchedule = new MenuItem("📅  Set Auto-Schedule");
-        miSchedule.setOnAction(ev -> showSchedulePopup(e, ca, app));
-
-        MenuItem miDetails = new MenuItem("📋  View Details");
+        MenuItem miDetails = UIUtils.modernMenuItem("📋", "View Details", "#15803d", false);
         miDetails.setOnAction(ev -> showExamDetailsPopup(e, ca, app));
 
-        MenuItem miEdit = new MenuItem("✏  Edit Exam");
+        MenuItem miEdit = UIUtils.modernMenuItem("✏️", "Edit Exam", "#047857", false);
         miEdit.setOnAction(ev -> ExamEditor.loadForEditing(e, ca, app));
 
-        MenuItem miDel = new MenuItem("🗑  Delete");
-        miDel.setStyle("-fx-text-fill:" + UIUtils.ACCENT_RED + ";-fx-font-size:13px;");
+        MenuItem miDel = UIUtils.modernMenuItem("🗑️", "Delete", "#ef4444", true);
         miDel.setOnAction(ev -> {
             Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Delete this exam?", ButtonType.YES, ButtonType.NO);
             a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) {
@@ -715,9 +909,9 @@ public class TeacherPortal {
                 ExamBank.allExams.remove(e); renderDashboardHome(ca, app); } });
         });
 
-        opts.getItems().addAll(miSchedule, miDetails, miEdit, new SeparatorMenuItem(), miDel);
+        opts.getItems().addAll(miDetails, miEdit, new SeparatorMenuItem(), miDel);
 
-        row.getChildren().addAll(info, sp, btnLaunch, opts);
+        row.getChildren().addAll(info, sp, btnSchedule, btnLaunch, opts);
         return row;
     }
 
@@ -1250,7 +1444,20 @@ public class TeacherPortal {
             sTitle = exam.getTitle() != null ? exam.getTitle() : "";
             sDesc  = exam.getDescription() != null ? exam.getDescription() : "";
             sel.clear();
-            sel.putAll(exam.getQuestionsMap());
+
+            // Reconcile: exam.getQuestionsMap() keys are DB-loaded instances —
+            // different objects to QuestionBank.allQuestions even for the same question.
+            // Match by dbId so sel.containsKey(q) works correctly in refreshList.
+            for (var entry : exam.getQuestionsMap().entrySet()) {
+                Question dbQ  = entry.getKey();
+                double   marks = entry.getValue();
+                // Find the matching live instance in QuestionBank
+                Question live = QuestionBank.allQuestions.stream()
+                        .filter(bq -> bq.getDbId() > 0 && bq.getDbId() == dbQ.getDbId())
+                        .findFirst()
+                        .orElse(dbQ); // fall back to DB instance if not found
+                sel.put(live, marks);
+            }
             show(ca, app);
         }
 
@@ -1291,20 +1498,18 @@ public class TeacherPortal {
                 MenuButton qMenu = new MenuButton("⋯");
                 qMenu.setStyle(
                         "-fx-background-color:transparent;-fx-text-fill:" + UIUtils.textMid() + ";" +
-                                "-fx-font-size:15px;-fx-font-weight:bold;-fx-background-radius:8;" +
-                                "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:8;" +
+                                "-fx-font-size:15px;-fx-font-weight:bold;-fx-background-radius:10;" +
+                                "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;" +
                                 "-fx-border-width:1;-fx-padding:3 8;-fx-cursor:hand;"
                 );
                 qMenu.setMinWidth(MenuButton.USE_PREF_SIZE);
                 qMenu.setOnMouseEntered(ev -> qMenu.setStyle(qMenu.getStyle()
-                        .replace("-fx-background-color:transparent;", "-fx-background-color:" + UIUtils.bgContent() + ";")));
+                        .replace("-fx-background-color:transparent;", "-fx-background-color:rgba(15,23,42,0.05);")));
                 qMenu.setOnMouseExited(ev -> qMenu.setStyle(qMenu.getStyle()
-                        .replace("-fx-background-color:" + UIUtils.bgContent() + ";", "-fx-background-color:transparent;")));
-                MenuItem miEdit = new MenuItem("✏   Edit");
-                miEdit.setStyle("-fx-font-size:13px;");
+                        .replace("-fx-background-color:rgba(15,23,42,0.05);", "-fx-background-color:transparent;")));
+                MenuItem miEdit = UIUtils.modernMenuItem("✏️", "Edit",   "#047857", false);
                 miEdit.setOnAction(e -> showEditPopup(q, app));
-                MenuItem miDel = new MenuItem("🗑   Delete");
-                miDel.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.ACCENT_RED + ";");
+                MenuItem miDel = UIUtils.modernMenuItem("🗑️", "Delete", "#ef4444", true);
                 miDel.setOnAction(e -> showDeleteConfirm(q, app, sub, cls));
                 qMenu.getItems().addAll(miEdit, new SeparatorMenuItem(), miDel);
                 top.getChildren().addAll(cb, badge, qText, fMk, qMenu);
@@ -1404,6 +1609,7 @@ public class TeacherPortal {
                         ((RangeQuestion)q).setMin(mn);
                         ((RangeQuestion)q).setMax(mx);
                     }
+                    QuestionDAO.update(q);
                     st.close(); refreshList(sSub, sGrd, app);
                 } catch (Exception ex) { app.showError("Error", "Invalid values."); }
             });
@@ -1467,6 +1673,7 @@ public class TeacherPortal {
                         ((RangeQuestion)q).setMin(mn);
                         ((RangeQuestion)q).setMax(mx);
                     }
+                    QuestionDAO.update(q);
                     st.close();
                     if (onSave != null) onSave.run();
                 } catch (Exception ex) { app.showError("Error", "Invalid values."); }
@@ -1477,22 +1684,25 @@ public class TeacherPortal {
         }
 
         private static void showDeleteConfirm(Question q, HelloApplication app, String sub, Integer cls) {
-            Stage st = new Stage(); st.initModality(Modality.APPLICATION_MODAL); st.setTitle("Confirm Delete");
+            Stage st = new Stage(); st.initModality(Modality.APPLICATION_MODAL); st.setTitle("Remove from Exam");
             VBox layout = new VBox(16); layout.setPadding(new Insets(28)); layout.setAlignment(Pos.CENTER);
             layout.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";");
-            Label warn = new Label("🗑  Delete this question?");
+            Label warn = new Label("Remove this question from the exam?");
             warn.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.ACCENT_RED + ";");
             Label prev = new Label("\"" + q.getQuestionText() + "\"");
             prev.setWrapText(true); prev.setMaxWidth(300);
             prev.setStyle("-fx-font-style:italic;-fx-text-fill:" + UIUtils.textMid() + ";-fx-font-size:13px;");
+            Label note = new Label("The question stays in the Question Bank.");
+            note.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
             HBox btns = new HBox(14); btns.setAlignment(Pos.CENTER);
-            Button yes = UIUtils.primaryBtn("🗑", "Delete", UIUtils.ACCENT_RED);
+            Button yes = UIUtils.primaryBtn("🗑", "Remove", UIUtils.ACCENT_RED);
             Button no  = UIUtils.ghostBtn("←", "Cancel", UIUtils.TEXT_MID);
-            yes.setOnAction(e -> { QuestionBank.allQuestions.remove(q); sel.remove(q); st.close(); refreshList(sub, cls, app); });
+            // Only remove from sel (the current exam selection), NOT from QuestionBank
+            yes.setOnAction(e -> { sel.remove(q); updateMark(); st.close(); refreshList(sub, cls, app); });
             no.setOnAction(e  -> st.close());
             btns.getChildren().addAll(yes, no);
-            layout.getChildren().addAll(warn, prev, btns);
-            st.setScene(new Scene(layout, 360, 200)); st.showAndWait();
+            layout.getChildren().addAll(warn, prev, note, btns);
+            st.setScene(new Scene(layout, 400, 220)); st.showAndWait();
         }
 
         // ── Inline validation helpers (#13) ──────────────────
@@ -1542,8 +1752,14 @@ public class TeacherPortal {
                     updated.setLiveWindow(editing.getLiveWindow());
                     updated.setLiveEndMillis(editing.getLiveEndMillis());
                     updated.setExamCode(editing.getExamCode());
+                    updated.setScheduledStartMillis(editing.getScheduledStartMillis());
+                    updated.setScheduledEndMillis(editing.getScheduledEndMillis());
+                    // Copy dbId so ExamDAO.save() does UPDATE not INSERT
+                    updated.setDbId(editing.getDbId());
+                    ExamDAO.save(updated);
                     int idx = ExamBank.allExams.indexOf(editing);
                     if (idx != -1) ExamBank.allExams.set(idx, updated);
+                    else ExamBank.allExams.add(updated);
                     editing = null;
                     clearState();
                     renderDashboardHome(ca, app);
@@ -1855,19 +2071,39 @@ public class TeacherPortal {
 
             Region sp2 = new Region(); HBox.setHgrow(sp2, Priority.ALWAYS);
 
-            Button btnView = UIUtils.primaryBtn("📋", "View Questions", UIUtils.ACCENT_BLUE);
-            btnView.setOnAction(ev -> showPastExamDetails(e, ca, app));
+            MenuButton opts = new MenuButton("⋯  Options");
+            opts.setStyle(
+                    "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                            "-fx-text-fill:" + UIUtils.textDark() + ";" +
+                            "-fx-font-weight:bold;-fx-font-size:13px;" +
+                            "-fx-background-radius:10;" +
+                            "-fx-border-color:" + UIUtils.border() + ";" +
+                            "-fx-border-radius:10;" +
+                            "-fx-padding:9 16;" +
+                            "-fx-cursor:hand;"
+            );
+            opts.setOnMouseEntered(ev -> opts.setStyle(opts.getStyle().replace(
+                    "-fx-background-color:" + UIUtils.bgCard() + ";",
+                    "-fx-background-color:rgba(15,23,42,0.05);")));
+            opts.setOnMouseExited(ev -> opts.setStyle(opts.getStyle().replace(
+                    "-fx-background-color:rgba(15,23,42,0.05);",
+                    "-fx-background-color:" + UIUtils.bgCard() + ";")));
 
-            Button btnDel = UIUtils.ghostBtn("🗑", "Delete", UIUtils.ACCENT_RED);
-            btnDel.setOnAction(ev -> {
+            MenuItem miView = UIUtils.modernMenuItem("📋", "View Questions", "#0369a1", false);
+            miView.setOnAction(ev -> showPastExamDetails(e, ca, app));
+
+            MenuItem miDel = UIUtils.modernMenuItem("🗑️", "Delete Record", "#ef4444", true);
+            miDel.setOnAction(ev -> {
                 Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Delete this exam record?", ButtonType.YES, ButtonType.NO);
                 a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) {
                     ExamDAO.delete(e);
                     ExamBank.allExams.remove(e);
-                    ExamBank.allExams.remove(e); render(ca, app); } });
+                    render(ca, app); } });
             });
 
-            row.getChildren().addAll(info, gradeB, marksB, sp2, btnView, btnDel);
+            opts.getItems().addAll(miView, new SeparatorMenuItem(), miDel);
+
+            row.getChildren().addAll(info, gradeB, marksB, sp2, opts);
             return row;
         }
 
@@ -2146,33 +2382,30 @@ public class TeacherPortal {
                 ansL.setMaxWidth(160);
                 ansL.setWrapText(true);
 
-                // ⋯ Actions menu — replaces two separate Edit/Delete buttons
-                // Saves ~120px per row so question text and answer preview have room to breathe
+                // ⋯ Actions menu — modernMenuItem applies changes 1,2,3,7
                 MenuButton actionsMenu = new MenuButton("⋯");
                 actionsMenu.setStyle(
                         "-fx-background-color:transparent;" +
                                 "-fx-text-fill:" + UIUtils.textMid() + ";" +
                                 "-fx-font-size:16px;-fx-font-weight:bold;" +
-                                "-fx-background-radius:8;" +
+                                "-fx-background-radius:10;" +
                                 "-fx-border-color:" + UIUtils.border() + ";" +
-                                "-fx-border-radius:8;" +
+                                "-fx-border-radius:10;" +
                                 "-fx-border-width:1;" +
                                 "-fx-padding:4 10;" +
                                 "-fx-cursor:hand;"
                 );
                 actionsMenu.setMinWidth(MenuButton.USE_PREF_SIZE);
                 actionsMenu.setOnMouseEntered(ev -> actionsMenu.setStyle(actionsMenu.getStyle()
-                        .replace("-fx-background-color:transparent;", "-fx-background-color:" + UIUtils.bgContent() + ";")));
+                        .replace("-fx-background-color:transparent;", "-fx-background-color:rgba(15,23,42,0.05);")));
                 actionsMenu.setOnMouseExited(ev -> actionsMenu.setStyle(actionsMenu.getStyle()
-                        .replace("-fx-background-color:" + UIUtils.bgContent() + ";", "-fx-background-color:transparent;")));
+                        .replace("-fx-background-color:rgba(15,23,42,0.05);", "-fx-background-color:transparent;")));
 
-                MenuItem miEdit = new MenuItem("✏   Edit Question");
-                miEdit.setStyle("-fx-font-size:13px;");
+                MenuItem miEdit = UIUtils.modernMenuItem("✏️", "Edit Question", "#047857", false);
                 miEdit.setOnAction(ev -> ExamEditor.showEditPopupPublic(q, app, () ->
                         rebuildResults(results, ca, app, search, subFilter, grdFilter, typeFilter, totalLbl)));
 
-                MenuItem miDel = new MenuItem("🗑   Delete");
-                miDel.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.ACCENT_RED + ";");
+                MenuItem miDel = UIUtils.modernMenuItem("🗑️", "Delete",        "#ef4444", true);
                 miDel.setOnAction(ev -> {
                     Alert a = new Alert(Alert.AlertType.CONFIRMATION,
                             "Delete this question permanently?", ButtonType.YES, ButtonType.NO);

@@ -10,6 +10,42 @@ import java.util.ArrayList;
 // ═══════════════════════════════════════════════════════════
 public class QuestionDAO {
 
+    // ── Update an existing question in place (by dbId) ────────
+    public static boolean update(Question q) {
+        if (q.getDbId() < 1) return false;
+        try {
+            if (q instanceof MCQ mcq) {
+                String sql = "UPDATE questions SET question_text=?, options=?, correct_index=? WHERE id=?";
+                try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+                    ps.setString(1, mcq.getQuestionText());
+                    ps.setString(2, String.join("|", mcq.getOptions()));
+                    ps.setInt(3, mcq.getCorrectIndex());
+                    ps.setInt(4, mcq.getDbId());
+                    ps.executeUpdate();
+                }
+            } else if (q instanceof TextQuestion tq) {
+                String sql = "UPDATE questions SET question_text=?, answer=? WHERE id=?";
+                try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+                    ps.setString(1, tq.getQuestionText());
+                    ps.setDouble(2, tq.getAnswer());
+                    ps.setInt(3, tq.getDbId());
+                    ps.executeUpdate();
+                }
+            } else if (q instanceof RangeQuestion rq) {
+                String sql = "UPDATE questions SET question_text=?, min_val=?, max_val=? WHERE id=?";
+                try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
+                    ps.setString(1, rq.getQuestionText());
+                    ps.setDouble(2, rq.getMin());
+                    ps.setDouble(3, rq.getMax());
+                    ps.setInt(4, rq.getDbId());
+                    ps.executeUpdate();
+                }
+            }
+            return true;
+        } catch (SQLException e) { System.err.println("[QuestionDAO] update: " + e.getMessage()); }
+        return false;
+    }
+
     // ── Save a new question — returns DB id, or -1 on fail ───
     public static int save(Question q) {
         if (q instanceof MCQ mcq)           return saveMCQ(mcq);
