@@ -545,6 +545,7 @@ public class TeacherPortal {
                 if (r == ButtonType.YES) {
                     e.setLive(false);
                     e.setScheduleDetails("Ended: " + nowStr());
+                    ExamDAO.save(e);
                     renderDashboardHome(ca, app);
                 }
             });
@@ -553,6 +554,8 @@ public class TeacherPortal {
         MenuItem del = new MenuItem("🗑  Delete");
         del.setStyle("-fx-text-fill:" + UIUtils.ACCENT_RED + ";-fx-font-size:13px;");
         del.setOnAction(ev -> {
+            ExamDAO.delete(e);
+            ExamBank.allExams.remove(e);
             ExamBank.allExams.remove(e);
             renderDashboardHome(ca, app);
         });
@@ -706,7 +709,10 @@ public class TeacherPortal {
         miDel.setStyle("-fx-text-fill:" + UIUtils.ACCENT_RED + ";-fx-font-size:13px;");
         miDel.setOnAction(ev -> {
             Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Delete this exam?", ButtonType.YES, ButtonType.NO);
-            a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) { ExamBank.allExams.remove(e); renderDashboardHome(ca, app); } });
+            a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) {
+                ExamDAO.delete(e);
+                ExamBank.allExams.remove(e);
+                ExamBank.allExams.remove(e); renderDashboardHome(ca, app); } });
         });
 
         opts.getItems().addAll(miSchedule, miDetails, miEdit, new SeparatorMenuItem(), miDel);
@@ -838,6 +844,7 @@ public class TeacherPortal {
                 exam.setScheduleDetails(nowStr());
                 long endMs = System.currentTimeMillis() + totalMins * 60_000L;
                 exam.setLiveEndMillis(endMs);
+                ExamDAO.save(exam);
 
                 st.close();
                 renderDashboardHome(ca, app);
@@ -1547,6 +1554,7 @@ public class TeacherPortal {
                     Toast.success(ca, "Exam updated successfully!");
                 } else {
                     ExamBank.allExams.add(0, updated);
+                    ExamDAO.save(updated);
                     clearState();
                     renderDashboardHome(ca, app);
                     Toast.success(ca, "Exam created and added to Scheduled Exams!");
@@ -1854,7 +1862,10 @@ public class TeacherPortal {
             Button btnDel = UIUtils.ghostBtn("🗑", "Delete", UIUtils.ACCENT_RED);
             btnDel.setOnAction(ev -> {
                 Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Delete this exam record?", ButtonType.YES, ButtonType.NO);
-                a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) { ExamBank.allExams.remove(e); render(ca, app); } });
+                a.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) {
+                    ExamDAO.delete(e);
+                    ExamBank.allExams.remove(e);
+                    ExamBank.allExams.remove(e); render(ca, app); } });
             });
 
             row.getChildren().addAll(info, gradeB, marksB, sp2, btnView, btnDel);

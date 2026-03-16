@@ -11,9 +11,8 @@ import javafx.stage.Stage;
 import java.util.ArrayList;
 
 // ═══════════════════════════════════════════════════════════
-//  HelloApplication.java  –  App entry point + home screen
-//  CHANGED: DB init, load teachers/students from DB,
-//           close DB on exit, removed hardcoded seed data.
+//  HelloApplication.java
+//  UPDATED: also loads exams from DB on startup.
 // ═══════════════════════════════════════════════════════════
 public class HelloApplication extends Application {
 
@@ -23,18 +22,21 @@ public class HelloApplication extends Application {
     @Override
     public void start(Stage stage) {
 
-        // ── 1. Init database (creates file + tables if needed) ─
+        // 1. Init DB (creates file + all tables if needed)
         DatabaseManager.init();
 
-        // ── 2. Load persisted users from DB ───────────────────
+        // 2. Load persisted users
         teachers.addAll(UserDAO.loadAllTeachers());
         students.addAll(UserDAO.loadAllStudents());
 
-        // ── 3. Load persisted questions from DB ───────────────
+        // 3. Load persisted questions
         QuestionBank.allQuestions.addAll(QuestionDAO.loadAll());
         System.out.println("[App] Loaded " + QuestionBank.allQuestions.size() + " questions from DB.");
 
-        // ── 4. Close DB cleanly when window is closed ─────────
+        // 4. Load persisted exams
+        ExamBank.allExams.addAll(ExamDAO.loadAll());
+
+        // 5. Close DB cleanly on exit
         stage.setOnCloseRequest(e -> DatabaseManager.close());
 
         stage.setTitle("EduExam – Online Assessment System");
@@ -46,7 +48,6 @@ public class HelloApplication extends Application {
     public Scene createMainScene(Stage stage) {
         BorderPane root = new BorderPane();
 
-        // LEFT – branding panel
         VBox left = new VBox(24);
         left.setPrefWidth(430);
         left.setAlignment(Pos.CENTER);
@@ -67,10 +68,8 @@ public class HelloApplication extends Application {
             Circle dot = new Circle(6, Color.web(c));
             dots.getChildren().add(dot);
         }
-
         left.getChildren().addAll(logo, brand, tag, dots);
 
-        // RIGHT – portal selection
         VBox right = new VBox(30);
         right.setAlignment(Pos.CENTER);
         right.setPadding(new Insets(60, 70, 60, 70));
@@ -86,7 +85,6 @@ public class HelloApplication extends Application {
                 UIUtils.ACCENT_GREEN, "#052e16",
                 () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
         );
-
         VBox teacherCard = buildPortalCard(
                 "📚", "Teacher",
                 "Create exams, manage questions and results",
@@ -95,7 +93,6 @@ public class HelloApplication extends Application {
         );
 
         right.getChildren().addAll(selTitle, selSub, studentCard, teacherCard);
-
         root.setLeft(left);
         root.setCenter(right);
 
@@ -133,7 +130,6 @@ public class HelloApplication extends Application {
         Button btn = UIUtils.primaryBtn("→", "Enter " + title + " Portal", accent);
         btn.setPrefWidth(Double.MAX_VALUE);
         btn.setOnAction(e -> action.run());
-
         card.getChildren().addAll(top, btn);
 
         card.setOnMouseEntered(e -> {

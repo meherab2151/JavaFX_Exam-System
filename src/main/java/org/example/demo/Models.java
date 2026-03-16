@@ -11,6 +11,7 @@ import java.util.HashMap;
 
 // ─── Abstract base question ───────────────────────────────
 abstract class Question {
+    protected int dbId = -1;
     protected String subject;
     protected int grade;
     protected String questionText;
@@ -24,6 +25,8 @@ abstract class Question {
     public String getSubject()            { return subject; }
     public int    getGrade()              { return grade; }
     public String getQuestionText()       { return questionText; }
+    public int  getDbId()       { return dbId; }
+    public void setDbId(int id) { this.dbId = id; }
 }
 
 // ─── MCQ ─────────────────────────────────────────────────
@@ -71,6 +74,7 @@ class RangeQuestion extends Question {
 
 // ─── Exam ─────────────────────────────────────────────────
 class Exam {
+    private int dbId = -1;
     private String  subject;
     private int     grade;
     private double  totalMarks;
@@ -119,6 +123,8 @@ class Exam {
     public java.util.Collection<Question> getQuestions(){ return questions.keySet(); }
     public String  getExamCode()               { return examCode; }
     public void    setExamCode(String c)       { examCode = c; }
+    public int  getDbId()       { return dbId; }
+    public void setDbId(int id) { this.dbId = id; }
 
     // ── New meta getters/setters ─────────────────────────
     public String  getTitle()                  { return title; }
