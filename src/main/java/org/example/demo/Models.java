@@ -236,3 +236,69 @@ class ExamBank {
         return live;
     }
 }
+
+// ─── ExamResult ───────────────────────────────────────────
+class ExamResult {
+    public int    id;
+    public String studentId;
+    public int    examId;
+    public String examTitle;
+    public String examSubject;
+    public int    examGrade;
+    public double score;
+    public double totalMarks;
+    public int    correct;
+    public int    totalQ;
+    public long   takenAt; // epoch millis
+
+    /** Percentage 0‑100 */
+    public double pct() {
+        return totalMarks > 0 ? (score / totalMarks) * 100 : 0;
+    }
+
+    /** Letter grade */
+    public String grade() {
+        double p = pct();
+        return p >= 80 ? "A" : p >= 65 ? "B" : p >= 50 ? "C" : p >= 35 ? "D" : "F";
+    }
+
+    /** Human-readable date */
+    public String dateStr() {
+        java.time.LocalDate d = java.time.Instant.ofEpochMilli(takenAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        return d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"));
+    }
+}
+
+// ─── Announcement ─────────────────────────────────────────
+class Announcement {
+    public int    id;
+    public String title;
+    public String body;
+    public String color = "#2563eb";
+    public long   createdAt;
+    public long   expireAt = 0; // 0 = never expires
+
+    public Announcement() {}
+    public Announcement(String title, String body, String color) {
+        this.title = title; this.body = body; this.color = color;
+        this.createdAt = System.currentTimeMillis();
+    }
+
+    public String dateStr() {
+        java.time.LocalDate d = java.time.Instant.ofEpochMilli(createdAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        return d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"));
+    }
+
+    public boolean isExpired() {
+        return expireAt > 0 && System.currentTimeMillis() >= expireAt;
+    }
+
+    public String expireStr() {
+        if (expireAt <= 0) return "Never";
+        java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(expireAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        return ldt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy  HH:mm"));
+    }
+}

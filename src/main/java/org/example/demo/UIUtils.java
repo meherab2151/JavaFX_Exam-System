@@ -667,44 +667,72 @@ public class UIUtils {
     }
 
     // ── PRIMARY button ────────────────────────────────────────
+    // Soft semantic fill: tinted background + matching border, no drop shadow.
+    // color = accent hex (e.g. ACCENT_GREEN). Text is auto-tinted from same hue.
     public static Button primaryBtn(String icon, String text, String color) {
         String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
         Button b = new Button(label);
-        b.setStyle(
-                "-fx-background-color:" + color + ";-fx-text-fill:white;" +
-                        "-fx-font-weight:bold;-fx-font-size:13px;" +
+
+        // Derive a soft tinted background (15% alpha of accent) and a border (35% alpha).
+        // JavaFX CSS does not support rgba() on -fx-background-color, so we use
+        // derive() which lightens toward white — same visual effect.
+        String bgNormal  = "derive(" + color + ", +72%)";
+        String bgHover   = "derive(" + color + ", +60%)";
+        String bgPressed = "derive(" + color + ", +50%)";
+
+        String normal =
+                "-fx-background-color:" + bgNormal + ";" +
+                        "-fx-text-fill:" + color + ";" +
+                        "-fx-font-weight:500;-fx-font-size:13px;" +
                         "-fx-background-radius:8;-fx-padding:9 18;" +
-                        "-fx-cursor:hand;-fx-effect:null;"
-        );
-        DropShadow ds = new DropShadow();
-        ds.setColor(Color.color(0,0,0,0.12)); ds.setOffsetY(2); ds.setRadius(6);
-        b.setEffect(ds);
-        b.setOnMouseEntered(e -> { b.setTranslateY(-1); ds.setOffsetY(4); ds.setRadius(10); ds.setColor(Color.color(0,0,0,0.18)); });
-        b.setOnMouseExited(e  -> { b.setTranslateY(0);  ds.setOffsetY(2); ds.setRadius(6);  ds.setColor(Color.color(0,0,0,0.12)); });
-        b.setOnMousePressed(e  -> b.setTranslateY(1));
-        b.setOnMouseReleased(e -> b.setTranslateY(-1));
+                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
+                        "-fx-cursor:hand;";
+        String hover =
+                "-fx-background-color:" + bgHover + ";" +
+                        "-fx-text-fill:" + color + ";" +
+                        "-fx-font-weight:500;-fx-font-size:13px;" +
+                        "-fx-background-radius:8;-fx-padding:9 18;" +
+                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
+                        "-fx-cursor:hand;";
+        String pressed =
+                "-fx-background-color:" + bgPressed + ";" +
+                        "-fx-text-fill:" + color + ";" +
+                        "-fx-font-weight:500;-fx-font-size:13px;" +
+                        "-fx-background-radius:8;-fx-padding:9 18;" +
+                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
+                        "-fx-cursor:hand;";
+
+        b.setStyle(normal);
+        b.setOnMouseEntered(e  -> { b.setStyle(hover);   b.setTranslateY(-1); });
+        b.setOnMouseExited(e   -> { b.setStyle(normal);  b.setTranslateY(0);  });
+        b.setOnMousePressed(e  -> { b.setStyle(pressed); b.setTranslateY(1);  });
+        b.setOnMouseReleased(e -> { b.setStyle(hover);   b.setTranslateY(-1); });
         return b;
     }
 
     // ── GHOST button ──────────────────────────────────────────
+    // Near-invisible at rest (subtle border), soft tint on hover.
+    // Visually recedes behind primaryBtn — clearly a tertiary/cancel action.
     public static Button ghostBtn(String icon, String text, String color) {
         String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
         Button b = new Button(label);
         String normal =
-                "-fx-background-color:transparent;-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:bold;-fx-font-size:13px;" +
-                        "-fx-border-color:" + color + ";-fx-border-radius:8;" +
-                        "-fx-background-radius:8;-fx-padding:8 16;" +
-                        "-fx-cursor:hand;-fx-border-width:1;";
+                "-fx-background-color:transparent;" +
+                        "-fx-text-fill:" + color + ";" +
+                        "-fx-font-weight:500;-fx-font-size:13px;" +
+                        "-fx-border-color:derive(" + color + ",+30%);" +
+                        "-fx-border-radius:8;-fx-background-radius:8;" +
+                        "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:0.8;";
         String hover =
-                "-fx-background-color:" + color + "0f;-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:bold;-fx-font-size:13px;" +
-                        "-fx-border-color:" + color + ";-fx-border-radius:8;" +
-                        "-fx-background-radius:8;-fx-padding:8 16;" +
-                        "-fx-cursor:hand;-fx-border-width:1;";
+                "-fx-background-color:derive(" + color + ",+80%);" +
+                        "-fx-text-fill:" + color + ";" +
+                        "-fx-font-weight:500;-fx-font-size:13px;" +
+                        "-fx-border-color:derive(" + color + ",+30%);" +
+                        "-fx-border-radius:8;-fx-background-radius:8;" +
+                        "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:0.8;";
         b.setStyle(normal);
-        b.setOnMouseEntered(e -> b.setStyle(hover));
-        b.setOnMouseExited(e  -> b.setStyle(normal));
+        b.setOnMouseEntered(e  -> b.setStyle(hover));
+        b.setOnMouseExited(e   -> b.setStyle(normal));
         b.setOnMousePressed(e  -> b.setTranslateY(1));
         b.setOnMouseReleased(e -> b.setTranslateY(0));
         return b;

@@ -11,6 +11,8 @@ import javafx.scene.shape.*;
 import javafx.stage.*;
 import javafx.util.Duration;
 import java.util.*;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 // ═══════════════════════════════════════════════════════════
@@ -279,9 +281,8 @@ public class TeacherPortal {
     static Scene createDashboardScene(Stage stage, Teacher teacher, HelloApplication app, int startPage) {
         BorderPane root = new BorderPane();
 
-        VBox sidebar = new VBox(8);
+        VBox sidebar = new VBox(0);
         sidebar.setPrefWidth(210);
-        sidebar.setPadding(new Insets(0, 10, 20, 10));
         sidebar.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
 
         VBox avatarBox = new VBox(8);
@@ -306,12 +307,9 @@ public class TeacherPortal {
         switchRow.setAlignment(Pos.CENTER_LEFT);
         switchRow.setPadding(new Insets(14, 10, 0, 14));
 
-        sidebar.getChildren().addAll(switchRow, avatarBox);
-
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color:#1e293b;");
         sep.setPadding(new Insets(4, 0, 12, 0));
-        sidebar.getChildren().add(sep);
 
         javafx.scene.layout.AnchorPane contentArea = new javafx.scene.layout.AnchorPane();
         contentArea.setPrefSize(790, 600);
@@ -323,8 +321,14 @@ public class TeacherPortal {
                 {"➕", "Add Question",   UIUtils.ACCENT_YELL},
                 {"📚", "Question Bank",  UIUtils.ACCENT_GREEN},
                 {"📂", "Past Exams",     UIUtils.ACCENT_ORG},
+                {"🏆", "Leaderboard",    "#f43f5e"},
+                {"📢", "Announce",       UIUtils.ACCENT_BLUE},
         };
         StackPane[] navBtns = new StackPane[nav.length];
+
+        // Scrollable nav area
+        VBox navBox = new VBox(8);
+        navBox.setPadding(new Insets(0, 10, 10, 10));
         for (int i = 0; i < nav.length; i++) {
             final int idx = i;
             final String color = nav[i][2];
@@ -344,13 +348,25 @@ public class TeacherPortal {
                     case 2 -> QuestionEditor.show(contentArea, app, null, null);
                     case 3 -> QuestionBankBrowser.render(contentArea, app);
                     case 4 -> PastExams.render(contentArea, app);
+                    case 5 -> renderLeaderboard(contentArea);
+                    case 6 -> renderAnnouncements(contentArea, app);
                 }
                 UIUtils.slideIn(contentArea, true);
             });
-            sidebar.getChildren().add(navBtns[i]);
+            navBox.getChildren().add(navBtns[i]);
         }
 
-        Region spacer = new Region(); VBox.setVgrow(spacer, Priority.ALWAYS);
+        ScrollPane navScroll = new ScrollPane(navBox);
+        navScroll.setFitToWidth(true);
+        navScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        navScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        navScroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;-fx-border-color:transparent;");
+        VBox.setVgrow(navScroll, Priority.ALWAYS);
+
+        // Fixed logout at bottom
+        VBox logoutBox = new VBox();
+        logoutBox.setPadding(new Insets(8, 10, 14, 10));
+        logoutBox.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";-fx-border-color:#1e293b;-fx-border-width:1 0 0 0;");
         Button btnLogout = UIUtils.primaryBtn("🚪", "Log Out", UIUtils.ACCENT_RED);
         btnLogout.setPrefWidth(190);
         btnLogout.setOnAction(e -> {
@@ -367,7 +383,10 @@ public class TeacherPortal {
                 }
             });
         });
-        sidebar.getChildren().addAll(spacer, btnLogout);
+        logoutBox.getChildren().add(btnLogout);
+
+        sidebar.getChildren().addAll(switchRow, avatarBox, sep, navScroll, logoutBox);
+        sidebar.setPrefHeight(Double.MAX_VALUE);
 
         root.setLeft(sidebar);
         root.setCenter(contentArea);
@@ -381,6 +400,8 @@ public class TeacherPortal {
             case 2 -> QuestionEditor.show(contentArea, app, null, null);
             case 3 -> QuestionBankBrowser.render(contentArea, app);
             case 4 -> PastExams.render(contentArea, app);
+            case 5 -> renderLeaderboard(contentArea);
+            case 6 -> renderAnnouncements(contentArea, app);
         }
 
         return new Scene(root, 1000, 600);
@@ -425,14 +446,18 @@ public class TeacherPortal {
         long pastCount  = ExamBank.allExams.stream()
                 .filter(e -> !e.isLive() && e.getScheduleDetails() != null
                         && e.getScheduleDetails().startsWith("Ended")).count();
+        long studentCount  = UserDAO.loadAllStudents().size();
+        long submissionCnt = ResultDAO.loadAll().size();
 
         HBox stats = new HBox(16);
-        stats.setMaxWidth(760);
+        stats.setMaxWidth(900);
         stats.getChildren().addAll(
-                UIUtils.statCard("📡", String.valueOf(liveCount),  "Live Exams",  UIUtils.ACCENT_GREEN),
-                UIUtils.statCard("📋", String.valueOf(totalQ),     "Questions",   UIUtils.ACCENT_BLUE),
-                UIUtils.statCard("📅", String.valueOf(schedCount), "Scheduled",   UIUtils.ACCENT_PURP),
-                UIUtils.statCard("📂", String.valueOf(pastCount),  "Past Exams",  UIUtils.ACCENT_ORG)
+                UIUtils.statCard("📡", String.valueOf(liveCount),    "Live Exams",    UIUtils.ACCENT_GREEN),
+                UIUtils.statCard("📋", String.valueOf(totalQ),       "Questions",     UIUtils.ACCENT_BLUE),
+                UIUtils.statCard("📅", String.valueOf(schedCount),   "Scheduled",     UIUtils.ACCENT_PURP),
+                UIUtils.statCard("📂", String.valueOf(pastCount),    "Past Exams",    UIUtils.ACCENT_ORG),
+                UIUtils.statCard("👥", String.valueOf(studentCount), "Students",      "#f43f5e"),
+                UIUtils.statCard("📊", String.valueOf(submissionCnt),"Submissions",   UIUtils.ACCENT_YELL)
         );
 
         // ── LIVE EXAMS section ────────────────────────────────
@@ -501,6 +526,387 @@ public class TeacherPortal {
         Label l = new Label(text);
         l.setStyle("-fx-text-fill:" + UIUtils.textMid() + ";-fx-font-size:14px;-fx-padding:16;");
         return l;
+    }
+
+    // ╔══════════════════════════════════════════════════════╗
+    //  LEADERBOARD — teacher view: all exams, top students
+    // ╚══════════════════════════════════════════════════════╝
+    private static void renderLeaderboard(Pane contentArea) {
+        contentArea.getChildren().clear();
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+
+        VBox page = new VBox(24); page.setPadding(new Insets(30,36,30,36));
+        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
+        page.getChildren().addAll(UIUtils.heading("🏆  Leaderboard"),
+                UIUtils.subheading("Best scores per exam — updated in real time"),
+                UIUtils.divider());
+
+        java.util.List<ExamResult> all = ResultDAO.loadAll();
+        if (all.isEmpty()) {
+            page.getChildren().add(emptyStateCard("🏆","No results yet",
+                    "Students haven't submitted any exams yet.", null, null, null));
+        } else {
+            // Group by examId — ResultDAO already returns best-score-only per student
+            Map<Integer, java.util.List<ExamResult>> byExam = new java.util.LinkedHashMap<>();
+            for (ExamResult r : all) byExam.computeIfAbsent(r.examId, k->new java.util.ArrayList<>()).add(r);
+
+            for (Map.Entry<Integer, java.util.List<ExamResult>> entry : byExam.entrySet()) {
+                java.util.List<ExamResult> top = entry.getValue().stream()
+                        .sorted((a,b)->Double.compare(b.score,a.score))
+                        .collect(java.util.stream.Collectors.toList());
+
+                ExamResult first = top.get(0);
+                String examLabel = first.examTitle!=null&&!first.examTitle.isBlank()
+                        ? first.examTitle : first.examSubject;
+
+                VBox card = new VBox(8); card.setMaxWidth(760);
+                card.setPadding(new Insets(18,22,18,22));
+                card.setStyle("-fx-background-color:"+UIUtils.bgCard()+";" +
+                        "-fx-background-radius:14;-fx-border-color:"+UIUtils.border()+";" +
+                        "-fx-border-radius:14;-fx-border-width:1;");
+                DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05));
+                ds.setRadius(8); ds.setOffsetY(2); card.setEffect(ds);
+
+                // Header row
+                HBox hdr = new HBox(10); hdr.setAlignment(Pos.CENTER_LEFT);
+                Label titleLbl = new Label("🏆  "+examLabel);
+                titleLbl.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
+                Label subBadge = UIUtils.badge(first.examSubject+" · Grade "+first.examGrade, UIUtils.ACCENT_BLUE);
+                Label cntBadge = UIUtils.badge(top.size()+" students", UIUtils.ACCENT_GREEN);
+                hdr.getChildren().addAll(titleLbl, subBadge, cntBadge);
+                card.getChildren().addAll(hdr, UIUtils.divider());
+
+                // Top-10 rows
+                String[] medals = {"🥇","🥈","🥉"};
+                // Load student names
+                Map<String,String> nameCache = new java.util.HashMap<>();
+                for (Student s : UserDAO.loadAllStudents()) nameCache.put(s.getID(), s.getName());
+
+                for (int rank = 0; rank < top.size(); rank++) {
+                    ExamResult r = top.get(rank);
+                    String gc = r.pct()>=65?UIUtils.ACCENT_GREEN:r.pct()>=50?UIUtils.ACCENT_BLUE:UIUtils.ACCENT_RED;
+
+                    HBox row = new HBox(14); row.setAlignment(Pos.CENTER_LEFT);
+                    row.setPadding(new Insets(7,10,7,10));
+                    if (rank%2==0) row.setStyle("-fx-background-color:"+UIUtils.bgHover()+";" +
+                            "-fx-background-radius:8;");
+
+                    Label rankLbl = new Label(rank<3?medals[rank]:"#"+(rank+1));
+                    rankLbl.setStyle("-fx-font-size:16px;"); rankLbl.setMinWidth(38);
+
+                    String name = nameCache.getOrDefault(r.studentId, r.studentId);
+                    Label nameLbl = new Label(name);
+                    nameLbl.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
+                    nameLbl.setMinWidth(170);
+                    Label idLbl = new Label("("+r.studentId+")");
+                    idLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textSubtle()+";");
+
+                    Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
+
+                    javafx.scene.control.ProgressBar pb = new javafx.scene.control.ProgressBar(r.pct()/100);
+                    pb.setPrefWidth(130); pb.setPrefHeight(8);
+                    pb.setStyle("-fx-accent:"+gc+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:4;");
+
+                    Label scoreLbl = new Label(String.format("%.0f / %.0f  (%.1f%%)",r.score,r.totalMarks,r.pct()));
+                    scoreLbl.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:"+gc+";");
+                    scoreLbl.setMinWidth(160);
+
+                    Label dateLbl = new Label(r.dateStr());
+                    dateLbl.setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.textSubtle()+";");
+
+                    row.getChildren().addAll(rankLbl, nameLbl, idLbl, sp2, pb, scoreLbl, dateLbl);
+                    card.getChildren().add(row);
+                }
+                page.getChildren().add(card);
+            }
+        }
+
+        scroll.setContent(page);
+        contentArea.getChildren().add(scroll);
+        if (contentArea instanceof javafx.scene.layout.AnchorPane ap) {
+            javafx.scene.layout.AnchorPane.setTopAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setBottomAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setLeftAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setRightAnchor(scroll, 0.0);
+        }
+        UIUtils.slideIn(page, true);
+    }
+
+    // ╔══════════════════════════════════════════════════════╗
+    //  ANNOUNCEMENTS — teacher can post/delete notices
+    // ╚══════════════════════════════════════════════════════╝
+    private static void renderAnnouncements(Pane contentArea, HelloApplication app) {
+        contentArea.getChildren().clear();
+
+        // Delete any already-expired announcements before rendering
+        ResultDAO.deleteExpired();
+
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+
+        VBox page = new VBox(20); page.setPadding(new Insets(30,36,30,36));
+        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
+
+        // Header row
+        HBox titleRow = new HBox(16); titleRow.setAlignment(Pos.CENTER_LEFT);
+        VBox titleBox = new VBox(2);
+        titleBox.getChildren().addAll(UIUtils.heading("📢  Announcements"),
+                UIUtils.subheading("Post notices that all students will see"));
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+        Button btnNew = UIUtils.primaryBtn("📢", "Post Announcement", UIUtils.ACCENT_BLUE);
+        btnNew.setOnAction(ev -> showPostAnnouncementPopup(contentArea, app));
+        titleRow.getChildren().addAll(titleBox, sp, btnNew);
+        page.getChildren().addAll(titleRow, UIUtils.divider());
+
+        java.util.List<Announcement> list = ResultDAO.loadAnnouncements();
+        if (list.isEmpty()) {
+            page.getChildren().add(emptyStateCard("📢","No announcements yet",
+                    "Post a notice and it will appear for all students.",
+                    null, null, null));
+        } else {
+            for (Announcement a : list) {
+                HBox cardWrap = new HBox(0);
+                Region bar = new Region(); bar.setPrefWidth(4);
+                bar.setStyle("-fx-background-color:"+a.color+";-fx-background-radius:4 0 0 4;");
+
+                VBox body = new VBox(6); body.setPadding(new Insets(14,16,14,16));
+                body.setStyle("-fx-background-color:"+UIUtils.bgCard()+";" +
+                        "-fx-background-radius:0 10 10 0;");
+                DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05));
+                ds.setRadius(8); ds.setOffsetY(2); body.setEffect(ds);
+
+                HBox hdrRow = new HBox(10); hdrRow.setAlignment(Pos.CENTER_LEFT);
+                Label titleLbl = new Label(a.title);
+                titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
+                Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
+                Label dateLbl = new Label(a.dateStr());
+                dateLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textSubtle()+";");
+
+                // Expiry badge
+                Label expLbl;
+                if (a.expireAt > 0) {
+                    expLbl = new Label("⏰ Expires: "+a.expireStr());
+                    expLbl.setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.ACCENT_ORG
+                            +";-fx-background-color:"+UIUtils.ACCENT_ORG+"18;" +
+                            "-fx-padding:2 8;-fx-background-radius:6;");
+                } else {
+                    expLbl = new Label("🔁 Never expires");
+                    expLbl.setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.textSubtle()+";");
+                }
+
+                Button btnDel = new Button("🗑");
+                btnDel.setStyle("-fx-background-color:transparent;-fx-text-fill:"+UIUtils.ACCENT_RED+";" +
+                        "-fx-font-size:13px;-fx-cursor:hand;-fx-padding:2 6;");
+                final int aid = a.id;
+                btnDel.setOnAction(ev -> {
+                    Alert conf = new Alert(Alert.AlertType.CONFIRMATION,
+                            "Delete this announcement?", ButtonType.YES, ButtonType.NO);
+                    conf.showAndWait().ifPresent(r -> {
+                        if (r==ButtonType.YES) {
+                            ResultDAO.deleteAnnouncement(aid);
+                            renderAnnouncements(contentArea, app);
+                        }
+                    });
+                });
+
+                hdrRow.getChildren().addAll(titleLbl, sp2, expLbl, dateLbl, btnDel);
+                Label bodyLbl = new Label(a.body);
+                bodyLbl.setStyle("-fx-font-size:13px;-fx-text-fill:"+UIUtils.textMid()+";");
+                bodyLbl.setWrapText(true);
+                body.getChildren().addAll(hdrRow, bodyLbl);
+                cardWrap.getChildren().addAll(bar, body);
+                HBox.setHgrow(body, Priority.ALWAYS);
+                cardWrap.setMaxWidth(760);
+                page.getChildren().add(cardWrap);
+            }
+        }
+
+        scroll.setContent(page);
+        contentArea.getChildren().add(scroll);
+        if (contentArea instanceof javafx.scene.layout.AnchorPane ap) {
+            javafx.scene.layout.AnchorPane.setTopAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setBottomAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setLeftAnchor(scroll, 0.0);
+            javafx.scene.layout.AnchorPane.setRightAnchor(scroll, 0.0);
+        }
+
+        // ── Auto-delete timeline: checks every 30 s while page is visible ──
+        Timeline autoExpire = new Timeline(new KeyFrame(Duration.seconds(30), ev -> {
+            ResultDAO.deleteExpired();
+            renderAnnouncements(contentArea, app);
+        }));
+        autoExpire.setCycleCount(Animation.INDEFINITE);
+        autoExpire.play();
+        // Stop when page is navigated away
+        scroll.sceneProperty().addListener((obs,o,n) -> { if (n==null) autoExpire.stop(); });
+
+        UIUtils.slideIn(page, true);
+    }
+
+    // ── Post Announcement popup ───────────────────────────────
+    private static void showPostAnnouncementPopup(Pane contentArea, HelloApplication app) {
+        Stage popup = new Stage();
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initStyle(StageStyle.UNDECORATED);
+
+        VBox box = new VBox(14); box.setPadding(new Insets(28,34,24,34)); box.setMaxWidth(490);
+        box.setStyle("-fx-background-color:"+UIUtils.bgCard()
+                +";-fx-background-radius:16;-fx-border-radius:16;" +
+                "-fx-border-color:"+UIUtils.ACCENT_BLUE+"44;-fx-border-width:2;");
+        box.setEffect(new DropShadow(32, Color.color(0,0,0,0.35)));
+
+        Label headerLbl = new Label("📢  New Announcement");
+        headerLbl.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
+
+        String lbl = "-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textMid()+";";
+
+        // Title
+        Label titleLabel = new Label("TITLE"); titleLabel.setStyle(lbl);
+        TextField titleField = UIUtils.styledField("e.g. Exam Schedule Update");
+
+        // Message
+        Label bodyLabel = new Label("MESSAGE"); bodyLabel.setStyle(lbl);
+        TextArea bodyArea = new TextArea();
+        bodyArea.setPromptText("Write your announcement here...");
+        bodyArea.setPrefRowCount(4); bodyArea.setWrapText(true);
+        bodyArea.setStyle("-fx-background-color:"+UIUtils.bgSurface()
+                +";-fx-border-color:"+UIUtils.border()+";" +
+                "-fx-border-radius:8;-fx-background-radius:8;" +
+                "-fx-text-fill:"+UIUtils.textDark()+";-fx-font-size:13px;-fx-padding:10;");
+
+        // Color picker
+        Label colorLabel = new Label("ACCENT COLOR"); colorLabel.setStyle(lbl);
+        String[] colors = {UIUtils.ACCENT_BLUE, UIUtils.ACCENT_GREEN, UIUtils.ACCENT_ORG,
+                UIUtils.ACCENT_RED, UIUtils.ACCENT_PURP};
+        String[] selectedColor = { UIUtils.ACCENT_BLUE };
+        HBox colorRow = new HBox(10); colorRow.setAlignment(Pos.CENTER_LEFT);
+        ToggleGroup tg = new ToggleGroup();
+        for (String c : colors) {
+            RadioButton rb = new RadioButton();
+            rb.setToggleGroup(tg);
+            rb.setStyle("-fx-background-color:"+c+";-fx-background-radius:99;" +
+                    "-fx-min-width:22;-fx-min-height:22;-fx-cursor:hand;");
+            rb.setOnAction(e -> selectedColor[0] = c);
+            if (c.equals(UIUtils.ACCENT_BLUE)) rb.setSelected(true);
+            colorRow.getChildren().add(rb);
+        }
+
+        // ── Auto-delete schedule ──────────────────────────────
+        Label schedLabel = new Label("AUTO-DELETE (OPTIONAL)"); schedLabel.setStyle(lbl);
+
+        // Toggle: None / At date+time
+        ToggleGroup schedTg = new ToggleGroup();
+        RadioButton rbNever  = new RadioButton("Never expire");
+        RadioButton rbExpire = new RadioButton("Auto-delete at:");
+        rbNever.setToggleGroup(schedTg);  rbNever.setSelected(true);
+        rbExpire.setToggleGroup(schedTg);
+        rbNever.setStyle("-fx-text-fill:"+UIUtils.textDark()+";-fx-font-size:12px;");
+        rbExpire.setStyle("-fx-text-fill:"+UIUtils.textDark()+";-fx-font-size:12px;");
+
+        // ── Styled date + time row — same components as schedule popup ──
+        DatePicker expDatePicker = buildDatePicker(java.time.LocalDate.now().plusDays(1));
+        TextField  expHH         = buildTimeField("23");
+        TextField  expMM         = buildTimeField("59");
+        ToggleButton expAmPm     = buildAmPmToggle();
+
+        // Preview label under the pickers
+        Label expPreview = new Label("");
+        expPreview.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
+
+        Runnable updateExpPreview = () -> {
+            if (!rbExpire.isSelected()) { expPreview.setText(""); return; }
+            try {
+                java.time.LocalDateTime ldt = buildLDT(expDatePicker, expHH, expMM, expAmPm);
+                java.time.format.DateTimeFormatter fmt =
+                        java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy  •  hh:mm a");
+                if (ldt.isBefore(java.time.LocalDateTime.now())) {
+                    expPreview.setText("❌  Must be in the future");
+                    expPreview.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.ACCENT_RED+";");
+                } else {
+                    expPreview.setText("⏰  Will delete on "+ldt.format(fmt));
+                    expPreview.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.ACCENT_ORG+";-fx-font-weight:bold;");
+                }
+            } catch (Exception ex) { expPreview.setText(""); }
+        };
+        javafx.beans.value.ChangeListener<Object> prevL = (o,ov,nv) -> updateExpPreview.run();
+        expDatePicker.valueProperty().addListener(prevL);
+        expHH.textProperty().addListener(prevL);
+        expMM.textProperty().addListener(prevL);
+        expAmPm.selectedProperty().addListener(prevL);
+
+        VBox expirePickerBox = new VBox(6);
+        expirePickerBox.setPadding(new Insets(8,12,8,12));
+        expirePickerBox.setStyle("-fx-background-color:"+UIUtils.bgContent()+";" +
+                "-fx-background-radius:10;-fx-border-color:"+UIUtils.border()+";" +
+                "-fx-border-radius:10;-fx-border-width:1;");
+        expirePickerBox.getChildren().addAll(buildTimeInputRow(expDatePicker, expHH, expMM, expAmPm), expPreview);
+        expirePickerBox.setVisible(false); expirePickerBox.setManaged(false);
+
+        rbExpire.selectedProperty().addListener((obs,o,n) -> {
+            expirePickerBox.setVisible(n); expirePickerBox.setManaged(n);
+            updateExpPreview.run();
+            popup.sizeToScene();
+        });
+
+        VBox schedBox = new VBox(8, new HBox(16, rbNever, rbExpire), expirePickerBox);
+
+        // ── Buttons ───────────────────────────────────────────
+        HBox btnRow = new HBox(12); btnRow.setAlignment(Pos.CENTER_LEFT);
+        Button btnPost = UIUtils.primaryBtn("📢","Post Now", UIUtils.ACCENT_BLUE);
+        btnPost.setPrefWidth(140); btnPost.setPrefHeight(42);
+        Button btnCancel = UIUtils.ghostBtn("✕","Cancel", UIUtils.ACCENT_RED);
+        btnCancel.setPrefHeight(42);
+
+        btnPost.setOnAction(e -> {
+            String t = titleField.getText().trim();
+            String b = bodyArea.getText().trim();
+            if (t.isEmpty()||b.isEmpty()) {
+                app.showError("Missing fields","Please fill in both title and message."); return;
+            }
+            Announcement a = new Announcement(t, b, selectedColor[0]);
+            if (rbExpire.isSelected()) {
+                try {
+                    java.time.LocalDateTime ldt = buildLDT(expDatePicker, expHH, expMM, expAmPm);
+                    a.expireAt = ldt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    if (a.expireAt <= System.currentTimeMillis()) {
+                        app.showError("Invalid Time","The expiry date/time must be in the future."); return;
+                    }
+                } catch (Exception ex) {
+                    app.showError("Invalid Date","Please pick a valid expiry date and time."); return;
+                }
+            }
+            ResultDAO.saveAnnouncement(a);
+            popup.close();
+            renderAnnouncements(contentArea, app);
+            Toast.success((Pane) contentArea, "Announcement posted!");
+        });
+        btnCancel.setOnAction(e -> popup.close());
+        btnRow.getChildren().addAll(btnPost, btnCancel);
+
+        box.getChildren().addAll(headerLbl, UIUtils.divider(),
+                titleLabel, titleField,
+                bodyLabel, bodyArea,
+                colorLabel, colorRow,
+                schedLabel, schedBox,
+                UIUtils.divider(), btnRow);
+
+        ScrollPane scrollBox = new ScrollPane(box);
+        scrollBox.setFitToWidth(true);
+        scrollBox.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollBox.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollBox.setStyle("-fx-background:transparent;-fx-background-color:transparent;-fx-border-color:transparent;");
+
+        Scene sc = new Scene(new StackPane(scrollBox), 500, 520);
+        sc.setFill(Color.TRANSPARENT);
+        UIUtils.applyStyle(sc);
+        popup.setScene(sc);
+        popup.setResizable(true);
+        popup.setMinWidth(460);
+        popup.setMinHeight(400);
+        popup.show();
     }
 
     // ── Rich empty state card  (#2) ───────────────────────────
@@ -1059,42 +1465,58 @@ public class TeacherPortal {
     }
 
     // ╔══════════════════════════════════════════════════════╗
-    //  SCHEDULE POPUP  — pick start date/time + end time
-    //  Exam auto-launches when the start time arrives.
-    //  Uses editable text fields for hour/minute input.
+    //  SCHEDULE POPUP  — modern, compact, AM/PM pill toggle
     // ╚══════════════════════════════════════════════════════╝
     private static void showSchedulePopup(Exam exam, Pane ca, HelloApplication app) {
         Stage st = new Stage();
         st.initModality(Modality.APPLICATION_MODAL);
         st.setTitle("Set Exam Schedule");
+        st.setResizable(true);
 
-        VBox root = new VBox(0);
-        root.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";");
-        root.setPrefWidth(460);
-
-        // ── Coloured header band ──────────────────────────
-        VBox header = new VBox(4);
-        header.setPadding(new Insets(20, 24, 20, 24));
-        header.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
-        Label titleL = new Label("📅  Schedule Exam");
-        titleL.setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:white;");
         String displayTitle = (exam.getTitle() != null && !exam.getTitle().isEmpty()) ? exam.getTitle() : exam.getSubject();
+
+        // ── Root ──────────────────────────────────────────
+        VBox root = new VBox(0);
+        root.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:16;");
+        root.setPrefWidth(480);
+
+        // ── Gradient header ───────────────────────────────
+        VBox header = new VBox(3);
+        header.setPadding(new Insets(18, 22, 16, 22));
+        header.setStyle(
+                "-fx-background-color:linear-gradient(to right, #4c1d95, #7c3aed);" +
+                        "-fx-background-radius:16 16 0 0;"
+        );
+        HBox hdrRow = new HBox(10); hdrRow.setAlignment(Pos.CENTER_LEFT);
+        Label calIcon = new Label("📅");
+        calIcon.setStyle("-fx-font-size:20px;");
+        VBox hdrText = new VBox(1);
+        Label titleL = new Label("Schedule Exam");
+        titleL.setStyle("-fx-font-size:16px;-fx-font-weight:bold;-fx-text-fill:white;");
         Label subL = new Label(displayTitle + "  ·  " + exam.getDuration() + " min");
-        subL.setStyle("-fx-font-size:13px;-fx-text-fill:#64748b;");
-        header.getChildren().addAll(titleL, subL);
+        subL.setStyle("-fx-font-size:11px;-fx-text-fill:rgba(255,255,255,0.65);");
+        hdrText.getChildren().addAll(titleL, subL);
+        hdrRow.getChildren().addAll(calIcon, hdrText);
+        header.getChildren().add(hdrRow);
 
         // ── Body ──────────────────────────────────────────
-        VBox body = new VBox(16);
-        body.setPadding(new Insets(22, 24, 24, 24));
+        VBox body = new VBox(12);
+        body.setPadding(new Insets(16, 20, 18, 20));
 
-        // Warning banner
-        Label ruleL = new Label("⚠ Exam auto-starts at the chosen time.");
-        ruleL.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.ACCENT_ORG
-                + ";-fx-background-color:" + (UIUtils.darkMode ? "#431407" : "#fff7ed") + ";-fx-background-radius:8;-fx-padding:8 12;");
-        ruleL.setWrapText(true);
+        // Warning banner — compact
+        HBox warnBox = new HBox(7); warnBox.setAlignment(Pos.CENTER_LEFT);
+        warnBox.setPadding(new Insets(7, 12, 7, 12));
+        warnBox.setStyle(
+                "-fx-background-color:" + (UIUtils.darkMode ? "#431407" : "#fff7ed") + ";" +
+                        "-fx-background-radius:8;-fx-border-color:#ea580c44;-fx-border-radius:8;-fx-border-width:1;"
+        );
+        Label warnIco = new Label("⚠");
+        warnIco.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.ACCENT_ORG + ";");
+        Label warnTxt = new Label("Exam auto-starts at the chosen time.");
+        warnTxt.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.ACCENT_ORG + ";-fx-font-weight:bold;");
+        warnBox.getChildren().addAll(warnIco, warnTxt);
 
-        // ── Helper: build a date + time input row ─────────
-        // Time row: DatePicker | [HH] : [MM] | AM/PM toggle
+        // ── Date/Time pickers ─────────────────────────────
         DatePicker startDate = buildDatePicker(java.time.LocalDate.now().plusDays(1));
         TextField  startHH   = buildTimeField("09");
         TextField  startMM   = buildTimeField("00");
@@ -1105,15 +1527,47 @@ public class TeacherPortal {
         TextField  endMM   = buildTimeField("00");
         ToggleButton endAmPm = buildAmPmToggle();
 
-        Label startHdr = schedSectionLabel("🟢  Start");
-        Label endHdr   = schedSectionLabel("🔴  End");
-
+        // ── Start section card ────────────────────────────
+        VBox startCard = new VBox(8);
+        startCard.setPadding(new Insets(12, 14, 12, 14));
+        startCard.setStyle(
+                "-fx-background-color:" + UIUtils.bgContent() + ";" +
+                        "-fx-background-radius:10;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;-fx-border-width:1;"
+        );
+        HBox startLblRow = new HBox(6); startLblRow.setAlignment(Pos.CENTER_LEFT);
+        Region startDot = new Region(); startDot.setPrefSize(8, 8);
+        startDot.setStyle("-fx-background-color:#22c55e;-fx-background-radius:99;");
+        Label startLbl = new Label("START");
+        startLbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1px;");
+        startLblRow.getChildren().addAll(startDot, startLbl);
         HBox startRow = buildTimeInputRow(startDate, startHH, startMM, startAmPm);
-        HBox endRow   = buildTimeInputRow(endDate,   endHH,   endMM,   endAmPm);
+        startCard.getChildren().addAll(startLblRow, startRow);
 
-        // ── Duration preview ──────────────────────────────
-        Label durationPreview = new Label();
-        durationPreview.setStyle("-fx-font-size:12px;-fx-font-weight:bold;");
+        // ── End section card ──────────────────────────────
+        VBox endCard = new VBox(8);
+        endCard.setPadding(new Insets(12, 14, 12, 14));
+        endCard.setStyle(
+                "-fx-background-color:" + UIUtils.bgContent() + ";" +
+                        "-fx-background-radius:10;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;-fx-border-width:1;"
+        );
+        HBox endLblRow = new HBox(6); endLblRow.setAlignment(Pos.CENTER_LEFT);
+        Region endDot = new Region(); endDot.setPrefSize(8, 8);
+        endDot.setStyle("-fx-background-color:#ef4444;-fx-background-radius:99;");
+        Label endLbl = new Label("END");
+        endLbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1px;");
+        endLblRow.getChildren().addAll(endDot, endLbl);
+        HBox endRow = buildTimeInputRow(endDate, endHH, endMM, endAmPm);
+        endCard.getChildren().addAll(endLblRow, endRow);
+
+        // ── Duration preview pill ─────────────────────────
+        Label durationPreview = new Label("  ");
+        durationPreview.setStyle(
+                "-fx-font-size:11px;-fx-font-weight:bold;-fx-padding:6 12;" +
+                        "-fx-background-radius:20;-fx-background-color:transparent;"
+        );
+        durationPreview.setWrapText(false);
+        HBox previewRow = new HBox(durationPreview);
+        previewRow.setAlignment(Pos.CENTER_LEFT);
 
         Runnable updatePreview = () -> {
             try {
@@ -1123,27 +1577,28 @@ public class TeacherPortal {
                 int examMins = Integer.parseInt(exam.getDuration());
                 if (mins <= 0) {
                     durationPreview.setText("❌  End must be after Start");
-                    durationPreview.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.ACCENT_RED + ";");
+                    durationPreview.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-padding:6 12;" +
+                            "-fx-background-radius:20;-fx-background-color:#fee2e2;-fx-text-fill:#b91c1c;");
                 } else if (mins < examMins) {
-                    durationPreview.setText("❌  Window is " + mins + " min — needs ≥ " + examMins + " min");
-                    durationPreview.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.ACCENT_RED + ";");
+                    durationPreview.setText("❌  Window " + mins + " min < " + examMins + " min needed");
+                    durationPreview.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-padding:6 12;" +
+                            "-fx-background-radius:20;-fx-background-color:#fee2e2;-fx-text-fill:#b91c1c;");
                 } else {
-                    durationPreview.setText("✅  Window: " + mins + " min  (exam needs " + examMins + " min)");
-                    durationPreview.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:#16a34a;");
+                    durationPreview.setText("✅  Window: " + mins + " min  (need " + examMins + " min)");
+                    durationPreview.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-padding:6 12;" +
+                            "-fx-background-radius:20;-fx-background-color:#dcfce7;-fx-text-fill:#15803d;");
                 }
-            } catch (Exception ex) { durationPreview.setText(""); }
+            } catch (Exception ex) {
+                durationPreview.setText("  ");
+                durationPreview.setStyle("-fx-font-size:11px;-fx-padding:6 12;-fx-background-color:transparent;");
+            }
         };
 
-        // Wire all inputs to update preview live
-        javafx.beans.value.ChangeListener<Object> previewListener = (o, ov, nv) -> updatePreview.run();
-        startDate.valueProperty().addListener(previewListener);
-        startHH.textProperty().addListener(previewListener);
-        startMM.textProperty().addListener(previewListener);
-        startAmPm.selectedProperty().addListener(previewListener);
-        endDate.valueProperty().addListener(previewListener);
-        endHH.textProperty().addListener(previewListener);
-        endMM.textProperty().addListener(previewListener);
-        endAmPm.selectedProperty().addListener(previewListener);
+        javafx.beans.value.ChangeListener<Object> pl = (o, ov, nv) -> updatePreview.run();
+        startDate.valueProperty().addListener(pl); startHH.textProperty().addListener(pl);
+        startMM.textProperty().addListener(pl);    startAmPm.selectedProperty().addListener(pl);
+        endDate.valueProperty().addListener(pl);   endHH.textProperty().addListener(pl);
+        endMM.textProperty().addListener(pl);      endAmPm.selectedProperty().addListener(pl);
         updatePreview.run();
 
         // Pre-fill if already scheduled
@@ -1165,10 +1620,19 @@ public class TeacherPortal {
             updatePreview.run();
         }
 
-        // ── Buttons ───────────────────────────────────────
-        Button btnConfirm = UIUtils.primaryBtn("📅", "Confirm Schedule", UIUtils.ACCENT_PURP);
+        // ── Action buttons ────────────────────────────────
+        Button btnConfirm = new Button("📅  Confirm Schedule");
+        btnConfirm.setStyle(
+                "-fx-background-color:linear-gradient(to right,#7c3aed,#6d28d9);" +
+                        "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
+                        "-fx-background-radius:10;-fx-padding:10 0;-fx-cursor:hand;" +
+                        "-fx-effect:dropshadow(gaussian,rgba(124,58,237,0.35),10,0,0,3);"
+        );
         btnConfirm.setPrefWidth(Double.MAX_VALUE);
-        btnConfirm.setPrefHeight(44);
+        btnConfirm.setOnMouseEntered(ev -> btnConfirm.setStyle(btnConfirm.getStyle()
+                .replace("#7c3aed,#6d28d9","#8b5cf6,#7c3aed")));
+        btnConfirm.setOnMouseExited(ev -> btnConfirm.setStyle(btnConfirm.getStyle()
+                .replace("#8b5cf6,#7c3aed","#7c3aed,#6d28d9")));
         btnConfirm.setOnAction(ev -> {
             try {
                 java.time.LocalDateTime startLDT = buildLDT(startDate, startHH, startMM, startAmPm);
@@ -1190,52 +1654,71 @@ public class TeacherPortal {
         });
 
         HBox bottomRow = new HBox(10);
+        bottomRow.setAlignment(Pos.CENTER_LEFT);
         if (exam.getScheduledStartMillis() > 0) {
-            Button btnClear = UIUtils.ghostBtn("✕", "Clear Schedule", UIUtils.ACCENT_RED);
+            Button btnClear = new Button("✕  Clear");
+            btnClear.setStyle(
+                    "-fx-background-color:transparent;-fx-text-fill:" + UIUtils.ACCENT_RED + ";" +
+                            "-fx-font-weight:bold;-fx-font-size:12px;-fx-background-radius:10;" +
+                            "-fx-border-color:" + UIUtils.ACCENT_RED + "44;-fx-border-radius:10;-fx-padding:9 16;-fx-cursor:hand;"
+            );
             btnClear.setOnAction(ev -> {
                 exam.setScheduledStartMillis(0); exam.setScheduledEndMillis(0);
                 st.close(); renderDashboardHome(ca, app);
                 Toast.info(ca, "Schedule cleared from " + displayTitle);
             });
             bottomRow.getChildren().addAll(btnConfirm, btnClear);
+            HBox.setHgrow(btnConfirm, Priority.ALWAYS);
         } else {
             bottomRow.getChildren().add(btnConfirm);
+            HBox.setHgrow(btnConfirm, Priority.ALWAYS);
         }
-        HBox.setHgrow(btnConfirm, Priority.ALWAYS);
 
         body.getChildren().addAll(
-                ruleL,
-                startHdr, startRow,
-                endHdr, endRow,
-                durationPreview,
-                UIUtils.divider(),
+                warnBox,
+                startCard,
+                endCard,
+                previewRow,
                 bottomRow
         );
 
-        root.getChildren().addAll(header, body);
-        st.setScene(new Scene(root, 460, 400));
-        UIUtils.applyStyle(st.getScene());
+        // ── Wrap in ScrollPane so nothing is clipped on small screens ──
+        ScrollPane bodyScroll = new ScrollPane(body);
+        bodyScroll.setFitToWidth(true);
+        bodyScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        bodyScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        bodyScroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;-fx-border-color:transparent;");
+
+        root.getChildren().addAll(header, bodyScroll);
+
+        // Use a resizable stage so the user can drag it taller if needed
+        Scene sc = new Scene(root, 490, 420);
+        UIUtils.applyStyle(sc);
+        st.setScene(sc);
+        st.setResizable(true);
+        st.setMinWidth(420);
+        st.setMinHeight(380);
         st.show();
     }
 
     /** Styled DatePicker for the schedule popup. */
     private static DatePicker buildDatePicker(java.time.LocalDate initial) {
         DatePicker dp = new DatePicker(initial);
-        dp.setStyle("-fx-font-size:13px;-fx-pref-height:40px;");
-        dp.setPrefWidth(160);
+        dp.setStyle("-fx-font-size:12px;-fx-pref-height:36px;");
+        dp.setPrefWidth(148);
         return dp;
     }
 
     /** Editable 2-digit time field (HH or MM). */
     private static TextField buildTimeField(String initial) {
         TextField tf = new TextField(initial);
-        tf.setPrefWidth(52);
-        tf.setPrefHeight(40);
+        tf.setPrefWidth(46);
+        tf.setPrefHeight(36);
         tf.setStyle(
-                "-fx-font-family:Monospaced;-fx-font-size:16px;-fx-font-weight:bold;"
+                "-fx-font-family:Monospaced;-fx-font-size:15px;-fx-font-weight:bold;"
                         + "-fx-alignment:center;-fx-background-color:" + UIUtils.bgSurface() + ";"
                         + "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:8;-fx-background-radius:8;"
-                        + "-fx-padding:6 4;"
+                        + "-fx-padding:4 2;"
         );
         // Auto-format on focus lost: clamp and zero-pad
         tf.focusedProperty().addListener((obs, wasFocused, isNow) -> {
@@ -1257,36 +1740,48 @@ public class TeacherPortal {
         return tf;
     }
 
-    /** AM / PM toggle button. Selected = PM. */
+    /** Modern pill-style AM/PM segmented toggle. Selected = PM. */
     private static ToggleButton buildAmPmToggle() {
+        // We use a ToggleButton but style it as a dual-segment pill
         ToggleButton tb = new ToggleButton("AM");
-        tb.setPrefWidth(56); tb.setPrefHeight(40);
-        tb.setStyle(
-                "-fx-background-color:" + UIUtils.ACCENT_BLUE + "22;-fx-text-fill:" + UIUtils.ACCENT_BLUE + ";"
-                        + "-fx-font-weight:bold;-fx-font-size:13px;-fx-background-radius:8;"
-                        + "-fx-border-color:" + UIUtils.ACCENT_BLUE + ";-fx-border-radius:8;-fx-cursor:hand;"
-        );
-        tb.selectedProperty().addListener((obs, wasOn, isOn) -> {
-            tb.setText(isOn ? "PM" : "AM");
-            if (isOn) {
-                tb.setStyle("-fx-background-color:" + UIUtils.ACCENT_PURP + ";-fx-text-fill:white;"
-                        + "-fx-font-weight:bold;-fx-font-size:13px;-fx-background-radius:8;"
-                        + "-fx-border-color:" + UIUtils.ACCENT_PURP + ";-fx-border-radius:8;-fx-cursor:hand;");
+        tb.setPrefWidth(72); tb.setPrefHeight(36);
+        // Use CSS to paint left (AM) segment highlighted when !selected, right (PM) when selected
+        // Simulated with text + background swap
+        Runnable applyStyle = () -> {
+            boolean pm = tb.isSelected();
+            if (pm) {
+                // PM active
+                tb.setText("PM");
+                tb.setStyle(
+                        "-fx-background-color:linear-gradient(to right,rgba(124,58,237,0.12) 0%,rgba(124,58,237,0.12) 50%," +
+                                UIUtils.ACCENT_PURP + " 50%," + UIUtils.ACCENT_PURP + " 100%);" +
+                                "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:12px;" +
+                                "-fx-background-radius:20;-fx-border-color:" + UIUtils.ACCENT_PURP + ";" +
+                                "-fx-border-radius:20;-fx-cursor:hand;-fx-border-width:1.5;"
+                );
             } else {
-                tb.setStyle("-fx-background-color:" + UIUtils.ACCENT_BLUE + "22;-fx-text-fill:" + UIUtils.ACCENT_BLUE + ";"
-                        + "-fx-font-weight:bold;-fx-font-size:13px;-fx-background-radius:8;"
-                        + "-fx-border-color:" + UIUtils.ACCENT_BLUE + ";-fx-border-radius:8;-fx-cursor:hand;");
+                // AM active
+                tb.setText("AM");
+                tb.setStyle(
+                        "-fx-background-color:linear-gradient(to right," + UIUtils.ACCENT_BLUE + " 0%," + UIUtils.ACCENT_BLUE + " 50%," +
+                                "rgba(37,99,235,0.10) 50%,rgba(37,99,235,0.10) 100%);" +
+                                "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:12px;" +
+                                "-fx-background-radius:20;-fx-border-color:" + UIUtils.ACCENT_BLUE + ";" +
+                                "-fx-border-radius:20;-fx-cursor:hand;-fx-border-width:1.5;"
+                );
             }
-        });
+        };
+        applyStyle.run();
+        tb.selectedProperty().addListener((obs, wasOn, isOn) -> applyStyle.run());
         return tb;
     }
 
     /** Assemble DatePicker + HH : MM + AM/PM into a neat HBox. */
     private static HBox buildTimeInputRow(DatePicker dp, TextField hh, TextField mm, ToggleButton amPm) {
-        HBox row = new HBox(8);
+        HBox row = new HBox(6);
         row.setAlignment(Pos.CENTER_LEFT);
         Label colon = new Label(":");
-        colon.setStyle("-fx-font-size:20px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
+        colon.setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";-fx-padding:0 1;");
         row.getChildren().addAll(dp, hh, colon, mm, amPm);
         return row;
     }
@@ -1365,7 +1860,7 @@ public class TeacherPortal {
 
             // ── Config row ────────────────────────────────────
             Label cfglbl = sectionLabel("Exam Configuration");
-            HBox cfg = new HBox(14); cfg.setAlignment(Pos.CENTER_LEFT);
+            FlowPane cfg = new FlowPane(14, 10); cfg.setAlignment(Pos.CENTER_LEFT);
 
             StackPane wrapSub = UIUtils.styledCombo("Subject", "Select subject…");
             ComboBox<String> cbSub = UIUtils.getCombo(wrapSub);
@@ -1379,9 +1874,9 @@ public class TeacherPortal {
             wrapGrd.setPrefWidth(160);
             if (sGrd != null) cbGrd.setValue(sGrd);
 
-            TextField fMark = UIUtils.styledField("Total Marks"); fMark.setPrefWidth(120);
+            TextField fMark = UIUtils.styledField("Total Marks"); fMark.setPrefWidth(130);
             if (!sMrk.isEmpty()) fMark.setText(sMrk);
-            TextField fDur  = UIUtils.styledField("Duration (mins)"); fDur.setPrefWidth(140);
+            TextField fDur  = UIUtils.styledField("Duration (mins)"); fDur.setPrefWidth(150);
             if (!sDur.isEmpty()) fDur.setText(sDur);
 
             // Inline validation: digits only for marks + duration
@@ -1404,7 +1899,7 @@ public class TeacherPortal {
             cbGrd.setOnAction(e -> { sGrd = cbGrd.getValue(); UIUtils.comboClear(wrapGrd); sel.clear(); refreshList(sSub, sGrd, app); });
 
             // ── Action buttons ────────────────────────────────
-            HBox actions = new HBox(14);
+            FlowPane actions = new FlowPane(14, 10);
             Button btnMore   = UIUtils.ghostBtn("➕", "Add More Questions", UIUtils.ACCENT_BLUE);
             Button btnCreate = UIUtils.primaryBtn("✅", editing == null ? "Create Exam" : "Save Changes", UIUtils.ACCENT_GREEN);
             Button btnCancel = UIUtils.ghostBtn("✕", "Cancel", UIUtils.TEXT_MID);

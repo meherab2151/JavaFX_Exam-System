@@ -17,6 +17,7 @@ public class DatabaseManager {
             connection.createStatement().execute("PRAGMA foreign_keys = ON;");
             createTables();
             ExamDAO.createTables();
+            ResultDAO.createTable();
             System.out.println("[DB] Connected to SQLite: eduexam.db");
         } catch (SQLException e) {
             throw new RuntimeException("Failed to connect to database: " + e.getMessage(), e);

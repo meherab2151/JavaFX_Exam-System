@@ -132,25 +132,27 @@ public class ExamDAO {
     private static void saveQuestionLinks(Exam exam) {
         try {
             // Delete old links
-            PreparedStatement del = DatabaseManager.getConnection()
-                    .prepareStatement("DELETE FROM exam_questions WHERE exam_id=?");
-            del.setInt(1, exam.getDbId());
-            del.executeUpdate();
+            try (PreparedStatement del = DatabaseManager.getConnection()
+                    .prepareStatement("DELETE FROM exam_questions WHERE exam_id=?")) {
+                del.setInt(1, exam.getDbId());
+                del.executeUpdate();
+            }
 
             // Insert current links
             String sql = "INSERT INTO exam_questions (exam_id, question_id, marks) VALUES (?,?,?)";
-            PreparedStatement ins = DatabaseManager.getConnection().prepareStatement(sql);
-            for (var entry : exam.getQuestionsMap().entrySet()) {
-                Question q = entry.getKey();
-                if (q.getDbId() < 1) {
-                    // Question not yet in DB — save it first
-                    QuestionDAO.save(q);
-                }
-                if (q.getDbId() > 0) {
-                    ins.setInt(1, exam.getDbId());
-                    ins.setInt(2, q.getDbId());
-                    ins.setDouble(3, entry.getValue());
-                    ins.executeUpdate();
+            try (PreparedStatement ins = DatabaseManager.getConnection().prepareStatement(sql)) {
+                for (var entry : exam.getQuestionsMap().entrySet()) {
+                    Question q = entry.getKey();
+                    if (q.getDbId() < 1) {
+                        // Question not yet in DB — save it first
+                        QuestionDAO.save(q);
+                    }
+                    if (q.getDbId() > 0) {
+                        ins.setInt(1, exam.getDbId());
+                        ins.setInt(2, q.getDbId());
+                        ins.setDouble(3, entry.getValue());
+                        ins.executeUpdate();
+                    }
                 }
             }
         } catch (SQLException e) { System.err.println("[ExamDAO] saveQuestionLinks: " + e.getMessage()); }

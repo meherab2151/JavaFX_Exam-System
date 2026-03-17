@@ -144,7 +144,7 @@ public class UserDAO {
         String sql = "SELECT 1 FROM students WHERE student_id = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, studentId);
-            return ps.executeQuery().next();
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
         } catch (SQLException e) {
             System.err.println("[UserDAO] studentIdExists failed: " + e.getMessage());
             return false;
@@ -156,7 +156,7 @@ public class UserDAO {
         String sql = "SELECT 1 FROM teachers WHERE email = ?";
         try (PreparedStatement ps = DatabaseManager.getConnection().prepareStatement(sql)) {
             ps.setString(1, email);
-            return ps.executeQuery().next();
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
         } catch (SQLException e) {
             System.err.println("[UserDAO] teacherEmailExists failed: " + e.getMessage());
             return false;
