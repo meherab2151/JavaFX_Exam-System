@@ -15,211 +15,246 @@ import javafx.util.Duration;
 import java.util.*;
 import java.util.List;
 import java.util.Map;
+
+// ═══════════════════════════════════════════════════════════════════
+//  StudentPortal.java — EduExam Student Experience
+//  Dashboard: Greeting + KPIs / Join Exam / Live / Upcoming
+//  One-attempt rule. Auto-save answers for resume on re-login.
+//  Custom popups for Live and Scheduled exams.
+// ═══════════════════════════════════════════════════════════════════
 public class StudentPortal {
 
     static int activeNavIndex = 0;
 
-    // ╔══════════════════════════════════════════════════════╗
+    // ══════════════════════════════════════════════════════════════
+    //  Auth panel
+    // ══════════════════════════════════════════════════════════════
+    private static VBox buildAuthPanel(String title, String sub) {
+        VBox v = new VBox(0);
+        v.setPrefWidth(320);
+        v.setAlignment(Pos.CENTER_LEFT);
+        v.setPadding(new Insets(0, 0, 0, 44));
+        v.setStyle("-fx-background-color:#111722;");
+
+        Region rule = new Region(); rule.setPrefSize(32, 3);
+        rule.setStyle("-fx-background-color:#0f7d74;-fx-background-radius:99;");
+        VBox.setMargin(rule, new Insets(0, 0, 20, 0));
+
+        StackPane iconBox = new StackPane(UIUtils.icon(UIUtils.ICO_STUDENT, "#0f7d74", 24));
+        iconBox.setPrefSize(52, 52);
+        iconBox.setStyle("-fx-background-color:rgba(15,125,116,0.14);-fx-background-radius:10;");
+        VBox.setMargin(iconBox, new Insets(0, 0, 20, 0));
+
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size:22px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;-fx-letter-spacing:-0.5px;");
+        VBox.setMargin(titleLbl, new Insets(0, 0, 8, 0));
+
+        Label subLbl = new Label(sub);
+        subLbl.setStyle("-fx-font-size:13px;-fx-text-fill:#4a566e;");
+        subLbl.setWrapText(true); subLbl.setMaxWidth(240);
+
+        v.getChildren().addAll(rule, iconBox, titleLbl, subLbl);
+        return v;
+    }
+
+    // ══════════════════════════════════════════════════════════════
     //  1. LOGIN
-    // ╚══════════════════════════════════════════════════════╝
+    // ══════════════════════════════════════════════════════════════
     public static Scene createLoginScene(Stage stage, ArrayList<Student> list, HelloApplication app) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+        root.setLeft(buildAuthPanel("Student Portal", "Sign in to access live examinations and your academic record."));
 
-        VBox accent = new VBox(20);
-        accent.setPrefWidth(340); accent.setAlignment(Pos.CENTER); accent.setPadding(new Insets(50));
-        accent.setStyle("-fx-background-color:#052e16;");
-        accent.getChildren().addAll(
-                new Label("🎓") {{ setStyle("-fx-font-size:64px;-fx-text-fill:white;"); }},
-                new Label("EduExam") {{ setStyle("-fx-font-size:32px;-fx-font-weight:bold;-fx-text-fill:white;"); }},
-                new Label("Student Assessment Portal") {{ setStyle("-fx-font-size:14px;-fx-text-fill:#6ee7b7;"); }}
-        );
-        root.setLeft(accent);
+        VBox form = new VBox(16);
+        form.setAlignment(Pos.CENTER);
+        form.setPadding(new Insets(60, 68, 60, 68));
+        form.setMaxWidth(420);
 
-        VBox form = new VBox(18);
-        form.setAlignment(Pos.CENTER); form.setPadding(new Insets(60, 70, 60, 70)); form.setMaxWidth(400);
+        Label title = new Label("Sign In");
+        title.setStyle("-fx-font-size:24px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";-fx-letter-spacing:-0.3px;");
+        Label sub = new Label("Enter your credentials to continue");
+        sub.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.textMid() + ";");
 
-        Label title = new Label("Student Login");
-        title.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
-        Label sub = new Label("Enter your credentials to continue 📚");
-        sub.setStyle("-fx-font-size:14px;-fx-text-fill:" + UIUtils.textMid() + ";");
+        TextField     txtID = UIUtils.styledField("Student ID or Email");
+        PasswordField txtPw = UIUtils.styledPassword("Password");
 
-        TextField     txtID   = UIUtils.styledField("Student ID or Email");
-        PasswordField txtPass = UIUtils.styledPassword("Password");
-        Button btnLogin = buildPremiumBtn("🔑   Sign In", UIUtils.ACCENT_GREEN);
-        btnLogin.setPrefWidth(Double.MAX_VALUE); btnLogin.setPrefHeight(46);
-        Hyperlink linkSignup = new Hyperlink("New here? Create an account");
+        Button btnLogin = UIUtils.primaryBtn("", "Sign In", UIUtils.ACCENT_GREEN);
+        btnLogin.setPrefWidth(Double.MAX_VALUE); btnLogin.setPrefHeight(42);
+
+        Hyperlink linkSignup = new Hyperlink("New student? Create an account");
         UIUtils.applyLinkEffects(linkSignup);
-        Button btnBack = UIUtils.ghostBtn("←", "Back", UIUtils.TEXT_MID);
+        Button btnBack = UIUtils.ghostBtn("", "Back", UIUtils.TEXT_MID);
 
         btnLogin.setOnAction(e -> {
-            String in = txtID.getText().trim(), pw = txtPass.getText();
+            String in = txtID.getText().trim(), pw = txtPw.getText();
             if (in.isEmpty() || pw.isEmpty()) { app.showError("Missing Fields", "Please enter your ID/email and password."); return; }
             Student found = UserDAO.loginStudent(in, pw);
             if (found != null) {
                 if (list.stream().noneMatch(s -> s.getID().equals(found.getID()))) list.add(found);
                 stage.setScene(createDashboardScene(stage, found, app));
-            } else { app.showError("Login Failed", "Invalid Student ID/Email or Password."); }
+            } else { app.showError("Login Failed", "Invalid credentials. Please try again."); }
         });
         linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
         btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
+        txtPw.setOnAction(e -> btnLogin.fire());
 
-        String lbl = "-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textMid() + ";";
-        form.getChildren().addAll(title, sub, UIUtils.divider(),
-                new Label("Student ID / Email") {{ setStyle(lbl); }}, txtID,
-                new Label("Password")           {{ setStyle(lbl); }}, txtPass,
-                btnLogin, linkSignup, btnBack);
+        String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
+        form.getChildren().addAll(
+            title, sub, UIUtils.divider(),
+            new Label("STUDENT ID / EMAIL") {{ setStyle(lblS); }}, txtID,
+            new Label("PASSWORD") {{ setStyle(lblS); }}, txtPw,
+            btnLogin, linkSignup, btnBack
+        );
 
         ScrollPane sp = new ScrollPane(form);
         sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
         root.setCenter(sp);
-        Scene scene = new Scene(root, 1000, 600);
-        UIUtils.applyStyle(scene); UIUtils.slideIn(form, true);
+
+        Scene scene = new Scene(root);
+        UIUtils.applyStyle(scene);
+        javafx.application.Platform.runLater(() -> { stage.setWidth(820); stage.setHeight(560); stage.centerOnScreen(); });
+        UIUtils.slideIn(form, true);
         return scene;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
+    // ══════════════════════════════════════════════════════════════
     //  2. SIGN-UP
-    // ╚══════════════════════════════════════════════════════╝
+    // ══════════════════════════════════════════════════════════════
     public static Scene createSignupScene(Stage stage, ArrayList<Student> list, HelloApplication app) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+        root.setLeft(buildAuthPanel("Create Account", "Register to join EduExam and sit your first examination."));
 
-        VBox accent = new VBox(20);
-        accent.setPrefWidth(340); accent.setAlignment(Pos.CENTER); accent.setPadding(new Insets(50));
-        accent.setStyle("-fx-background-color:#052e16;");
-        accent.getChildren().addAll(
-                new Label("📝") {{ setStyle("-fx-font-size:64px;-fx-text-fill:white;"); }},
-                new Label("Join EduExam") {{ setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-text-fill:white;"); }},
-                new Label("Create your student account") {{ setStyle("-fx-font-size:14px;-fx-text-fill:#6ee7b7;"); }}
-        );
-        root.setLeft(accent);
+        VBox form = new VBox(13);
+        form.setAlignment(Pos.CENTER);
+        form.setPadding(new Insets(48, 68, 48, 68));
+        form.setMaxWidth(420);
 
-        VBox form = new VBox(14);
-        form.setAlignment(Pos.CENTER); form.setPadding(new Insets(40, 70, 40, 70)); form.setMaxWidth(400);
+        Label title = new Label("Student Registration");
+        title.setStyle("-fx-font-size:22px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";-fx-letter-spacing:-0.3px;");
 
-        TextField txtID = UIUtils.styledField("Student ID (numbers only)");
-        TextField txtName = UIUtils.styledField("Full Name");
-        TextField txtEmail = UIUtils.styledField("Email Address");
-        PasswordField txtPass = UIUtils.styledPassword("Create Password");
+        TextField     txtID      = UIUtils.styledField("Student ID (numbers only)");
+        TextField     txtName    = UIUtils.styledField("Full Name");
+        TextField     txtEmail   = UIUtils.styledField("Email Address");
+        PasswordField txtPass    = UIUtils.styledPassword("Create Password");
         PasswordField txtConfirm = UIUtils.styledPassword("Confirm Password");
 
         txtID.textProperty().addListener((obs, o, n) -> {
             if (!n.matches("\\d*")) txtID.setText(n.replaceAll("[^\\d]", ""));
         });
 
-        Button btnReg  = buildPremiumBtn("✅   Create Account", UIUtils.ACCENT_GREEN);
-        btnReg.setPrefWidth(Double.MAX_VALUE); btnReg.setPrefHeight(46);
-        Button btnBack = UIUtils.ghostBtn("←", "Back to Login", UIUtils.TEXT_MID);
+        Button btnReg  = UIUtils.primaryBtn("", "Create Account", UIUtils.ACCENT_GREEN);
+        btnReg.setPrefWidth(Double.MAX_VALUE); btnReg.setPrefHeight(42);
+        Button btnBack = UIUtils.ghostBtn("", "Back to Sign In", UIUtils.TEXT_MID);
 
         btnReg.setOnAction(e -> {
             String id = txtID.getText().trim(), name = txtName.getText().trim();
             String email = txtEmail.getText().trim(), pass = txtPass.getText(), confirm = txtConfirm.getText();
             if (id.isEmpty() || name.isEmpty() || email.isEmpty() || pass.isEmpty()) { app.showError("Missing Info", "Please fill in all fields."); return; }
-            if (!id.matches("\\d+")) { app.showError("Invalid ID", "Student ID must contain numbers only."); return; }
-            if (!pass.equals(confirm)) { app.showError("Mismatch", "Passwords do not match!"); return; }
+            if (!id.matches("\\d+")) { app.showError("Invalid ID", "Student ID must contain digits only."); return; }
+            if (!pass.equals(confirm)) { app.showError("Mismatch", "Passwords do not match."); return; }
             if (UserDAO.studentIdExists(id)) { app.showError("ID Taken", "A student with ID " + id + " already exists."); return; }
             if (UserDAO.registerStudent(id, name, email, pass)) {
                 list.add(new Student(id, name, email, pass));
-                app.showInfo("Registered!", "Account created. You can now log in.");
+                app.showInfo("Account Created", "You may now sign in with your credentials.");
                 stage.setScene(createLoginScene(stage, list, app));
             } else { app.showError("Error", "Registration failed. Please try again."); }
         });
         btnBack.setOnAction(e -> stage.setScene(createLoginScene(stage, list, app)));
 
-        String lbl = "-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textMid() + ";";
+        String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
-                new Label("Student Registration") {{ setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";"); }},
-                UIUtils.divider(),
-                new Label("Student ID")  {{ setStyle(lbl); }}, txtID,
-                new Label("Full Name")   {{ setStyle(lbl); }}, txtName,
-                new Label("Email")       {{ setStyle(lbl); }}, txtEmail,
-                new Label("Password")    {{ setStyle(lbl); }}, txtPass,
-                new Label("Confirm")     {{ setStyle(lbl); }}, txtConfirm,
-                btnReg, btnBack);
+            title, UIUtils.divider(),
+            new Label("STUDENT ID")  {{ setStyle(lblS); }}, txtID,
+            new Label("FULL NAME")   {{ setStyle(lblS); }}, txtName,
+            new Label("EMAIL")       {{ setStyle(lblS); }}, txtEmail,
+            new Label("PASSWORD")    {{ setStyle(lblS); }}, txtPass,
+            new Label("CONFIRM")     {{ setStyle(lblS); }}, txtConfirm,
+            btnReg, btnBack
+        );
 
         ScrollPane sp = new ScrollPane(form);
         sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
         root.setCenter(sp);
-        Scene scene = new Scene(root, 1000, 600);
-        UIUtils.applyStyle(scene); UIUtils.slideIn(form, true);
+
+        Scene scene = new Scene(root);
+        UIUtils.applyStyle(scene);
+        javafx.application.Platform.runLater(() -> { stage.setWidth(820); stage.setHeight(640); stage.centerOnScreen(); });
+        UIUtils.slideIn(form, true);
         return scene;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  3. DASHBOARD
-    // ╚══════════════════════════════════════════════════════╝
+    // ══════════════════════════════════════════════════════════════
+    //  3. DASHBOARD SHELL
+    //  Nav: Dashboard | My Results | Analytics | Leaderboard
+    // ══════════════════════════════════════════════════════════════
     public static Scene createDashboardScene(Stage stage, Student student, HelloApplication app) {
         return createDashboardScene(stage, student, app, activeNavIndex);
     }
 
     public static Scene createDashboardScene(Stage stage, Student student, HelloApplication app, int startPage) {
         BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        VBox sidebar = new VBox(0);
+        sidebar.setPrefWidth(210);
+        sidebar.setStyle("-fx-background-color:#111722;");
+
+        StackPane themeSwitch = UIUtils.themeToggleSwitch(() ->
+            stage.setScene(createDashboardScene(stage, student, app, activeNavIndex))
+        );
+        HBox switchRow = new HBox(themeSwitch);
+        switchRow.setAlignment(Pos.CENTER_LEFT);
+        switchRow.setPadding(new Insets(14, 0, 0, 14));
+
+        VBox avatarBlock = new VBox(6);
+        avatarBlock.setAlignment(Pos.CENTER_LEFT);
+        avatarBlock.setPadding(new Insets(18, 14, 16, 16));
+
+        String initials = student.getName().substring(0,1).toUpperCase();
+        StackPane av = new StackPane();
+        Circle avCircle = new Circle(22, Color.web("#0f7d74", 0.18));
+        avCircle.setStroke(Color.web("#0f7d74", 0.4)); avCircle.setStrokeWidth(1.5);
+        Label avLbl = new Label(initials);
+        avLbl.setStyle("-fx-font-size:16px;-fx-font-weight:700;-fx-text-fill:#0f7d74;");
+        av.getChildren().addAll(avCircle, avLbl); av.setPrefSize(44, 44);
+
+        Label nameL = new Label(student.getName());
+        nameL.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:#bdc6d6;");
+        Label idBadge = new Label("ID " + student.getID());
+        idBadge.setStyle("-fx-background-color:rgba(15,125,116,0.16);-fx-text-fill:#0f7d74;-fx-font-size:10px;-fx-font-weight:600;-fx-padding:2 7;-fx-background-radius:4;");
+
+        HBox avRow = new HBox(10, av, new VBox(3, nameL, idBadge) {{ setAlignment(Pos.CENTER_LEFT); }});
+        avRow.setAlignment(Pos.CENTER_LEFT);
+        avatarBlock.getChildren().add(avRow);
+
+        Region topSep = new Region(); topSep.setPrefHeight(1);
+        topSep.setStyle("-fx-background-color:#1e2a3a;");
+        VBox.setMargin(topSep, new Insets(0, 14, 8, 14));
+
+        // Nav: Dashboard | My Results | Analytics | Leaderboard
+        String[][] navDefs = {
+            {UIUtils.ICO_DASHBOARD, "Dashboard",   UIUtils.ACCENT_TEAL},
+            {UIUtils.ICO_HISTORY,   "My Results",  UIUtils.ACCENT_BLUE},
+            {UIUtils.ICO_ANALYTICS, "Analytics",   UIUtils.ACCENT_YELL},
+            {UIUtils.ICO_TROPHY,    "Leaderboard", "#b45309"},
+        };
+
+        StackPane[] navBtns = new StackPane[navDefs.length];
+        VBox navBox = new VBox(5);
+        navBox.setPadding(new Insets(0, 10, 8, 10));
 
         javafx.scene.layout.AnchorPane contentArea = new javafx.scene.layout.AnchorPane();
         contentArea.setPrefSize(890, 660);
         contentArea.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
-        VBox sidebar = new VBox(0);
-        sidebar.setPrefWidth(210);
-        sidebar.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
-
-        // Theme toggle — passes activeNavIndex so page is restored after toggle
-        StackPane themeSwitch = UIUtils.themeToggleSwitch(() ->
-                stage.setScene(createDashboardScene(stage, student, app, activeNavIndex))
-        );
-        HBox switchRow = new HBox(10, themeSwitch);
-        switchRow.setAlignment(Pos.CENTER_LEFT);
-        switchRow.setPadding(new Insets(14, 10, 0, 14));
-
-        // Avatar
-        VBox avatarBox = new VBox(6);
-        avatarBox.setAlignment(Pos.CENTER);
-        avatarBox.setPadding(new Insets(18, 10, 18, 10));
-        Circle av = new Circle(34);
-        av.setFill(Color.web(UIUtils.ACCENT_GREEN));
-        av.setEffect(new DropShadow(14, Color.web(UIUtils.ACCENT_GREEN, 0.4)));
-        Label initials = new Label(student.getName().substring(0, 1).toUpperCase());
-        initials.setStyle("-fx-font-size:20px;-fx-font-weight:bold;-fx-text-fill:white;");
-        StackPane avStack = new StackPane(av, initials);
-        Label nameL = new Label(student.getName());
-        nameL.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:white;");
-        avatarBox.getChildren().addAll(avStack, nameL, UIUtils.badge("ID: " + student.getID(), UIUtils.ACCENT_GREEN));
-
-        Separator sep = new Separator();
-        sep.setStyle("-fx-background-color:#1e293b;"); sep.setPadding(new Insets(4,0,12,0));
-
-        String[][] nav = {
-                {"🎯", "Join Exam",    UIUtils.ACCENT_GREEN},
-                {"📊", "My Results",   UIUtils.ACCENT_BLUE},
-                {"📡", "Ongoing",      UIUtils.ACCENT_ORG},
-                {"📅", "Scheduled",    UIUtils.ACCENT_PURP},
-                {"📈", "Analytics",    UIUtils.ACCENT_YELL},
-                {"🏆", "Leaderboard",  "#f43f5e"},
-                {"📢", "Notices",      UIUtils.ACCENT_BLUE},
-        };
-        StackPane[] navBtns = new StackPane[nav.length];
-
-        // Scrollable nav area
-        VBox navBox = new VBox(8);
-        navBox.setPadding(new Insets(0, 10, 10, 10));
-        for (int i = 0; i < nav.length; i++) {
+        for (int i = 0; i < navDefs.length; i++) {
             final int idx = i;
-            navBtns[i] = UIUtils.modernSidebarBtn(nav[i][0], nav[i][1], nav[i][2]);
+            navBtns[i] = UIUtils.modernSidebarBtn(navDefs[i][0], navDefs[i][1], navDefs[i][2]);
             navBtns[i].setOnMouseClicked(e -> {
                 activeNavIndex = idx;
                 for (StackPane nb : navBtns) UIUtils.modernSidebarSetInactive(nb);
                 UIUtils.modernSidebarSetActive(navBtns[idx]);
-                switch (idx) {
-                    case 0 -> renderJoinExamPage(contentArea, stage, student, app);
-                    case 1 -> renderMyResultsPage(contentArea, stage, student, app);
-                    case 2 -> renderOngoingPage(contentArea, stage, student, app);
-                    case 3 -> renderScheduledPage(contentArea);
-                    case 4 -> renderAnalyticsPage(contentArea, student);
-                    case 5 -> renderLeaderboardPage(contentArea, student);
-                    case 6 -> renderAnnouncementsPage(contentArea);
-                }
+                dispatchPage(idx, contentArea, stage, student, app);
             });
             navBox.getChildren().add(navBtns[i]);
         }
@@ -231,483 +266,1033 @@ public class StudentPortal {
         navScroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;-fx-border-color:transparent;");
         VBox.setVgrow(navScroll, Priority.ALWAYS);
 
-        // Fixed logout at bottom
         VBox logoutBox = new VBox();
         logoutBox.setPadding(new Insets(8, 10, 14, 10));
-        logoutBox.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";-fx-border-color:#1e293b;-fx-border-width:1 0 0 0;");
-        Button btnLogout = UIUtils.primaryBtn("🚪", "Log Out", UIUtils.ACCENT_RED);
+        logoutBox.setStyle("-fx-background-color:#111722;-fx-border-color:#1e2a3a;-fx-border-width:1 0 0 0;");
+        Button btnLogout = UIUtils.primaryBtn("", "Sign Out", UIUtils.ACCENT_RED);
         btnLogout.setPrefWidth(190);
         btnLogout.setOnAction(e -> {
             Alert c = new Alert(Alert.AlertType.CONFIRMATION);
-            c.setTitle("Log Out"); c.setHeaderText("Are you sure you want to log out?");
-            c.setContentText("You will be returned to the home screen.");
+            c.setTitle("Sign Out"); c.setHeaderText(null);
+            c.setContentText("Sign out and return to the home screen?");
             c.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
             c.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) stage.setScene(app.createMainScene(stage)); });
         });
         logoutBox.getChildren().add(btnLogout);
 
-        sidebar.getChildren().addAll(switchRow, avatarBox, sep, navScroll, logoutBox);
+        sidebar.getChildren().addAll(switchRow, avatarBlock, topSep, navScroll, logoutBox);
         sidebar.setPrefHeight(Double.MAX_VALUE);
+        root.setLeft(sidebar);
+        root.setCenter(contentArea);
 
-        root.setLeft(sidebar); root.setCenter(contentArea);
-
-        // Restore active page and highlight (critical after theme toggle)
         UIUtils.modernSidebarSetActive(navBtns[startPage]);
-        switch (startPage) {
-            case 0 -> renderJoinExamPage(contentArea, stage, student, app);
-            case 1 -> renderMyResultsPage(contentArea, stage, student, app);
-            case 2 -> renderOngoingPage(contentArea, stage, student, app);
-            case 3 -> renderScheduledPage(contentArea);
-            case 4 -> renderAnalyticsPage(contentArea, student);
-            case 5 -> renderLeaderboardPage(contentArea, student);
-            case 6 -> renderAnnouncementsPage(contentArea);
-        }
+        dispatchPage(startPage, contentArea, stage, student, app);
 
         Scene scene = new Scene(root, 1100, 660);
         UIUtils.applyStyle(scene);
+        javafx.application.Platform.runLater(() -> { stage.setWidth(1100); stage.setHeight(660); stage.centerOnScreen(); });
         return scene;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  4. JOIN EXAM PAGE
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderJoinExamPage(javafx.scene.layout.AnchorPane contentArea,
-                                           Stage stage, Student student, HelloApplication app) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(28);
-        page.setPadding(new Insets(36, 40, 36, 40));
+    private static void dispatchPage(int idx, javafx.scene.layout.AnchorPane area,
+                                     Stage stage, Student student, HelloApplication app) {
+        switch (idx) {
+            case 0 -> renderDashboardPage(area, stage, student, app);
+            case 1 -> renderMyResultsPage(area, stage, student, app);
+            case 2 -> renderAnalyticsPage(area, stage, student, app);
+            case 3 -> renderLeaderboardPage(area, stage, student, app);
+        }
+    }
+
+    // ── Back button helper ─────────────────────────────────────────
+    private static Button backBtn(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
+        Button btn = new Button();
+        HBox inner = new HBox(6, UIUtils.icon(UIUtils.ICO_BACK, UIUtils.ACCENT_TEAL, 13), new Label("Back") {{ setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.ACCENT_TEAL + ";"); }});
+        inner.setAlignment(Pos.CENTER_LEFT);
+        btn.setGraphic(inner);
+        btn.setStyle("-fx-background-color:" + UIUtils.ACCENT_TEAL + "14;-fx-background-radius:6;-fx-border-color:" + UIUtils.ACCENT_TEAL + "40;-fx-border-radius:6;-fx-border-width:1;-fx-padding:6 14;-fx-cursor:hand;");
+        btn.setOnAction(e -> {
+            activeNavIndex = 0;
+            renderDashboardPage(area, stage, student, app);
+        });
+        return btn;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  4. DASHBOARD PAGE
+    //  Row 1: Greeting + KPI stats
+    //  Row 2: Join an Examination (code entry, no dot indicator)
+    //  Row 3: Live Examinations
+    //  Row 4: Upcoming Examinations
+    // ══════════════════════════════════════════════════════════════
+    private static void renderDashboardPage(javafx.scene.layout.AnchorPane area,
+                                            Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+
+        VBox page = new VBox(0);
         page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
-        Label heading = UIUtils.heading("🎯  Join an Exam");
-        Label sub     = UIUtils.subheading("Enter the 6-character code given by your teacher");
+        // ── ROW 1: Greeting + KPI ─────────────────────────────────
+        VBox row1 = new VBox(14);
+        row1.setPadding(new Insets(28, 36, 20, 36));
 
-        VBox inputCard = UIUtils.card(580);
-        inputCard.setMaxWidth(580); inputCard.setPadding(new Insets(28)); inputCard.setSpacing(16);
+        int hour = java.time.LocalTime.now().getHour();
+        String greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+        String dateStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy"));
+        Label greetL = new Label(greet + ", " + student.getName().split(" ")[0]);
+        greetL.setStyle("-fx-font-size:20px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";-fx-letter-spacing:-0.3px;");
+        Label dateL  = new Label(dateStr);
+        dateL.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
-        Label codeLabel = new Label("EXAM CODE");
-        codeLabel.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-letter-spacing:1.2px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        List<ExamResult> myResults = ResultDAO.loadForStudent(student.getID());
+        List<int[]> myCodes = ResultDAO.loadStudentExamCodes(student.getID());
+        long liveCount  = myCodes.stream().filter(row -> {
+            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+            return ex != null && ex.isLive();
+        }).count();
+        long upcomingCount = myCodes.stream().filter(row -> {
+            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+            return ex != null && !ex.isLive();
+        }).count();
+        long completedCount = myResults.size();
+        double avgPct = myResults.isEmpty() ? 0 : myResults.stream().mapToDouble(ExamResult::pct).average().orElse(0);
 
-        TextField codeField = new TextField();
-        codeField.setPromptText("e.g.  A1B2C3");
-        codeField.setStyle(
-                "-fx-font-family:Monospaced;-fx-font-size:30px;-fx-font-weight:bold;-fx-alignment:center;" +
-                        "-fx-text-fill:" + UIUtils.textDark() + ";-fx-background-color:" + UIUtils.bgSurface() + ";" +
-                        "-fx-border-color:" + UIUtils.ACCENT_GREEN + ";-fx-border-radius:12;-fx-background-radius:12;" +
-                        "-fx-border-width:2;-fx-padding:14;"
+        HBox stats = new HBox(10);
+        stats.getChildren().addAll(
+            UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),     "Live Now",    UIUtils.ACCENT_GREEN),
+            UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(upcomingCount), "Upcoming",    UIUtils.ACCENT_PURP),
+            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(completedCount),"Completed",   UIUtils.ACCENT_TEAL),
+            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avgPct),"Avg Score",   UIUtils.ACCENT_ORG)
         );
-        codeField.setPrefHeight(70); codeField.setMaxWidth(280);
 
+        row1.getChildren().addAll(new VBox(2, greetL, dateL), stats);
+
+        // ── ROW 2: JOIN AN EXAMINATION ────────────────────────────
+        VBox row2 = new VBox(14);
+        row2.setPadding(new Insets(20, 36, 20, 36));
+        row2.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
+
+        HBox joinCaption = buildSectionHeader("Join an Examination", "#0f7d74");
+        Label joinSub = new Label("Enter the 6-character code given by your instructor");
+        joinSub.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+
+        // Code field centred, Search button directly below it
+        TextField codeField = new TextField();
+        codeField.setPromptText("A B C 1 2 3");
+        codeField.setPrefWidth(280);
+        codeField.setPrefHeight(52);
+        codeField.setStyle(
+            "-fx-font-family:Monospaced;-fx-font-size:22px;-fx-font-weight:700;" +
+            "-fx-alignment:center;" +
+            "-fx-text-fill:" + UIUtils.textDark() + ";" +
+            "-fx-background-color:" + UIUtils.bgInput() + ";" +
+            "-fx-border-color:#0f7d74;" +
+            "-fx-border-radius:8;-fx-background-radius:8;" +
+            "-fx-border-width:2;-fx-padding:10;" +
+            "-fx-letter-spacing:8px;"
+        );
+
+        // Auto-uppercase + strip non-alphanumeric + max 6
         codeField.textProperty().addListener((obs, o, n) -> {
             String up = n.toUpperCase().replaceAll("[^A-Z0-9]", "");
             if (up.length() > 6) up = up.substring(0, 6);
             if (!n.equals(up)) {
                 String fin = up;
-                Platform.runLater(() -> {
-                    codeField.setText(fin);
-                    codeField.positionCaret(fin.length());
-                });
+                Platform.runLater(() -> { codeField.setText(fin); codeField.positionCaret(fin.length()); });
             }
         });
 
-        Label charCount = new Label("0 / 6");
-        charCount.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
-        codeField.textProperty().addListener((obs, o, n) -> charCount.setText(n.length() + " / 6"));
+        Button btnSearch = UIUtils.primaryBtn("", "Search Examination", UIUtils.ACCENT_TEAL);
+        btnSearch.setPrefWidth(280); btnSearch.setPrefHeight(42);
 
-        HBox codeRow = new HBox(14, codeField, charCount);
+        VBox codeStack = new VBox(10, codeField, btnSearch);
+        codeStack.setAlignment(Pos.CENTER_LEFT);
+        HBox codeRow = new HBox(codeStack);
         codeRow.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnSearch = buildPremiumBtn("🔍   Search Exam", UIUtils.ACCENT_GREEN);
-        btnSearch.setPrefWidth(280); btnSearch.setPrefHeight(50);
-        codeField.setOnAction(e -> btnSearch.fire());
+        // ── Live and Upcoming sections (updated from search) ──────
+        VBox liveSection = new VBox(8);
+        VBox upcomingSection = new VBox(8);
 
-        btnSearch.setOnAction(e -> {
+        Runnable[] refreshRef = { null };
+
+        // ── SEARCH ACTION ─────────────────────────────────────────
+        Runnable doSearch = () -> {
             String code = codeField.getText().trim();
-            if (code.length() != 6) { shakeNode(codeField); return; }
-            btnSearch.setText("⏳   Searching..."); btnSearch.setDisable(true);
-            PauseTransition pause = new PauseTransition(Duration.millis(500));
-            pause.setOnFinished(ev -> {
-                btnSearch.setText("🔍   Search Exam"); btnSearch.setDisable(false);
-                Exam found = ExamBank.allExams.stream()
-                        .filter(ex -> ex.isLive() && ex.getExamCode() != null && ex.getExamCode().equalsIgnoreCase(code))
-                        .findFirst().orElse(null);
-                if (found != null) showExamDetailPopup(found, stage, student, app);
-                else               showNotFoundPopup(stage);
-            });
-            pause.play();
-        });
-
-        inputCard.getChildren().addAll(codeLabel, codeRow, btnSearch);
-
-        // Live exams hint
-        VBox liveCard = UIUtils.card(580);
-        liveCard.setMaxWidth(580); liveCard.setPadding(new Insets(20));
-        liveCard.getChildren().add(new Label("📡   Currently Live Exams") {{
-            setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
-        }});
-        List<Exam> liveExams = ExamBank.getLiveExams();
-        if (liveExams.isEmpty()) {
-            liveCard.getChildren().add(UIUtils.subheading("No exams are live right now."));
-        } else {
-            for (Exam ex : liveExams) {
-                HBox row = new HBox(10); row.setAlignment(Pos.CENTER_LEFT);
-                row.setPadding(new Insets(9,12,9,12));
-                row.setStyle("-fx-background-color:" + UIUtils.bgHover() + ";-fx-background-radius:8;");
-                VBox info = new VBox(2);
-                Label name = new Label(ex.getSubject() + (ex.getTitle()!=null&&!ex.getTitle().isBlank() ? "  —  "+ex.getTitle() : ""));
-                name.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:" + UIUtils.textDark() + ";");
-                Label meta = new Label("Grade "+ex.getGrade()+"  •  "+ex.getDuration()+" min  •  "+ex.getQuestionsMap().size()+" questions");
-                meta.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textMid() + ";");
-                info.getChildren().addAll(name, meta);
-                Region sp2 = new Region(); HBox.setHgrow(sp2, Priority.ALWAYS);
-                row.getChildren().addAll(new Label("🟢") {{ setStyle("-fx-font-size:12px;"); }}, info, sp2, UIUtils.badge(ex.getExamCode(), UIUtils.ACCENT_GREEN));
-                liveCard.getChildren().add(row);
+            if (code.length() != 6) {
+                TranslateTransition tt = new TranslateTransition(Duration.millis(50), codeField);
+                tt.setFromX(0); tt.setByX(9); tt.setCycleCount(6); tt.setAutoReverse(true);
+                tt.setOnFinished(ev -> codeField.setTranslateX(0)); tt.play();
+                return;
             }
+
+            btnSearch.setText("Searching..."); btnSearch.setDisable(true);
+            PauseTransition delay = new PauseTransition(Duration.millis(380));
+            delay.setOnFinished(ev -> {
+                btnSearch.setText("Search"); btnSearch.setDisable(false);
+
+                // Find exam by code — only if live or scheduled
+                Exam found = ExamBank.allExams.stream()
+                    .filter(ex -> ex.getExamCode() != null
+                        && ex.getExamCode().equalsIgnoreCase(code)
+                        && (ex.isLive() || ex.isScheduled()))
+                    .findFirst().orElse(null);
+
+                if (found == null) {
+                    UIUtils.Toast.error(area, "No active examination found with that code");
+                    return;
+                }
+
+                // Check if already submitted with THIS specific code (same launch)
+                if (ResultDAO.hasResult(student.getID(), found.getDbId(), found.getExamCode())) {
+                    ExamResult prev = ResultDAO.loadSingleResult(student.getID(), found.getDbId());
+                    showAlreadySubmittedPopup(stage, prev);
+                    return;
+                }
+
+                // Clear any old in-progress from a different launch
+                ResultDAO.clearInProgress(student.getID(), found.getDbId());
+
+                List<int[]> existing = ResultDAO.loadStudentExamCodes(student.getID());
+                boolean alreadyUnlocked = existing.stream().anyMatch(row -> row[0] == found.getDbId());
+
+                if (found.isLive()) {
+                    ResultDAO.saveStudentExamCode(student.getID(), found.getDbId(), "live");
+                    codeField.clear();
+                    showLiveExamPopup(found, student, stage, app, area);
+                } else {
+                    // Scheduled
+                    if (!alreadyUnlocked) {
+                        ResultDAO.saveStudentExamCode(student.getID(), found.getDbId(), "scheduled");
+                        UIUtils.Toast.success(area, "Examination added to your upcoming list");
+                    } else {
+                        UIUtils.Toast.info(area, "This examination is already in your upcoming list");
+                    }
+                    codeField.clear();
+                    if (refreshRef[0] != null) refreshRef[0].run();
+                }
+            });
+            delay.play();
+        };
+
+        codeField.setOnAction(e -> doSearch.run());
+        btnSearch.setOnAction(e -> doSearch.run());
+
+        row2.getChildren().addAll(joinCaption, joinSub, codeRow);
+
+        // ── ROW 3: LIVE EXAMINATIONS ──────────────────────────────
+        VBox row3 = new VBox(10);
+        row3.setPadding(new Insets(18, 36, 18, 36));
+        row3.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
+        row3.getChildren().addAll(buildSectionHeaderWithDot("Live Examinations", "#0e7a56", true), liveSection);
+
+        // ── ROW 4: UPCOMING EXAMINATIONS ─────────────────────────
+        VBox row4 = new VBox(10);
+        row4.setPadding(new Insets(18, 36, 28, 36));
+        row4.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
+        row4.getChildren().addAll(buildSectionHeaderWithDot("Upcoming Examinations", UIUtils.ACCENT_PURP, false), upcomingSection);
+
+        // ── Refresh sections ─────────────────────────────────────
+        Runnable refreshSections = buildDashboardRefresh(liveSection, upcomingSection, student, stage, app, area);
+        refreshRef[0] = refreshSections;
+        refreshSections.run();
+
+        // ── Auto-refresh ticker ──────────────────────────────────
+        Timeline ticker = new Timeline(new KeyFrame(Duration.seconds(2), ev -> refreshSections.run()));
+        ticker.setCycleCount(Animation.INDEFINITE); ticker.play();
+        page.sceneProperty().addListener((obs, o, n) -> { if (n == null) ticker.stop(); });
+
+        page.getChildren().addAll(row1, row2, row3, row4);
+        scroll.setContent(page);
+
+        javafx.scene.layout.AnchorPane.setTopAnchor(scroll, 0.0);
+        javafx.scene.layout.AnchorPane.setBottomAnchor(scroll, 0.0);
+        javafx.scene.layout.AnchorPane.setLeftAnchor(scroll, 0.0);
+        javafx.scene.layout.AnchorPane.setRightAnchor(scroll, 0.0);
+        area.getChildren().add(scroll);
+        UIUtils.slideIn(page, true);
+    }
+
+    // ── Section header: animated dot + label ─────────────────────
+    /** Animated sonar dot (live) or static dot (upcoming) + bold label */
+    private static HBox buildSectionHeaderWithDot(String text, String color, boolean animated) {
+        HBox hdr = new HBox(8); hdr.setAlignment(Pos.CENTER_LEFT);
+        if (animated) {
+            Circle dot    = new Circle(4, Color.web(color));
+            Circle ripple = new Circle(4, Color.web(color)); ripple.setOpacity(0);
+            ripple.setMouseTransparent(true);
+            Timeline sonar = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                    new KeyValue(ripple.radiusProperty(), 4.0),
+                    new KeyValue(ripple.opacityProperty(), 0.55)),
+                new KeyFrame(Duration.millis(900),
+                    new KeyValue(ripple.radiusProperty(), 10.0),
+                    new KeyValue(ripple.opacityProperty(), 0.0))
+            );
+            sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
+            StackPane dotStack = new StackPane(ripple, dot);
+            dotStack.setPrefSize(16, 16); dotStack.setMinSize(16, 16); dotStack.setMaxSize(16, 16);
+            dotStack.setClip(new Circle(8, 8, 8));
+            dotStack.setMouseTransparent(true);
+            dotStack.sceneProperty().addListener((obs, o, n) -> { if (n == null) sonar.stop(); });
+            hdr.getChildren().add(dotStack);
+        } else {
+            Circle dot = new Circle(4, Color.web(color));
+            hdr.getChildren().add(new StackPane(dot) {{
+                setPrefSize(16, 16); setMinSize(16, 16); setMaxSize(16, 16);
+            }});
+        }
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        hdr.getChildren().add(lbl);
+        return hdr;
+    }
+
+    /** Simple label-only header — used for Join section (no dot) */
+    private static HBox buildSectionHeader(String text, String color) {
+        HBox hdr = new HBox(8); hdr.setAlignment(Pos.CENTER_LEFT);
+        Circle dot = new Circle(4, Color.web(color));
+        hdr.getChildren().add(new StackPane(dot) {{ setPrefSize(16, 16); }});
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        hdr.getChildren().add(lbl);
+        return hdr;
+    }
+
+    // ── Build dashboard refresh runnable ─────────────────────────
+    private static Runnable buildDashboardRefresh(VBox liveSection, VBox upcomingSection,
+                                                   Student student, Stage stage,
+                                                   HelloApplication app,
+                                                   javafx.scene.layout.AnchorPane area) {
+        return () -> {
+            liveSection.getChildren().clear();
+            upcomingSection.getChildren().clear();
+
+            List<int[]> codes = ResultDAO.loadStudentExamCodes(student.getID());
+            boolean hasLive = false, hasSched = false;
+
+            for (int[] row : codes) {
+                int examId = row[0];
+                Exam ex = ExamBank.allExams.stream()
+                    .filter(e -> e.getDbId() == examId).findFirst().orElse(null);
+                if (ex == null) {
+                    ResultDAO.removeStudentExamCode(student.getID(), examId);
+                    continue;
+                }
+
+                // Skip if already submitted with THIS specific exam code (same launch)
+                if (ex.getExamCode() != null && !ex.getExamCode().isEmpty()
+                        && ResultDAO.hasResult(student.getID(), examId, ex.getExamCode())) {
+                    ResultDAO.removeStudentExamCode(student.getID(), examId);
+                    continue;
+                }
+
+                if (ex.isLive()) {
+                    ResultDAO.saveStudentExamCode(student.getID(), examId, "live");
+                    liveSection.getChildren().add(buildStudentLiveRow(ex, student, stage, app, area));
+                    hasLive = true;
+                } else if (ex.isScheduled()) {
+                    upcomingSection.getChildren().add(buildStudentSchedRow(ex, student, stage, app, area, () ->
+                        buildDashboardRefresh(liveSection, upcomingSection, student, stage, app, area).run()
+                    ));
+                    hasSched = true;
+                }
+            }
+
+            // Check for in-progress exams (resume case)
+            for (Exam ex : ExamBank.getLiveExams()) {
+                boolean alreadySubmitted = ex.getExamCode() != null && !ex.getExamCode().isEmpty()
+                    && ResultDAO.hasResult(student.getID(), ex.getDbId(), ex.getExamCode());
+                if (ResultDAO.hasInProgress(student.getID(), ex.getDbId()) && !alreadySubmitted) {
+                    boolean alreadyShown = codes.stream().anyMatch(row -> row[0] == ex.getDbId());
+                    if (!alreadyShown) {
+                        ResultDAO.saveStudentExamCode(student.getID(), ex.getDbId(), "live");
+                        liveSection.getChildren().add(buildStudentLiveRow(ex, student, stage, app, area));
+                        hasLive = true;
+                    }
+                }
+            }
+
+            if (!hasLive) {
+                Label none = new Label("No live examinations. Enter a code above to join one.");
+                none.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-padding:10 0;");
+                liveSection.getChildren().add(none);
+            }
+            if (!hasSched) {
+                Label none = new Label("No upcoming examinations. Enter a scheduled exam code to see it here.");
+                none.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-padding:10 0;");
+                upcomingSection.getChildren().add(none);
+            }
+        };
+    }
+
+    // ── Student live exam row ─────────────────────────────────────
+    private static HBox buildStudentLiveRow(Exam ex, Student student, Stage stage, HelloApplication app,
+                                             javafx.scene.layout.AnchorPane area) {
+        HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(13, 18, 13, 18));
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setStyle(
+            "-fx-background-color:" + UIUtils.bgCard() + ";" +
+            "-fx-background-radius:9;" +
+            "-fx-border-color:rgba(14,122,86,0.35);" +
+            "-fx-border-radius:9;-fx-border-width:1.5;"
+        );
+        DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05)); ds.setRadius(8); ds.setOffsetY(2); row.setEffect(ds);
+
+        Circle dot = new Circle(4, Color.web("#0e7a56"));
+        Circle ripple = new Circle(4, Color.web("#0e7a56")); ripple.setOpacity(0);
+        ripple.setMouseTransparent(true);
+        Timeline sonar = new Timeline(
+            new KeyFrame(Duration.ZERO,     new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
+            new KeyFrame(Duration.millis(850), new KeyValue(ripple.radiusProperty(), 11.0), new KeyValue(ripple.opacityProperty(), 0.0))
+        );
+        sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
+        StackPane dotStack = new StackPane(ripple, dot);
+        dotStack.setPrefSize(22, 22); dotStack.setMinSize(22, 22); dotStack.setMaxSize(22, 22);
+        dotStack.setClip(new Circle(11, 11, 11));
+        dotStack.setMouseTransparent(true);
+
+        Label liveBadge = new Label("LIVE");
+        liveBadge.setStyle("-fx-font-size:9px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:#d1f0e8;-fx-padding:2 8;-fx-background-radius:4;-fx-letter-spacing:1px;");
+
+        String et = (ex.getTitle() != null && !ex.getTitle().isBlank()) ? ex.getTitle() : ex.getSubject();
+        VBox info = new VBox(3);
+        Label titleLbl = new Label(et);
+        titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
+            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+        metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+
+        // Show resume indicator if in-progress
+        if (ResultDAO.hasInProgress(student.getID(), ex.getDbId())) {
+            Map<Integer, String> saved = ResultDAO.loadInProgressAnswers(student.getID(), ex.getDbId());
+            int answeredCount = saved == null ? 0 : saved.size();
+            Label resumeLbl = new Label("Resume: " + answeredCount + " answer" + (answeredCount == 1 ? "" : "s") + " saved");
+            resumeLbl.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-text-fill:#5046a0;-fx-background-color:rgba(80,70,160,0.10);-fx-padding:2 8;-fx-background-radius:4;");
+            info.getChildren().add(resumeLbl);
         }
 
-        page.getChildren().addAll(heading, sub, UIUtils.divider(), inputCard, liveCard);
-        wrapInScroll(contentArea, page);
+        info.getChildren().addAll(titleLbl, metaLbl);
+
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label remLbl = new Label(ex.getRemainingFormatted());
+        remLbl.setStyle("-fx-font-family:Monospaced;-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:rgba(14,122,86,0.10);-fx-background-radius:5;-fx-padding:4 10;");
+        Timeline remTl = new Timeline(new KeyFrame(Duration.seconds(1), e -> remLbl.setText(ex.getRemainingFormatted())));
+        remTl.setCycleCount(Animation.INDEFINITE); remTl.play();
+        row.sceneProperty().addListener((o, ov, nv) -> { if (nv == null) { remTl.stop(); sonar.stop(); }});
+
+        Button btnEnter = UIUtils.primaryBtn("", ResultDAO.hasInProgress(student.getID(), ex.getDbId()) ? "Resume" : "Enter", UIUtils.ACCENT_TEAL);
+        btnEnter.setPrefHeight(36);
+        btnEnter.setOnAction(e -> showLiveExamPopup(ex, student, stage, app, area));
+
+        row.getChildren().addAll(new HBox(6, dotStack, liveBadge) {{ setAlignment(Pos.CENTER_LEFT); }},
+            info, sp, remLbl, btnEnter);
+        return row;
     }
 
-    // ── Not found popup ──────────────────────────────────────
-    private static void showNotFoundPopup(Stage owner) {
-        Stage popup = new Stage();
-        popup.initModality(Modality.APPLICATION_MODAL); popup.initOwner(owner); popup.initStyle(StageStyle.UNDECORATED);
-        VBox box = new VBox(14); box.setAlignment(Pos.CENTER); box.setPadding(new Insets(32,40,32,40));
-        box.setStyle("-fx-background-color:"+UIUtils.bgCard()+";-fx-background-radius:16;-fx-border-radius:16;-fx-border-color:"+UIUtils.ACCENT_RED+"55;-fx-border-width:2;");
-        box.setEffect(new DropShadow(28, Color.color(0,0,0,0.35)));
-        Label icon = new Label("❌"); icon.setStyle("-fx-font-size:40px;");
-        Label msg  = new Label("Exam Not Found"); msg.setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.ACCENT_RED+";");
-        Label hint = new Label("No live exam found with that code.\nDouble-check with your teacher.");
-        hint.setStyle("-fx-font-size:12px;-fx-text-fill:"+UIUtils.textMid()+";-fx-alignment:center;");
-        hint.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
-        Button btnOk = buildPremiumBtn("OK", UIUtils.ACCENT_RED);
-        btnOk.setPrefWidth(120); btnOk.setPrefHeight(40); btnOk.setOnAction(e -> popup.close());
-        box.getChildren().addAll(icon, msg, hint, btnOk);
-        Scene sc = new Scene(new StackPane(box), 320, 220); sc.setFill(Color.TRANSPARENT);
-        UIUtils.applyStyle(sc); popup.setScene(sc); animatePopupIn(box); popup.show();
+    // ── Student scheduled exam row ────────────────────────────────
+    private static VBox buildStudentSchedRow(Exam ex, Student student, Stage stage,
+                                              HelloApplication app,
+                                              javafx.scene.layout.AnchorPane area,
+                                              Runnable onGoLive) {
+        VBox wrapper = new VBox();
+        HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(13, 18, 13, 18));
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:9;" +
+            "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;");
+        DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.04)); ds.setRadius(6); ds.setOffsetY(1); row.setEffect(ds);
+
+        String et = (ex.getTitle() != null && !ex.getTitle().isBlank()) ? ex.getTitle() : ex.getSubject();
+        VBox info = new VBox(3);
+        Label titleLbl = new Label(et);
+        titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
+            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+        metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        info.getChildren().addAll(titleLbl, metaLbl);
+
+        if (ex.getScheduledStartMillis() > 0 && ex.getScheduledStartMillis() > System.currentTimeMillis()) {
+            java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(ex.getScheduledStartMillis())
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+            Label dateLbl = new Label(ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM  ·  HH:mm")));
+            dateLbl.setStyle("-fx-font-size:11px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.ACCENT_PURP + ";");
+            info.getChildren().add(dateLbl);
+        }
+
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label countdown = new Label(ex.getScheduledStartMillis() > 0 ? "Starts in  " + ex.getStartCountdownFormatted() : "Awaiting schedule");
+        countdown.setStyle("-fx-font-family:Monospaced;-fx-font-size:12px;-fx-font-weight:700;-fx-text-fill:#5046a0;-fx-background-color:rgba(80,70,160,0.10);-fx-background-radius:4;-fx-padding:3 9;");
+
+        Timeline tl = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
+            if (ex.isLive()) {
+                ResultDAO.saveStudentExamCode(student.getID(), ex.getDbId(), "live");
+                UIUtils.Toast.success(area, et + " is now live — tap Enter to join");
+                onGoLive.run();
+            } else if (ex.getScheduledStartMillis() > 0) {
+                countdown.setText("Starts in  " + ex.getStartCountdownFormatted());
+            }
+        }));
+        tl.setCycleCount(Animation.INDEFINITE); tl.play();
+        row.sceneProperty().addListener((o, ov, nv) -> { if (nv == null) tl.stop(); });
+
+        row.getChildren().addAll(info, sp, countdown);
+        wrapper.getChildren().add(row);
+        return wrapper;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  5. EXAM DETAIL POPUP
-    // ╚══════════════════════════════════════════════════════╝
-    private static void showExamDetailPopup(Exam exam, Stage stage, Student student, HelloApplication app) {
+    // ══════════════════════════════════════════════════════════════
+    //  LIVE EXAM POPUP — custom, not JavaFX Alert
+    //  Shows exam details + countdown + Join / Cancel buttons
+    // ══════════════════════════════════════════════════════════════
+    private static void showLiveExamPopup(Exam exam, Student student, Stage stage,
+                                           HelloApplication app, javafx.scene.layout.AnchorPane area) {
         Stage popup = new Stage();
-        popup.initModality(Modality.APPLICATION_MODAL); popup.initOwner(stage); popup.initStyle(StageStyle.UNDECORATED);
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initOwner(stage);
+        popup.initStyle(StageStyle.UNDECORATED);
 
-        VBox box = new VBox(18); box.setPadding(new Insets(32,38,28,38));
-        box.setStyle("-fx-background-color:"+UIUtils.bgCard()+";-fx-background-radius:18;-fx-border-radius:18;-fx-border-color:"+UIUtils.ACCENT_GREEN+"66;-fx-border-width:2;");
-        box.setEffect(new DropShadow(34, Color.color(0,0,0,0.38)));
+        VBox box = new VBox(16);
+        box.setPadding(new Insets(28, 34, 26, 34));
+        box.setStyle(
+            "-fx-background-color:" + UIUtils.bgCard() + ";" +
+            "-fx-background-radius:14;" +
+            "-fx-border-color:rgba(14,122,86,0.3);" +
+            "-fx-border-radius:14;-fx-border-width:1.5;"
+        );
+        box.setEffect(new DropShadow(36, Color.color(0,0,0,0.18)));
 
         // Header
         HBox hdr = new HBox(12); hdr.setAlignment(Pos.CENTER_LEFT);
-        StackPane ic = new StackPane(new Circle(24) {{ setFill(Color.web(UIUtils.ACCENT_GREEN,0.15)); }}, new Label("✅") {{ setStyle("-fx-font-size:18px;"); }});
-        VBox tb = new VBox(3);
-        String et = exam.getTitle()!=null&&!exam.getTitle().isBlank() ? exam.getTitle() : exam.getSubject()+" Examination";
-        tb.getChildren().addAll(
-                new Label(et) {{ setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";"); }},
-                new Label("Exam found! Review details before starting.") {{ setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.ACCENT_GREEN+";-fx-font-weight:bold;"); }}
+
+        // Sonar dot — fixed-size, clipped so it never shifts layout
+        Circle dot = new Circle(5, Color.web("#0e7a56"));
+        Circle ripple2 = new Circle(5, Color.web("#0e7a56")); ripple2.setOpacity(0);
+        ripple2.setMouseTransparent(true);
+        Timeline sonar2 = new Timeline(
+            new KeyFrame(Duration.ZERO,     new KeyValue(ripple2.radiusProperty(), 5.0),  new KeyValue(ripple2.opacityProperty(), 0.55)),
+            new KeyFrame(Duration.millis(900), new KeyValue(ripple2.radiusProperty(), 13.0), new KeyValue(ripple2.opacityProperty(), 0.0))
         );
-        hdr.getChildren().addAll(ic, tb);
+        sonar2.setCycleCount(Timeline.INDEFINITE); sonar2.play();
+        StackPane dotStack2 = new StackPane(ripple2, dot);
+        dotStack2.setPrefSize(22, 22); dotStack2.setMinSize(22, 22); dotStack2.setMaxSize(22, 22);
+        dotStack2.setClip(new Circle(11, 11, 11));
+        dotStack2.setMouseTransparent(true);
 
-        // Grid
-        GridPane grid = new GridPane(); grid.setHgap(18); grid.setVgap(10);
-        addDetailRow(grid, 0, "📚  Subject",    exam.getSubject());
-        addDetailRow(grid, 1, "🏫  Grade",      "Grade " + exam.getGrade());
-        addDetailRow(grid, 2, "⏱  Duration",   exam.getDuration() + " minutes");
-        addDetailRow(grid, 3, "📝  Questions", exam.getQuestionsMap().size() + " questions");
-        addDetailRow(grid, 4, "🏆  Total Marks", String.valueOf((int)exam.getTotalMarks()));
-        if (exam.getDescription()!=null&&!exam.getDescription().isBlank())
-            addDetailRow(grid, 5, "📄  Notes", exam.getDescription());
+        VBox hdrText = new VBox(3);
+        String et = (exam.getTitle()!=null&&!exam.getTitle().isBlank()) ? exam.getTitle() : exam.getSubject() + " Examination";
+        Label hdrTitle = new Label(et);
+        hdrTitle.setStyle("-fx-font-size:17px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";-fx-letter-spacing:-0.2px;");
+        Label livePill = new Label("  LIVE  ");
+        livePill.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:#d1f0e8;-fx-padding:2 10;-fx-background-radius:4;-fx-letter-spacing:1.2px;");
+        hdrText.getChildren().addAll(hdrTitle, livePill);
+        hdr.getChildren().addAll(dotStack2, hdrText);
 
-        // Instructions
-        VBox instrBox = new VBox(4); instrBox.setPadding(new Insets(10));
-        instrBox.setStyle("-fx-background-color:"+UIUtils.ACCENT_BLUE+"0d;-fx-background-radius:9;");
-        instrBox.getChildren().add(new Label("📋  Instructions") {{ setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.ACCENT_BLUE+";"); }});
-        for (String tip : new String[]{"• Timer auto-submits when time is up.", "• Flag questions to revisit later.", "• Submitted answers cannot be changed."})
-            instrBox.getChildren().add(new Label(tip) {{ setStyle("-fx-font-size:11.5px;-fx-text-fill:"+UIUtils.textMid()+";"); }});
+        // Timer
+        Label timerLabel = new Label(exam.getRemainingFormatted());
+        timerLabel.setStyle("-fx-font-family:Monospaced;-fx-font-size:28px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:rgba(14,122,86,0.10);-fx-background-radius:8;-fx-padding:8 20;");
+        Label timerCaption = new Label("Time remaining");
+        timerCaption.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:0.8px;");
+        Timeline timerTl = new Timeline(new KeyFrame(Duration.seconds(1), e -> timerLabel.setText(exam.getRemainingFormatted())));
+        timerTl.setCycleCount(Animation.INDEFINITE); timerTl.play();
+        VBox timerBox = new VBox(5, timerCaption, timerLabel); timerBox.setAlignment(Pos.CENTER_LEFT);
+
+        // Details grid
+        GridPane grid = new GridPane(); grid.setHgap(20); grid.setVgap(9);
+        grid.setPadding(new Insets(12)); grid.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;");
+        addDetailRow(grid, 0, "Subject",    exam.getSubject());
+        addDetailRow(grid, 1, "Class",      "Grade " + exam.getGrade());
+        addDetailRow(grid, 2, "Duration",   exam.getDuration() + " minutes");
+        addDetailRow(grid, 3, "Questions",  exam.getQuestionsMap().size() + " items");
+        addDetailRow(grid, 4, "Total",      String.valueOf((int) exam.getTotalMarks()) + " marks");
+
+        // Resume notice if applicable
+        boolean hasProgress = ResultDAO.hasInProgress(student.getID(), exam.getDbId());
+        if (hasProgress) {
+            Map<Integer, String> saved = ResultDAO.loadInProgressAnswers(student.getID(), exam.getDbId());
+            int savedCount = saved == null ? 0 : saved.size();
+            HBox resumeNotice = new HBox(8); resumeNotice.setAlignment(Pos.CENTER_LEFT);
+            resumeNotice.setPadding(new Insets(9, 12, 9, 12));
+            resumeNotice.setStyle("-fx-background-color:rgba(80,70,160,0.09);-fx-background-radius:7;-fx-border-color:rgba(80,70,160,0.25);-fx-border-radius:7;-fx-border-width:1;");
+            resumeNotice.getChildren().addAll(
+                UIUtils.icon(UIUtils.ICO_INFO, UIUtils.ACCENT_PURP, 13),
+                new Label(savedCount + " answer" + (savedCount==1?"":"s") + " saved — you will resume from where you left off.") {{
+                    setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:#5046a0;");
+                    setWrapText(true);
+                }}
+            );
+            box.getChildren().add(resumeNotice);
+        }
 
         // Buttons
         HBox btnRow = new HBox(12); btnRow.setAlignment(Pos.CENTER_LEFT);
-        Button btnStart  = buildPremiumBtn("🚀   Start Exam", UIUtils.ACCENT_GREEN);
-        btnStart.setPrefWidth(170); btnStart.setPrefHeight(44);
-        Button btnCancel = UIUtils.ghostBtn("✕", "Cancel", UIUtils.ACCENT_RED);
-        btnCancel.setPrefHeight(44); btnCancel.setPrefWidth(100);
-        btnStart.setOnAction(e -> { popup.close(); stage.setScene(buildExamScene(exam, student, stage, app)); });
-        btnCancel.setOnAction(e -> popup.close());
-        btnRow.getChildren().addAll(btnStart, btnCancel);
+        String btnLabel = hasProgress ? "Resume Examination" : "Begin Examination";
+        Button btnJoin   = UIUtils.primaryBtn("", btnLabel, UIUtils.ACCENT_TEAL);
+        btnJoin.setPrefWidth(200); btnJoin.setPrefHeight(44);
+        Button btnCancel = UIUtils.ghostBtn("", "Not now", UIUtils.ACCENT_RED);
+        btnCancel.setPrefHeight(44);
 
-        box.getChildren().addAll(hdr, UIUtils.divider(), grid, instrBox, UIUtils.divider(), btnRow);
-        Scene sc = new Scene(new StackPane(box), 460, 490); sc.setFill(Color.TRANSPARENT);
-        UIUtils.applyStyle(sc); popup.setScene(sc); animatePopupIn(box); popup.show();
+        btnJoin.setOnAction(e -> {
+            timerTl.stop(); sonar2.stop();
+            popup.close();
+            stage.setScene(buildExamScene(exam, student, stage, app));
+        });
+        btnCancel.setOnAction(e -> { timerTl.stop(); sonar2.stop(); popup.close(); });
+        btnRow.getChildren().addAll(btnJoin, btnCancel);
+
+        box.getChildren().addAll(0, List.of(hdr, timerBox, UIUtils.divider(), grid));
+        box.getChildren().addAll(UIUtils.divider(), btnRow);
+
+        Scene sc = new Scene(new StackPane(box), 460, hasProgress ? 520 : 490);
+        sc.setFill(Color.TRANSPARENT);
+        UIUtils.applyStyle(sc);
+        popup.setScene(sc);
+
+        box.setScaleX(0.92); box.setScaleY(0.92); box.setOpacity(0);
+        ScaleTransition st = new ScaleTransition(Duration.millis(220), box); st.setToX(1); st.setToY(1); st.setInterpolator(Interpolator.EASE_OUT);
+        FadeTransition ft = new FadeTransition(Duration.millis(220), box); ft.setToValue(1);
+        new ParallelTransition(st, ft).play();
+        popup.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  SCHEDULED EXAM POPUP — custom popup, not Alert
+    //  Shows when student enters a scheduled exam code
+    // ══════════════════════════════════════════════════════════════
+    private static void showScheduledExamPopup(Stage stage, Exam exam) {
+        Stage popup = new Stage();
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initOwner(stage);
+        popup.initStyle(StageStyle.UNDECORATED);
+
+        VBox box = new VBox(16);
+        box.setPadding(new Insets(28, 34, 26, 34));
+        box.setStyle(
+            "-fx-background-color:" + UIUtils.bgCard() + ";" +
+            "-fx-background-radius:14;" +
+            "-fx-border-color:rgba(80,70,160,0.3);" +
+            "-fx-border-radius:14;-fx-border-width:1.5;"
+        );
+        box.setEffect(new DropShadow(36, Color.color(0,0,0,0.16)));
+
+        HBox hdr = new HBox(12); hdr.setAlignment(Pos.CENTER_LEFT);
+        StackPane ico = new StackPane(UIUtils.icon(UIUtils.ICO_SCHEDULE, "#5046a0", 20));
+        ico.setPrefSize(44, 44); ico.setStyle("-fx-background-color:rgba(80,70,160,0.12);-fx-background-radius:9;");
+        VBox hdrText = new VBox(3);
+        String et = (exam.getTitle()!=null&&!exam.getTitle().isBlank()) ? exam.getTitle() : exam.getSubject() + " Examination";
+        Label hdrTitle = new Label(et);
+        hdrTitle.setStyle("-fx-font-size:17px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label schedLabel = new Label("Scheduled Examination — Added to Your Upcoming List");
+        schedLabel.setStyle("-fx-font-size:11px;-fx-text-fill:#5046a0;-fx-font-weight:600;");
+        hdrText.getChildren().addAll(hdrTitle, schedLabel);
+        hdr.getChildren().addAll(ico, hdrText);
+
+        GridPane grid = new GridPane(); grid.setHgap(20); grid.setVgap(9);
+        grid.setPadding(new Insets(12)); grid.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;");
+        addDetailRow(grid, 0, "Subject",   exam.getSubject());
+        addDetailRow(grid, 1, "Class",     "Grade " + exam.getGrade());
+        addDetailRow(grid, 2, "Duration",  exam.getDuration() + " minutes");
+        addDetailRow(grid, 3, "Questions", exam.getQuestionsMap().size() + " items");
+        addDetailRow(grid, 4, "Total",     (int)exam.getTotalMarks() + " marks");
+
+        if (exam.getScheduledStartMillis() > 0) {
+            java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(exam.getScheduledStartMillis())
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+            addDetailRow(grid, 5, "Starts",
+                ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy  ·  HH:mm")));
+        }
+
+        if (exam.getDescription() != null && !exam.getDescription().isBlank()) {
+            addDetailRow(grid, 6, "Notes", exam.getDescription());
+        }
+
+        Button btnOk = UIUtils.primaryBtn("", "Got it", UIUtils.ACCENT_PURP);
+        btnOk.setPrefWidth(160); btnOk.setPrefHeight(42);
+        btnOk.setOnAction(e -> popup.close());
+
+        box.getChildren().addAll(hdr, UIUtils.divider(), grid, UIUtils.divider(), btnOk);
+
+        Scene sc = new Scene(new StackPane(box), 460, 400);
+        sc.setFill(Color.TRANSPARENT);
+        UIUtils.applyStyle(sc);
+        popup.setScene(sc);
+
+        box.setScaleX(0.92); box.setScaleY(0.92); box.setOpacity(0);
+        ScaleTransition st = new ScaleTransition(Duration.millis(220), box); st.setToX(1); st.setToY(1); st.setInterpolator(Interpolator.EASE_OUT);
+        FadeTransition ft = new FadeTransition(Duration.millis(220), box); ft.setToValue(1);
+        new ParallelTransition(st, ft).play();
+        popup.show();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  ALREADY SUBMITTED POPUP
+    // ══════════════════════════════════════════════════════════════
+    private static void showAlreadySubmittedPopup(Stage stage, ExamResult prev) {
+        Stage popup = new Stage();
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initOwner(stage);
+        popup.initStyle(StageStyle.UNDECORATED);
+
+        VBox box = new VBox(16);
+        box.setPadding(new Insets(28, 34, 26, 34));
+        box.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:14;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:14;-fx-border-width:1;");
+        box.setEffect(new DropShadow(28, Color.color(0,0,0,0.14)));
+        box.setAlignment(Pos.CENTER);
+
+        StackPane ico = new StackPane(UIUtils.icon(UIUtils.ICO_CHECK, UIUtils.ACCENT_GREEN, 22));
+        ico.setPrefSize(52, 52); ico.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "18;-fx-background-radius:99;");
+
+        Label hdr = new Label("Already Submitted");
+        hdr.setStyle("-fx-font-size:17px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+
+        if (prev != null) {
+            String gc = prev.pct()>=65?UIUtils.ACCENT_GREEN:prev.pct()>=50?UIUtils.ACCENT_TEAL:UIUtils.ACCENT_RED;
+            Label scoreL = new Label(String.format("%.0f / %.0f", prev.score, prev.totalMarks));
+            scoreL.setStyle("-fx-font-size:32px;-fx-font-weight:700;-fx-text-fill:" + gc + ";");
+            Label pctL = new Label(String.format("%.1f%%  ·  Grade %s", prev.pct(), prev.grade()));
+            pctL.setStyle("-fx-font-size:14px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textMid() + ";");
+            Label dateL = new Label("Submitted " + prev.dateStr());
+            dateL.setStyle("-fx-font-size:11.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            Label note = new Label("Each examination can only be taken once.");
+            note.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+
+            box.getChildren().addAll(ico, hdr, scoreL, pctL, dateL, UIUtils.divider(), note);
+        } else {
+            Label note = new Label("You have already submitted this examination. Each exam can only be taken once.");
+            note.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.textMid() + ";"); note.setWrapText(true); note.setMaxWidth(340);
+            box.getChildren().addAll(ico, hdr, note);
+        }
+
+        Button btnOk = UIUtils.primaryBtn("", "Close", UIUtils.ACCENT_TEAL);
+        btnOk.setPrefWidth(140); btnOk.setPrefHeight(40);
+        btnOk.setOnAction(e -> popup.close());
+        box.getChildren().add(btnOk);
+
+        Scene sc = new Scene(new StackPane(box), 400, prev!=null?380:280);
+        sc.setFill(Color.TRANSPARENT);
+        UIUtils.applyStyle(sc);
+        popup.setScene(sc);
+
+        box.setScaleX(0.92); box.setScaleY(0.92); box.setOpacity(0);
+        ScaleTransition st = new ScaleTransition(Duration.millis(200), box); st.setToX(1); st.setToY(1); st.setInterpolator(Interpolator.EASE_OUT);
+        FadeTransition ft = new FadeTransition(Duration.millis(200), box); ft.setToValue(1);
+        new ParallelTransition(st, ft).play();
+        popup.show();
     }
 
     private static void addDetailRow(GridPane grid, int row, String key, String val) {
-        Label k = new Label(key); k.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textMid()+";"); k.setPrefWidth(140);
-        Label v = new Label(val);  v.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";"); v.setWrapText(true);
-        grid.add(k,0,row); grid.add(v,1,row);
+        Label k = new Label(key.toUpperCase());
+        k.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:#9aa1b0;-fx-letter-spacing:1px;");
+        k.setPrefWidth(90);
+        Label v = new Label(val);
+        v.setStyle("-fx-font-size:13.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textDark() + ";");
+        v.setWrapText(true);
+        grid.add(k, 0, row); grid.add(v, 1, row);
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  6. EXAM SCENE
-    //  - Respects UIUtils.darkMode (not forced dark)
-    //  - Scrollable question page (all questions visible)
-    //  - Nav panel shows only Answered / Flagged badges
-    // ╚══════════════════════════════════════════════════════╝
+    // ══════════════════════════════════════════════════════════════
+    //  5. EXAM SCENE — with auto-save on every answer change
+    //     Loads saved answers on entry (resume support)
+    // ══════════════════════════════════════════════════════════════
     private static Scene buildExamScene(Exam exam, Student student, Stage stage, HelloApplication app) {
         List<Question> questions = new ArrayList<>(exam.getQuestionsMap().keySet());
         int totalQ = questions.size();
-        if (totalQ == 0) { app.showError("No Questions","This exam has no questions loaded."); return createDashboardScene(stage,student,app); }
+        if (totalQ == 0) { app.showError("No Questions", "This examination has no questions loaded."); return createDashboardScene(stage, student, app); }
 
-        Map<Integer, String> answers  = new HashMap<>();
-        Set<Integer>         flagged  = new HashSet<>();
+        // Load saved answers (resume) or start fresh
+        Map<Integer, String> savedAnswers = ResultDAO.loadInProgressAnswers(student.getID(), exam.getDbId());
+        Map<Integer, String> answers = savedAnswers != null ? new java.util.HashMap<>(savedAnswers) : new java.util.HashMap<>();
+        Set<Integer> flagged = ResultDAO.loadInProgressFlagged(student.getID(), exam.getDbId());
         boolean[] submitted = { false };
 
+        // Timer: calculate remaining based on when they started (if resuming)
         int durationSecs;
-        try { durationSecs = Integer.parseInt(exam.getDuration().replaceAll("[^0-9]","")) * 60; }
+        try { durationSecs = Integer.parseInt(exam.getDuration().replaceAll("[^0-9]", "")) * 60; }
         catch (Exception ex2) { durationSecs = 30 * 60; }
-        final int TOTAL_SECS = durationSecs;
-        long[] remaining = { TOTAL_SECS };
 
-        // ── Theme-aware colours (respects user toggle) ────────
+        // Use exam's actual remaining time if set
+        long examRemaining = exam.getRemainingMillis();
+        final int TOTAL_SECS = durationSecs;
+        long[] remaining = { examRemaining == Long.MAX_VALUE ? TOTAL_SECS : Math.min(examRemaining / 1000, TOTAL_SECS) };
+
+        // Color tokens
         String bg      = UIUtils.bgContent();
-        String surface = UIUtils.bgSurface();
         String card    = UIUtils.bgCard();
-        String bdColor = UIUtils.border();
+        String bdr     = UIUtils.border();
         String txtD    = UIUtils.textDark();
         String txtM    = UIUtils.textMid();
         String txtS    = UIUtils.textSubtle();
-        // For the top/bottom bars we always use a slightly elevated surface
-        String barBg   = UIUtils.darkMode ? "#1c2333" : "#f1f5f9";
-        String barBdr  = UIUtils.darkMode ? "#2d3748" : "#e2e8f0";
+        String barBg   = UIUtils.darkMode ? "#1a2234" : "#f4f5f7";
+        String barBdr  = UIUtils.darkMode ? "#29334a" : "#e6e8ec";
         String optBg   = UIUtils.darkMode ? "#1c2333" : "#ffffff";
-        String optBdr  = UIUtils.darkMode ? "#2d3748" : "#e2e8f0";
-        String optSel  = UIUtils.darkMode ? "#1d4ed8" : "#2563eb";
-        String optSelBg= UIUtils.darkMode ? "#1d4ed822" : "#2563eb18";
-        String optHov  = UIUtils.darkMode ? "#2a3347" : "#f8fafc";
-        String navBg   = UIUtils.darkMode ? "#1a2236" : "#f8fafc";
-        String navBdr  = UIUtils.darkMode ? "#2d3748" : "#e2e8f0";
-        String tmrGreen= "#10b981";
-        String timerTxt= UIUtils.darkMode ? "#e6edf3" : txtD;
+        String optBdr  = UIUtils.darkMode ? "#29334a" : "#e6e8ec";
+        String optSel  = "#0f7d74";
+        String optSelBg= UIUtils.darkMode ? "rgba(15,125,116,0.16)" : "rgba(15,125,116,0.08)";
+        String optHov  = UIUtils.darkMode ? "#222a3c" : "#f0f7f6";
+        String navBg   = UIUtils.darkMode ? "#171d2b" : "#f7f8fb";
 
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + bg + ";");
 
-        // ── TOP BAR ──────────────────────────────────────────
+        // ── TOP BAR ──────────────────────────────────────────────
         HBox topBar = new HBox(20); topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.setPadding(new Insets(0,24,0,24)); topBar.setPrefHeight(62);
-        topBar.setStyle("-fx-background-color:"+barBg+";-fx-border-color:"+barBdr+";-fx-border-width:0 0 1 0;");
+        topBar.setPadding(new Insets(0, 24, 0, 24)); topBar.setPrefHeight(58);
+        topBar.setStyle("-fx-background-color:" + barBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:0 0 1 0;");
 
-        VBox titleVBox = new VBox(2);
+        VBox examIdBox = new VBox(2);
         Label subjectTag = new Label(exam.getSubject().toUpperCase());
-        subjectTag.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:"+txtS+";-fx-letter-spacing:1.5px;");
-        String et = exam.getTitle()!=null&&!exam.getTitle().isBlank() ? exam.getTitle() : exam.getSubject()+" Exam";
+        subjectTag.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:" + txtS + ";-fx-letter-spacing:1.8px;");
+        String et = (exam.getTitle() != null && !exam.getTitle().isBlank()) ? exam.getTitle() : exam.getSubject() + " Examination";
         Label examNameLbl = new Label(et);
-        examNameLbl.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:"+txtD+";");
-        titleVBox.getChildren().addAll(subjectTag, examNameLbl);
+        examNameLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + txtD + ";");
+        examIdBox.getChildren().addAll(subjectTag, examNameLbl);
 
         Region topSpacer = new Region(); HBox.setHgrow(topSpacer, Priority.ALWAYS);
 
         VBox timerBox = new VBox(2); timerBox.setAlignment(Pos.CENTER);
         Label timerCaption = new Label("TIME REMAINING");
-        timerCaption.setStyle("-fx-font-size:9px;-fx-font-weight:bold;-fx-text-fill:"+txtS+";-fx-letter-spacing:1px;");
-        Label timerLbl = new Label(formatTime(TOTAL_SECS));
-        timerLbl.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:Monospaced;-fx-text-fill:"+tmrGreen+";");
-        ProgressBar timeProg = new ProgressBar(1.0);
-        timeProg.setPrefWidth(160); timeProg.setPrefHeight(4);
-        timeProg.setStyle("-fx-accent:"+tmrGreen+";-fx-background-color:"+barBdr+";-fx-background-radius:3;");
+        timerCaption.setStyle("-fx-font-size:9px;-fx-font-weight:700;-fx-text-fill:" + txtS + ";-fx-letter-spacing:1.4px;");
+        Label timerLbl = new Label(formatTime((int)remaining[0]));
+        timerLbl.setStyle("-fx-font-size:26px;-fx-font-weight:700;-fx-font-family:Monospaced;-fx-text-fill:#0f7d74;");
+        ProgressBar timeProg = new ProgressBar((double)remaining[0] / TOTAL_SECS);
+        timeProg.setPrefWidth(150); timeProg.setPrefHeight(3);
+        timeProg.setStyle("-fx-accent:#0f7d74;-fx-background-color:" + barBdr + ";-fx-background-radius:99;");
         timerBox.getChildren().addAll(timerCaption, timerLbl, timeProg);
 
-        Label studentLbl = new Label("👤  "+student.getName());
-        studentLbl.setStyle("-fx-font-size:12px;-fx-text-fill:"+txtM+";");
-        topBar.getChildren().addAll(titleVBox, topSpacer, timerBox, studentLbl);
+        Label studentLbl = new Label(student.getName());
+        studentLbl.setStyle("-fx-font-size:12px;-fx-text-fill:" + txtM + ";");
+
+        topBar.getChildren().addAll(examIdBox, topSpacer, timerBox, studentLbl);
         root.setTop(topBar);
 
-        // ── RIGHT PANEL — only Answered + Flagged badges ──────
-        VBox navPanel = new VBox(10); navPanel.setPrefWidth(180);
-        navPanel.setPadding(new Insets(20,12,20,12));
-        navPanel.setStyle("-fx-background-color:"+navBg+";-fx-border-color:"+navBdr+";-fx-border-width:0 0 0 1;");
+        // ── RIGHT NAV PANEL ───────────────────────────────────────
+        VBox navPanel = new VBox(10); navPanel.setPrefWidth(172);
+        navPanel.setPadding(new Insets(18, 12, 18, 12));
+        navPanel.setStyle("-fx-background-color:" + navBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:0 0 0 1;");
 
-        Label navTitle = new Label("QUESTIONS");
-        navTitle.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:"+txtS+";-fx-letter-spacing:1.2px;");
+        Label navCaption = UIUtils.sectionLabel("Questions");
+        TilePane navGrid = new TilePane(); navGrid.setHgap(4); navGrid.setVgap(4); navGrid.setPrefColumns(5);
 
-        TilePane navGrid = new TilePane(); navGrid.setHgap(5); navGrid.setVgap(5); navGrid.setPrefColumns(5);
+        Label answeredCount = new Label(answers.size() + " / " + totalQ);
+        answeredCount.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + txtD + ";");
+        Label answeredLabel = new Label("answered");
+        answeredLabel.setStyle("-fx-font-size:10px;-fx-text-fill:" + txtM + ";");
 
-        Label answeredCount = new Label("0 / "+totalQ);
-        answeredCount.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:"+txtD+";");
-        Label answeredLbl = new Label("answered");
-        answeredLbl.setStyle("-fx-font-size:10px;-fx-text-fill:"+txtM+";");
-
-        // Legend — ONLY answered and flagged, as requested
-        VBox legend = new VBox(6);
-        for (String[] leg : new String[][]{{"#10b981","Answered"},{"#f59e0b","Flagged"}}) {
-            HBox lr = new HBox(7); lr.setAlignment(Pos.CENTER_LEFT);
-            Circle dot = new Circle(5); dot.setFill(Color.web(leg[0]));
-            Label lt = new Label(leg[1]); lt.setStyle("-fx-font-size:11px;-fx-text-fill:"+txtM+";");
-            lr.getChildren().addAll(dot, lt); legend.getChildren().add(lr);
+        VBox legend = new VBox(5);
+        for (String[] leg : new String[][]{{"#0f7d74","Answered"},{"#b45309","Flagged"}}) {
+            HBox lr = new HBox(6); lr.setAlignment(Pos.CENTER_LEFT);
+            Circle dotL = new Circle(4, Color.web(leg[0]));
+            Label lt = new Label(leg[1]); lt.setStyle("-fx-font-size:11px;-fx-text-fill:" + txtM + ";");
+            lr.getChildren().addAll(dotL, lt);
+            legend.getChildren().add(lr);
         }
-        navPanel.getChildren().addAll(navTitle, navGrid, UIUtils.divider(), answeredCount, answeredLbl, UIUtils.divider(), legend);
+        navPanel.getChildren().addAll(navCaption, navGrid, UIUtils.divider(), answeredCount, answeredLabel, UIUtils.divider(), legend);
         root.setRight(navPanel);
 
-        // ── CENTER — full scrollable page of all questions ────
+        // ── CENTER — all questions ────────────────────────────────
         ScrollPane centerScroll = new ScrollPane();
         centerScroll.setFitToWidth(true);
-        centerScroll.setStyle("-fx-background:"+bg+";-fx-background-color:"+bg+";");
+        centerScroll.setStyle("-fx-background:" + bg + ";-fx-background-color:" + bg + ";");
 
-        VBox allQuestionsPage = new VBox(18);
-        allQuestionsPage.setPadding(new Insets(30,36,30,36));
-        allQuestionsPage.setStyle("-fx-background-color:"+bg+";");
+        VBox allQuestionsPage = new VBox(16);
+        allQuestionsPage.setPadding(new Insets(26, 34, 26, 34));
+        allQuestionsPage.setStyle("-fx-background-color:" + bg + ";");
 
-        // Build a VBox[] for each question card so we can refresh it individually
         VBox[] qCardBoxes = new VBox[totalQ];
-
-        // Helper to refresh a single question card
         Runnable[] refreshNav = { null };
 
-        // Build nav buttons first
-        Button[] navBtns = new Button[totalQ];
+        Button[] navBtns2 = new Button[totalQ];
         for (int i = 0; i < totalQ; i++) {
             final int fi = i;
             Button nb = new Button(String.valueOf(i+1));
-            nb.setPrefSize(28,28); nb.setCursor(javafx.scene.Cursor.HAND);
-            nb.setStyle(qNavStyle(bdColor, false, UIUtils.darkMode));
+            nb.setPrefSize(26,26); nb.setCursor(javafx.scene.Cursor.HAND);
+            nb.setStyle(qNavStyle(barBdr, UIUtils.darkMode));
             nb.setOnAction(e -> {
-                // Scroll to that question card
                 if (qCardBoxes[fi] != null) {
                     double totalH = allQuestionsPage.getBoundsInLocal().getHeight();
                     double cardY  = qCardBoxes[fi].getBoundsInParent().getMinY();
                     centerScroll.setVvalue(totalH > 0 ? cardY / totalH : 0);
                 }
             });
-            navBtns[fi] = nb;
+            navBtns2[fi] = nb;
             navGrid.getChildren().add(nb);
+            // Pre-color saved answers
+            if (answers.containsKey(i)) nb.setStyle(qNavStyleActive("#0f7d74", UIUtils.darkMode));
+            if (flagged.contains(i))    nb.setStyle(qNavStyleActive("#b45309", UIUtils.darkMode));
         }
 
-        // Build all question cards
+        // Auto-save runnable
+        Runnable autoSave = () -> ResultDAO.saveInProgress(student.getID(), exam.getDbId(), answers, flagged);
+
+        // Build question cards
         for (int qi = 0; qi < totalQ; qi++) {
             final int idx = qi;
             Question q = questions.get(qi);
 
-            VBox qCard = new VBox(16);
-            qCard.setPadding(new Insets(24,28,24,28));
+            VBox qCard = new VBox(14); qCard.setPadding(new Insets(20, 24, 20, 24));
             qCard.setStyle(
-                    "-fx-background-color:"+card+";" +
-                            "-fx-border-color:"+bdColor+";" +
-                            "-fx-border-radius:14;-fx-background-radius:14;-fx-border-width:1;"
+                "-fx-background-color:" + card + ";" +
+                "-fx-border-color:" + bdr + ";" +
+                "-fx-border-radius:9;-fx-background-radius:9;-fx-border-width:1;"
             );
-            DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0, UIUtils.darkMode?0.25:0.06)); ds.setOffsetY(2); ds.setRadius(10);
-            qCard.setEffect(ds);
+            DropShadow ds2 = new DropShadow();
+            ds2.setColor(Color.color(0,0,0, UIUtils.darkMode?0.22:0.04));
+            ds2.setOffsetY(1); ds2.setRadius(7);
+            qCard.setEffect(ds2);
             qCardBoxes[idx] = qCard;
 
-            // Badge row
             HBox badgeRow = new HBox(8); badgeRow.setAlignment(Pos.CENTER_LEFT);
-            Label qBadge = new Label("Q"+(idx+1));
-            qBadge.setStyle("-fx-background-color:#2563eb20;-fx-text-fill:#2563eb;-fx-font-weight:bold;-fx-font-size:12px;-fx-padding:3 10;-fx-background-radius:7;");
-            Label marksBadge = UIUtils.badge((int)(double)exam.getQuestionsMap().get(q)+" mark"+(exam.getQuestionsMap().get(q)>1?"s":""), UIUtils.ACCENT_ORG);
-            badgeRow.getChildren().addAll(qBadge, marksBadge);
+            Label qNumBadge = new Label("Q" + (idx+1));
+            qNumBadge.setStyle("-fx-background-color:rgba(15,125,116,0.12);-fx-text-fill:#0f7d74;-fx-font-weight:700;-fx-font-size:11px;-fx-padding:2 9;-fx-background-radius:4;");
+            double marksVal = exam.getQuestionsMap().get(q);
+            Label marksBadge = UIUtils.badge((int)marksVal + " mark" + (marksVal>1?"s":""), UIUtils.ACCENT_ORG);
+            badgeRow.getChildren().addAll(qNumBadge, marksBadge);
 
-            // Flag button inline
-            Button flagBtn = new Button("⚑  Flag");
-            flagBtn.setStyle(flagStyle(false, UIUtils.darkMode));
+            Button flagBtn = new Button(flagged.contains(idx) ? "Flagged" : "Flag");
+            flagBtn.setStyle(flagBtnStyle(flagged.contains(idx), UIUtils.darkMode));
             flagBtn.setCursor(javafx.scene.Cursor.HAND);
             Region br = new Region(); HBox.setHgrow(br, Priority.ALWAYS);
             HBox topRow = new HBox(8, badgeRow, br, flagBtn);
             topRow.setAlignment(Pos.CENTER_LEFT);
 
             Label qText = new Label(q.getQuestionText());
-            qText.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:"+txtD+";");
+            qText.setStyle("-fx-font-size:14.5px;-fx-font-weight:600;-fx-text-fill:" + txtD + ";");
             qText.setWrapText(true);
 
             qCard.getChildren().addAll(topRow, qText);
 
-            // Options / text field
             if (q instanceof MCQ mcq) {
                 String[] opts = mcq.getOptions();
-                VBox optionsBox = new VBox(8);
+                VBox optionsBox = new VBox(7);
 
-                Runnable[] rebuildOpts = { null };
-                rebuildOpts[0] = () -> {
+                Runnable[] rebuild = { null };
+                rebuild[0] = () -> {
                     optionsBox.getChildren().clear();
-                    String savedAns = answers.getOrDefault(idx, null);
+                    String savedAns = answers.get(idx);
                     for (int oi = 0; oi < opts.length; oi++) {
                         final String optChar = String.valueOf((char)('A'+oi));
-                        boolean selected = optChar.equals(savedAns);
+                        boolean sel = optChar.equals(savedAns);
 
-                        HBox optRow = new HBox(14); optRow.setAlignment(Pos.CENTER_LEFT);
-                        optRow.setPadding(new Insets(12,18,12,18));
+                        HBox optRow = new HBox(12); optRow.setAlignment(Pos.CENTER_LEFT);
+                        optRow.setPadding(new Insets(10, 16, 10, 14));
                         optRow.setCursor(javafx.scene.Cursor.HAND);
                         optRow.setStyle(
-                                "-fx-background-color:"+(selected?optSelBg:optBg)+";" +
-                                        "-fx-border-color:"+(selected?optSel:optBdr)+";" +
-                                        "-fx-border-width:"+(selected?"2":"1")+";" +
-                                        "-fx-border-radius:10;-fx-background-radius:10;"
+                            "-fx-background-color:" + (sel ? optSelBg : optBg) + ";" +
+                            "-fx-border-color:" + (sel ? optSel : optBdr) + ";" +
+                            "-fx-border-width:" + (sel ? "1.5" : "1") + ";" +
+                            "-fx-border-radius:7;-fx-background-radius:7;"
                         );
 
                         Label letter = new Label(optChar);
                         letter.setStyle(
-                                "-fx-font-size:12px;-fx-font-weight:bold;" +
-                                        "-fx-min-width:28;-fx-min-height:28;-fx-alignment:center;" +
-                                        "-fx-background-radius:7;" +
-                                        "-fx-background-color:"+(selected?optSel:(UIUtils.darkMode?"#2d3748":"#f1f5f9"))+";" +
-                                        "-fx-text-fill:"+(selected?"white":(UIUtils.darkMode?"#94a3b8":"#64748b"))+";"
+                            "-fx-font-size:11.5px;-fx-font-weight:700;" +
+                            "-fx-min-width:26;-fx-min-height:26;-fx-alignment:center;" +
+                            "-fx-background-radius:5;" +
+                            "-fx-background-color:" + (sel ? optSel : (UIUtils.darkMode?"#29334a":"#f0f1f4")) + ";" +
+                            "-fx-text-fill:" + (sel ? "white" : txtS) + ";"
                         );
+
                         Label optText = new Label(opts[oi]);
-                        optText.setStyle("-fx-font-size:13.5px;-fx-text-fill:"+(selected?txtD:(UIUtils.darkMode?"#c9d1d9":txtM))+";");
+                        optText.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + (sel ? txtD : txtM) + ";");
                         optText.setWrapText(true);
                         optRow.getChildren().addAll(letter, optText);
 
-                        final Runnable[] rebuildRef = rebuildOpts;
-                        optRow.setOnMouseClicked(me -> { answers.put(idx, optChar); rebuildRef[0].run(); if (refreshNav[0]!=null) refreshNav[0].run(); });
-                        optRow.setOnMouseEntered(me -> { if (!optChar.equals(answers.getOrDefault(idx,null))) optRow.setStyle("-fx-background-color:"+optHov+";-fx-border-color:"+bdColor+";-fx-border-width:1;-fx-border-radius:10;-fx-background-radius:10;"); });
-                        optRow.setOnMouseExited(me  -> { if (!optChar.equals(answers.getOrDefault(idx,null))) optRow.setStyle("-fx-background-color:"+optBg+";-fx-border-color:"+optBdr+";-fx-border-width:1;-fx-border-radius:10;-fx-background-radius:10;"); });
+                        final Runnable[] rebRef = rebuild;
+                        optRow.setOnMouseClicked(me -> {
+                            answers.put(idx, optChar);
+                            rebRef[0].run();
+                            if (refreshNav[0]!=null) refreshNav[0].run();
+                            autoSave.run(); // auto-save on answer
+                        });
+                        optRow.setOnMouseEntered(me -> { if (!optChar.equals(answers.getOrDefault(idx,null))) optRow.setStyle("-fx-background-color:"+optHov+";-fx-border-color:"+bdr+";-fx-border-width:1;-fx-border-radius:7;-fx-background-radius:7;"); });
+                        optRow.setOnMouseExited(me  -> { if (!optChar.equals(answers.getOrDefault(idx,null))) optRow.setStyle("-fx-background-color:"+optBg+";-fx-border-color:"+optBdr+";-fx-border-width:1;-fx-border-radius:7;-fx-background-radius:7;"); });
                         optionsBox.getChildren().add(optRow);
                     }
-                    // Update flag button state
                     boolean isFlagged = flagged.contains(idx);
-                    flagBtn.setText(isFlagged ? "🚩  Flagged" : "⚑  Flag");
-                    flagBtn.setStyle(flagStyle(isFlagged, UIUtils.darkMode));
-                    // Update nav button — flag always takes priority over answered
-                    if (navBtns[idx]!=null) {
-                        if      (flagged.contains(idx))    navBtns[idx].setStyle(qNavStyle("#f59e0b", false, UIUtils.darkMode));
-                        else if (answers.containsKey(idx)) navBtns[idx].setStyle(qNavStyle("#10b981", false, UIUtils.darkMode));
-                        else                               navBtns[idx].setStyle(qNavStyle(bdColor,   false, UIUtils.darkMode));
-                    }
-                    answeredCount.setText(answers.size()+" / "+totalQ);
+                    flagBtn.setText(isFlagged ? "Flagged" : "Flag");
+                    flagBtn.setStyle(flagBtnStyle(isFlagged, UIUtils.darkMode));
+                    if (navBtns2[idx]!=null)
+                        navBtns2[idx].setStyle(flagged.contains(idx) ? qNavStyleActive("#b45309",UIUtils.darkMode) : answers.containsKey(idx) ? qNavStyleActive("#0f7d74",UIUtils.darkMode) : qNavStyle(barBdr,UIUtils.darkMode));
+                    answeredCount.setText(answers.size() + " / " + totalQ);
                 };
-                rebuildOpts[0].run();
-
+                rebuild[0].run();
                 flagBtn.setOnAction(e -> {
                     if (flagged.contains(idx)) flagged.remove(idx); else flagged.add(idx);
-                    rebuildOpts[0].run();
+                    rebuild[0].run();
+                    autoSave.run();
                 });
                 qCard.getChildren().add(optionsBox);
 
             } else {
-                TextField ansField = new TextField(answers.getOrDefault(idx,""));
-                ansField.setPromptText("Type your answer here...");
+                // Text/Range question
+                TextField ansField = new TextField(answers.getOrDefault(idx, ""));
+                ansField.setPromptText("Enter your answer...");
                 ansField.setStyle(
-                        "-fx-background-color:"+optBg+";-fx-border-color:"+optBdr+";" +
-                                "-fx-border-radius:9;-fx-background-radius:9;" +
-                                "-fx-font-size:14px;-fx-text-fill:"+txtD+";-fx-padding:12;" +
-                                "-fx-prompt-text-fill:"+txtS+";"
+                    "-fx-background-color:" + optBg + ";-fx-border-color:" + optBdr + ";" +
+                    "-fx-border-radius:7;-fx-background-radius:7;" +
+                    "-fx-font-size:14px;-fx-text-fill:" + txtD + ";-fx-padding:11;" +
+                    "-fx-prompt-text-fill:" + txtS + ";"
                 );
+                // Auto-save on every keystroke
                 ansField.textProperty().addListener((obs, o, n) -> {
                     if (n.isBlank()) answers.remove(idx); else answers.put(idx, n);
-                    // Flag takes priority over answered in nav
-                    if (navBtns[idx]!=null) {
-                        if      (flagged.contains(idx)) navBtns[idx].setStyle(qNavStyle("#f59e0b", false, UIUtils.darkMode));
-                        else if (!n.isBlank())          navBtns[idx].setStyle(qNavStyle("#10b981", false, UIUtils.darkMode));
-                        else                            navBtns[idx].setStyle(qNavStyle(bdColor,   false, UIUtils.darkMode));
-                    }
-                    answeredCount.setText(answers.size()+" / "+totalQ);
+                    if (navBtns2[idx]!=null) navBtns2[idx].setStyle(flagged.contains(idx) ? qNavStyleActive("#b45309",UIUtils.darkMode) : !n.isBlank() ? qNavStyleActive("#0f7d74",UIUtils.darkMode) : qNavStyle(barBdr,UIUtils.darkMode));
+                    answeredCount.setText(answers.size() + " / " + totalQ);
+                    autoSave.run(); // auto-save on keystroke
                 });
                 flagBtn.setOnAction(e -> {
                     if (flagged.contains(idx)) flagged.remove(idx); else flagged.add(idx);
-                    boolean isFlagged = flagged.contains(idx);
-                    flagBtn.setText(isFlagged ? "🚩  Flagged" : "⚑  Flag");
-                    flagBtn.setStyle(flagStyle(isFlagged, UIUtils.darkMode));
-                    if (navBtns[idx]!=null) navBtns[idx].setStyle(isFlagged ? qNavStyle("#f59e0b",false,UIUtils.darkMode) : (answers.containsKey(idx)?qNavStyle("#10b981",false,UIUtils.darkMode):qNavStyle(bdColor,false,UIUtils.darkMode)));
+                    boolean fl = flagged.contains(idx);
+                    flagBtn.setText(fl ? "Flagged" : "Flag");
+                    flagBtn.setStyle(flagBtnStyle(fl, UIUtils.darkMode));
+                    if (navBtns2[idx]!=null) navBtns2[idx].setStyle(fl ? qNavStyleActive("#b45309",UIUtils.darkMode) : answers.containsKey(idx) ? qNavStyleActive("#0f7d74",UIUtils.darkMode) : qNavStyle(barBdr,UIUtils.darkMode));
+                    autoSave.run();
                 });
-                qCard.getChildren().add(ansField);
+
+                Button btnSaveAns = UIUtils.primaryBtn("", "Save Answer", UIUtils.ACCENT_GREEN);
+                btnSaveAns.setPrefHeight(36);
+                btnSaveAns.setOnAction(e -> {
+                    String cur = ansField.getText().trim();
+                    if (cur.isBlank()) {
+                        btnSaveAns.setText("Enter an answer first");
+                        PauseTransition resetEmpty = new PauseTransition(Duration.seconds(1.5));
+                        resetEmpty.setOnFinished(ev -> btnSaveAns.setText("Save Answer"));
+                        resetEmpty.play();
+                        return;
+                    }
+                    answers.put(idx, cur);
+                    if (navBtns2[idx]!=null) navBtns2[idx].setStyle(
+                        flagged.contains(idx) ? qNavStyleActive("#b45309", UIUtils.darkMode)
+                                              : qNavStyleActive("#0f7d74", UIUtils.darkMode));
+                    answeredCount.setText(answers.size() + " / " + totalQ);
+                    autoSave.run();
+                    // Show inline confirmation on the button itself
+                    btnSaveAns.setText("Answer Saved");
+                    btnSaveAns.setStyle(
+                        "-fx-background-color:#0e7a56;-fx-text-fill:white;-fx-font-weight:700;" +
+                        "-fx-font-size:12px;-fx-background-radius:6;-fx-padding:9 18;-fx-cursor:hand;"
+                    );
+                    String origStyle = "-fx-background-color:" + UIUtils.ACCENT_GREEN + ";-fx-text-fill:white;" +
+                        "-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;" +
+                        "-fx-padding:9 18;-fx-border-color:transparent;-fx-cursor:hand;";
+                    PauseTransition resetSaved = new PauseTransition(Duration.seconds(1.8));
+                    resetSaved.setOnFinished(ev -> {
+                        btnSaveAns.setText("Save Answer");
+                        btnSaveAns.setStyle(origStyle);
+                    });
+                    resetSaved.play();
+                });
+
+                HBox ansRow = new HBox(10, ansField, btnSaveAns);
+                ansRow.setAlignment(Pos.CENTER_LEFT);
+                HBox.setHgrow(ansField, Priority.ALWAYS);
+                qCard.getChildren().add(ansRow);
             }
 
             allQuestionsPage.getChildren().add(qCard);
@@ -715,32 +1300,29 @@ public class StudentPortal {
 
         refreshNav[0] = () -> {
             for (int i = 0; i < totalQ; i++) {
-                if (navBtns[i]==null) continue;
-                String a = answers.get(i);
-                if      (flagged.contains(i))                    navBtns[i].setStyle(qNavStyle("#f59e0b", false, UIUtils.darkMode));
-                else if (a != null && !a.isBlank())              navBtns[i].setStyle(qNavStyle("#10b981", false, UIUtils.darkMode));
-                else                                             navBtns[i].setStyle(qNavStyle(bdColor,   false, UIUtils.darkMode));
+                if (navBtns2[i]==null) continue;
+                navBtns2[i].setStyle(flagged.contains(i) ? qNavStyleActive("#b45309",UIUtils.darkMode) : answers.containsKey(i) ? qNavStyleActive("#0f7d74",UIUtils.darkMode) : qNavStyle(barBdr,UIUtils.darkMode));
             }
-            answeredCount.setText(answers.size()+" / "+totalQ);
+            answeredCount.setText(answers.size() + " / " + totalQ);
         };
 
         centerScroll.setContent(allQuestionsPage);
         root.setCenter(centerScroll);
 
-        // ── BOTTOM BAR ────────────────────────────────────────
+        // ── BOTTOM BAR ────────────────────────────────────────────
         HBox bottomBar = new HBox(16); bottomBar.setAlignment(Pos.CENTER);
-        bottomBar.setPadding(new Insets(12,28,12,28));
-        bottomBar.setStyle("-fx-background-color:"+barBg+";-fx-border-color:"+barBdr+";-fx-border-width:1 0 0 0;");
+        bottomBar.setPadding(new Insets(11, 28, 11, 28));
+        bottomBar.setStyle("-fx-background-color:" + barBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:1 0 0 0;");
 
-        Label qCounterLbl = new Label(totalQ+" questions  •  scroll to answer");
-        qCounterLbl.setStyle("-fx-font-size:12px;-fx-text-fill:"+txtM+";");
+        Label qMeta = new Label(totalQ + " questions  ·  scroll to answer  ·  answers auto-saved");
+        qMeta.setStyle("-fx-font-size:12px;-fx-text-fill:" + txtM + ";");
         Region botSpacer = new Region(); HBox.setHgrow(botSpacer, Priority.ALWAYS);
-        Button btnSubmit = buildPremiumBtn("✅   Submit Exam", UIUtils.ACCENT_GREEN);
-        btnSubmit.setPrefHeight(44); btnSubmit.setPrefWidth(180);
-        bottomBar.getChildren().addAll(qCounterLbl, botSpacer, btnSubmit);
+        Button btnSubmit = UIUtils.primaryBtn("", "Submit Examination", UIUtils.ACCENT_TEAL);
+        btnSubmit.setPrefHeight(42); btnSubmit.setPrefWidth(190);
+        bottomBar.getChildren().addAll(qMeta, botSpacer, btnSubmit);
         root.setBottom(bottomBar);
 
-        // ── Submit ────────────────────────────────────────────
+        // ── SUBMIT LOGIC ──────────────────────────────────────────
         Runnable doSubmit = () -> {
             if (submitted[0]) return;
             submitted[0] = true;
@@ -749,36 +1331,23 @@ public class StudentPortal {
                 Question q = questions.get(i);
                 String ans = answers.get(i);
                 if (ans == null || ans.isBlank()) continue;
-
                 if (q instanceof MCQ mcq) {
-                    if (ans.charAt(0) - 'A' == mcq.getCorrectIndex()) {
-                        correct++; score += exam.getQuestionsMap().get(q);
-                    }
+                    if (ans.charAt(0)-'A' == mcq.getCorrectIndex()) { correct++; score += exam.getQuestionsMap().get(q); }
                 } else if (q instanceof TextQuestion tq) {
-                    try {
-                        if (Math.abs(Double.parseDouble(ans.trim()) - tq.getAnswer()) < 1e-9) {
-                            correct++; score += exam.getQuestionsMap().get(q);
-                        }
-                    } catch (NumberFormatException ignored) {}
+                    try { if (Math.abs(Double.parseDouble(ans.trim())-tq.getAnswer())<1e-9) { correct++; score += exam.getQuestionsMap().get(q); } } catch (NumberFormatException ignored) {}
                 } else if (q instanceof RangeQuestion rq) {
-                    try {
-                        double v = Double.parseDouble(ans.trim());
-                        if (v >= rq.getMin() && v <= rq.getMax()) {
-                            correct++; score += exam.getQuestionsMap().get(q);
-                        }
-                    } catch (NumberFormatException ignored) {}
+                    try { double v=Double.parseDouble(ans.trim()); if(v>=rq.getMin()&&v<=rq.getMax()) { correct++; score+=exam.getQuestionsMap().get(q); } } catch (NumberFormatException ignored) {}
                 }
             }
-            final int fc = correct; final double fs = score;
-            // Snapshot answers + flagged so result scene can show the review
-            final Map<Integer, String> ansSnap = new HashMap<>(answers);
-            final Set<Integer> flagSnap = new HashSet<>(flagged);
+            final int fc=correct; final double fs=score;
+            final Map<Integer,String> ansSnap = new java.util.HashMap<>(answers);
+            final Set<Integer> flagSnap = new java.util.HashSet<>(flagged);
 
-            // ── Persist result (best-score rule handled by ResultDAO) ──
             ExamResult result = new ExamResult();
             result.studentId   = student.getID();
             result.examId      = exam.getDbId();
-            result.examTitle   = exam.getTitle()!=null ? exam.getTitle() : exam.getSubject();
+            result.examCode    = exam.getExamCode(); // store which code this attempt used
+            result.examTitle   = exam.getTitle()!=null?exam.getTitle():exam.getSubject();
             result.examSubject = exam.getSubject();
             result.examGrade   = exam.getGrade();
             result.score       = fs;
@@ -786,31 +1355,32 @@ public class StudentPortal {
             result.correct     = fc;
             result.totalQ      = totalQ;
             result.takenAt     = System.currentTimeMillis();
-            ResultDAO.save(result);
+            ResultDAO.save(result); // also clears in-progress
+            ResultDAO.removeStudentExamCode(student.getID(), exam.getDbId());
 
             Platform.runLater(() -> showResultScene(stage, exam, student, app, fc, totalQ, fs, questions, ansSnap, flagSnap));
         };
 
         btnSubmit.setOnAction(e -> {
             long unanswered = 0;
-            for (int i = 0; i < totalQ; i++) {
-                String a = answers.get(i);
-                if (a == null || a.isBlank()) unanswered++;
-            }
+            for (int i = 0; i < totalQ; i++) { String a=answers.get(i); if(a==null||a.isBlank()) unanswered++; }
             if (unanswered > 0) {
-                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                confirm.setTitle("Submit Exam");
-                confirm.setHeaderText(unanswered + " question" + (unanswered > 1 ? "s" : "") + " unanswered.");
-                confirm.setContentText("Unanswered questions will score 0. Submit anyway?");
-                confirm.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-                confirm.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) doSubmit.run(); });
-            } else { doSubmit.run(); }
+                Alert c = new Alert(Alert.AlertType.CONFIRMATION);
+                c.setTitle("Submit Examination"); c.setHeaderText(null);
+                c.setContentText(unanswered + " question" + (unanswered>1?"s":"") + " unanswered. Submit anyway?");
+                c.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+                c.showAndWait().ifPresent(r -> { if (r==ButtonType.YES) doSubmit.run(); });
+            } else doSubmit.run();
         });
 
-        // ── Timer ─────────────────────────────────────────────
+        // ── TIMER ─────────────────────────────────────────────────
         ScaleTransition pulse = new ScaleTransition(Duration.millis(500), timerLbl);
-        pulse.setFromX(1.0); pulse.setToX(1.1); pulse.setFromY(1.0); pulse.setToY(1.1);
+        pulse.setFromX(1); pulse.setToX(1.08); pulse.setFromY(1); pulse.setToY(1.08);
         pulse.setAutoReverse(true); pulse.setCycleCount(Animation.INDEFINITE);
+
+        // Auto-save every 15 seconds
+        Timeline autoSaveTicker = new Timeline(new KeyFrame(Duration.seconds(15), e -> autoSave.run()));
+        autoSaveTicker.setCycleCount(Animation.INDEFINITE); autoSaveTicker.play();
 
         Timeline timer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
             if (submitted[0]) return;
@@ -818,14 +1388,14 @@ public class StudentPortal {
             timerLbl.setText(formatTime((int)remaining[0]));
             timeProg.setProgress((double)remaining[0]/TOTAL_SECS);
             if (remaining[0]<=300 && remaining[0]>60) {
-                timerLbl.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:Monospaced;-fx-text-fill:#f59e0b;");
-                timeProg.setStyle("-fx-accent:#f59e0b;-fx-background-color:"+barBdr+";-fx-background-radius:3;");
+                timerLbl.setStyle("-fx-font-size:26px;-fx-font-weight:700;-fx-font-family:Monospaced;-fx-text-fill:#b45309;");
+                timeProg.setStyle("-fx-accent:#b45309;-fx-background-color:"+barBdr+";-fx-background-radius:99;");
                 if (!pulse.getStatus().equals(Animation.Status.RUNNING)) pulse.play();
             } else if (remaining[0]<=60) {
-                timerLbl.setStyle("-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:Monospaced;-fx-text-fill:#ef4444;");
-                timeProg.setStyle("-fx-accent:#ef4444;-fx-background-color:"+barBdr+";-fx-background-radius:3;");
+                timerLbl.setStyle("-fx-font-size:26px;-fx-font-weight:700;-fx-font-family:Monospaced;-fx-text-fill:#c0392b;");
+                timeProg.setStyle("-fx-accent:#c0392b;-fx-background-color:"+barBdr+";-fx-background-radius:99;");
             }
-            if (remaining[0]<=0) doSubmit.run();
+            if (remaining[0]<=0) { autoSaveTicker.stop(); doSubmit.run(); }
         }));
         timer.setCycleCount(Animation.INDEFINITE); timer.play();
 
@@ -834,17 +1404,16 @@ public class StudentPortal {
         return scene;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  7. RESULT SCENE  — score summary + full question review
-    // ╚══════════════════════════════════════════════════════╝
+    // ══════════════════════════════════════════════════════════════
+    //  6. RESULT SCENE
+    // ══════════════════════════════════════════════════════════════
     private static void showResultScene(Stage stage, Exam exam, Student student,
                                         HelloApplication app, int correct, int total,
                                         double score, List<Question> questions,
                                         Map<Integer, String> answers, Set<Integer> flagged) {
-        double pct    = total > 0 ? (score / exam.getTotalMarks()) * 100 : 0;
-        String grade  = pct>=80?"A":pct>=65?"B":pct>=50?"C":pct>=35?"D":"F";
-        String emoji  = pct>=80?"🎉":pct>=65?"👍":pct>=50?"✅":"📚";
-        String gcolor = pct>=65 ? UIUtils.ACCENT_GREEN : pct>=50 ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_RED;
+        double pct   = total > 0 ? (score / exam.getTotalMarks()) * 100 : 0;
+        String grade = pct>=80?"A":pct>=65?"B":pct>=50?"C":pct>=35?"D":"F";
+        String gcol  = pct>=65 ? UIUtils.ACCENT_GREEN : pct>=50 ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_RED;
 
         String bg   = UIUtils.bgContent();
         String card = UIUtils.bgCard();
@@ -860,250 +1429,172 @@ public class StudentPortal {
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
 
-        VBox center = new VBox(22);
-        center.setPadding(new Insets(36, 50, 40, 50));
+        VBox center = new VBox(20);
+        center.setPadding(new Insets(32, 48, 36, 48));
         center.setStyle("-fx-background-color:" + bg + ";");
 
-        // ── Header ────────────────────────────────────────
-        HBox headerRow = new HBox(14); headerRow.setAlignment(Pos.CENTER);
-        Label emojiLbl = new Label(emoji); emojiLbl.setStyle("-fx-font-size:40px;");
-        VBox headerText = new VBox(3); headerText.setAlignment(Pos.CENTER_LEFT);
-        Label titleLbl = new Label("Exam Submitted!");
-        titleLbl.setStyle("-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:" + txtD + ";");
-        String etitle = exam.getTitle()!=null&&!exam.getTitle().isBlank() ? exam.getTitle() : exam.getSubject();
-        Label subtitleLbl = new Label(etitle + "  •  " + exam.getSubject());
-        subtitleLbl.setStyle("-fx-font-size:13px;-fx-text-fill:" + txtM + ";");
-        headerText.getChildren().addAll(titleLbl, subtitleLbl);
-        headerRow.getChildren().addAll(emojiLbl, headerText);
+        // Result header
+        HBox resultHeader = new HBox(16); resultHeader.setAlignment(Pos.CENTER_LEFT);
 
-        // ── Score card ────────────────────────────────────
-        HBox scoreRow = new HBox(24); scoreRow.setAlignment(Pos.CENTER);
-        scoreRow.setPadding(new Insets(20, 28, 20, 28));
-        scoreRow.setMaxWidth(560);
-        scoreRow.setStyle("-fx-background-color:" + card + ";-fx-background-radius:14;" +
-                "-fx-border-radius:14;-fx-border-color:" + gcolor + "44;-fx-border-width:2;");
-        scoreRow.setEffect(new DropShadow(16, Color.web(gcolor, 0.18)));
+        StackPane scoreBadge = new StackPane();
+        Circle scBg = new Circle(44);
+        scBg.setFill(Color.web(gcol, 0.10));
+        scBg.setStroke(Color.web(gcol)); scBg.setStrokeWidth(2);
+        VBox scInner = new VBox(1); scInner.setAlignment(Pos.CENTER);
+        Label scVal = new Label(String.format("%.0f", score));
+        scVal.setStyle("-fx-font-size:20px;-fx-font-weight:700;-fx-text-fill:" + gcol + ";");
+        Label scOf = new Label("/" + (int)exam.getTotalMarks());
+        scOf.setStyle("-fx-font-size:10px;-fx-text-fill:" + txtM + ";");
+        scInner.getChildren().addAll(scVal, scOf);
+        scoreBadge.getChildren().addAll(scBg, scInner);
 
-        StackPane scoreCircle = new StackPane();
-        Circle circleBg = new Circle(48);
-        circleBg.setFill(Color.web(gcolor, 0.13));
-        circleBg.setStroke(Color.web(gcolor)); circleBg.setStrokeWidth(2.5);
-        VBox inner = new VBox(1); inner.setAlignment(Pos.CENTER);
-        Label scoreLbl = new Label(String.format("%.0f", score));
-        scoreLbl.setStyle("-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:" + gcolor + ";");
-        Label outOfLbl = new Label("/" + ((int) exam.getTotalMarks()));
-        outOfLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + txtM + ";");
-        inner.getChildren().addAll(scoreLbl, outOfLbl);
-        scoreCircle.getChildren().addAll(circleBg, inner);
+        VBox headerText = new VBox(5);
+        Label submitTitle = new Label("Examination Complete");
+        submitTitle.setStyle("-fx-font-size:20px;-fx-font-weight:700;-fx-text-fill:" + txtD + ";");
+        String examTitle2 = (exam.getTitle()!=null&&!exam.getTitle().isBlank()) ? exam.getTitle() : exam.getSubject();
+        Label examSub2 = new Label(examTitle2 + "  ·  " + exam.getSubject());
+        examSub2.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + txtM + ";");
 
-        VBox rightSide = new VBox(10); rightSide.setAlignment(Pos.CENTER_LEFT);
+        HBox statChips = new HBox(8); statChips.setAlignment(Pos.CENTER_LEFT);
         Label gradeLbl = new Label("Grade  " + grade);
-        gradeLbl.setStyle("-fx-font-size:20px;-fx-font-weight:bold;-fx-text-fill:" + gcolor + ";" +
-                "-fx-background-color:" + gcolor + "22;-fx-padding:4 16;-fx-background-radius:8;");
-        HBox stats = new HBox(20); stats.setAlignment(Pos.CENTER_LEFT);
-        stats.getChildren().addAll(
-                makeStatBox("✅", String.valueOf(correct),        "Correct",  UIUtils.ACCENT_GREEN),
-                makeStatBox("❌", String.valueOf(total - correct),"Wrong",    UIUtils.ACCENT_RED),
-                makeStatBox("📊", String.format("%.1f%%", pct),  "Score",    UIUtils.ACCENT_BLUE)
-        );
-        rightSide.getChildren().addAll(gradeLbl, stats);
-        scoreRow.getChildren().addAll(scoreCircle, rightSide);
+        gradeLbl.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + gcol + ";-fx-background-color:" + gcol + "18;-fx-padding:3 12;-fx-background-radius:4;");
+        Label pctLbl = new Label(String.format("%.1f%%", pct));
+        pctLbl.setStyle("-fx-font-size:13px;-fx-font-weight:600;-fx-text-fill:" + txtD + ";-fx-background-color:" + UIUtils.bgMuted() + ";-fx-padding:3 10;-fx-background-radius:4;");
+        Label corrLbl = new Label(correct + " / " + total + " correct");
+        corrLbl.setStyle("-fx-font-size:12px;-fx-text-fill:" + txtM + ";-fx-padding:3 0;");
+        statChips.getChildren().addAll(gradeLbl, pctLbl, corrLbl);
+        headerText.getChildren().addAll(submitTitle, examSub2, statChips);
+        resultHeader.getChildren().addAll(scoreBadge, headerText);
 
-        // ── Divider + review header ───────────────────────
-        Label reviewHdr = new Label("📋  Question Review");
-        reviewHdr.setStyle("-fx-font-size:16px;-fx-font-weight:bold;-fx-text-fill:" + txtD + ";");
+        // Question review
+        Label reviewHdr = new Label("Question Review");
+        reviewHdr.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:" + txtD + ";");
 
-        // ── Question review cards ─────────────────────────
-        VBox reviewBox = new VBox(14);
-
+        VBox reviewBox = new VBox(11);
         for (int i = 0; i < total; i++) {
             Question q = questions.get(i);
             String studentAns = answers.get(i);
             double qMark = exam.getQuestionsMap().get(q);
             boolean wasFlagged = flagged.contains(i);
+            boolean unanswered = studentAns == null || studentAns.isBlank();
 
-            // Determine correctness and earned marks
-            boolean isCorrect = false;
-            double earned = 0;
-            String correctDisplay = "";
-
+            boolean isCorrect = false; String correctDisplay = "";
             if (q instanceof MCQ mcq) {
                 int ci = mcq.getCorrectIndex();
-                correctDisplay = (char)('A' + ci) + " — " + mcq.getOptions()[ci];
-                if (studentAns != null && !studentAns.isBlank()
-                        && studentAns.charAt(0) - 'A' == ci) {
-                    isCorrect = true; earned = qMark;
-                }
+                correctDisplay = (char)('A'+ci) + " — " + mcq.getOptions()[ci];
+                if (!unanswered && studentAns.charAt(0)-'A'==ci) isCorrect = true;
             } else if (q instanceof TextQuestion tq) {
                 correctDisplay = String.valueOf(tq.getAnswer());
-                if (studentAns != null && !studentAns.isBlank()) {
-                    try {
-                        if (Math.abs(Double.parseDouble(studentAns.trim()) - tq.getAnswer()) < 1e-9) {
-                            isCorrect = true; earned = qMark;
-                        }
-                    } catch (NumberFormatException ignored) {}
-                }
+                if (!unanswered) try { if(Math.abs(Double.parseDouble(studentAns.trim())-tq.getAnswer())<1e-9) isCorrect=true; } catch (NumberFormatException ign) {}
             } else if (q instanceof RangeQuestion rq) {
                 correctDisplay = rq.getMin() + " – " + rq.getMax();
-                if (studentAns != null && !studentAns.isBlank()) {
-                    try {
-                        double v = Double.parseDouble(studentAns.trim());
-                        if (v >= rq.getMin() && v <= rq.getMax()) {
-                            isCorrect = true; earned = qMark;
-                        }
-                    } catch (NumberFormatException ignored) {}
-                }
+                if (!unanswered) try { double v=Double.parseDouble(studentAns.trim()); if(v>=rq.getMin()&&v<=rq.getMax()) isCorrect=true; } catch (NumberFormatException ign) {}
             }
 
-            boolean unanswered = studentAns == null || studentAns.isBlank();
-            String cardBorder = isCorrect ? "#22c55e44" : (unanswered ? bdr : "#ef444444");
-            String cardLeft   = isCorrect ? "#22c55e"   : (unanswered ? "#94a3b8" : "#ef4444");
+            String leftAccent = isCorrect ? "#0e7a56" : (unanswered ? "#c4ccd8" : "#c0392b");
+            String cardBorder = isCorrect ? "#0e7a5640" : (unanswered ? bdr : "#c0392b40");
 
-            // Card
             HBox cardWrap = new HBox(0);
-            // Left accent bar
             Region accentBar = new Region();
             accentBar.setPrefWidth(4); accentBar.setMinWidth(4);
-            accentBar.setStyle("-fx-background-color:" + cardLeft + ";-fx-background-radius:12 0 0 12;");
+            accentBar.setStyle("-fx-background-color:" + leftAccent + ";-fx-background-radius:8 0 0 8;");
 
-            VBox cardBody = new VBox(10);
-            cardBody.setPadding(new Insets(14, 18, 14, 16));
-            cardBody.setStyle("-fx-background-color:" + card + ";-fx-background-radius:0 12 12 0;" +
-                    "-fx-border-color:" + cardBorder + ";-fx-border-width:1 1 1 0;-fx-border-radius:0 12 12 0;");
+            VBox cardBody = new VBox(8); cardBody.setPadding(new Insets(12, 16, 12, 14));
+            cardBody.setStyle(
+                "-fx-background-color:" + card + ";" +
+                "-fx-background-radius:0 8 8 0;" +
+                "-fx-border-color:" + cardBorder + ";" +
+                "-fx-border-width:1 1 1 0;-fx-border-radius:0 8 8 0;"
+            );
             HBox.setHgrow(cardBody, Priority.ALWAYS);
 
-            // Top row: Q# badge + marks + flag chip + result chip
-            HBox topRow = new HBox(8); topRow.setAlignment(Pos.CENTER_LEFT);
-            Label qNum = new Label("Q" + (i + 1));
-            qNum.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:#2563eb;" +
-                    "-fx-background-color:#2563eb18;-fx-padding:2 9;-fx-background-radius:6;");
-            Label markChip = new Label((int)qMark + " mark" + (qMark > 1 ? "s" : ""));
-            markChip.setStyle("-fx-font-size:11px;-fx-text-fill:" + txtS + ";" +
-                    "-fx-background-color:" + (UIUtils.darkMode?"#2d3748":"#f1f5f9") + ";-fx-padding:2 9;-fx-background-radius:6;");
+            HBox topRow = new HBox(7); topRow.setAlignment(Pos.CENTER_LEFT);
+            Label qNumLbl = new Label("Q" + (i+1));
+            qNumLbl.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-text-fill:#0f7d74;-fx-background-color:rgba(15,125,116,0.10);-fx-padding:2 8;-fx-background-radius:4;");
+            Label markChip = new Label((int)qMark + " mark" + (qMark>1?"s":""));
+            markChip.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + txtS + ";-fx-background-color:" + UIUtils.bgMuted() + ";-fx-padding:2 8;-fx-background-radius:4;");
             Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
-
             if (wasFlagged) {
-                Label flagChip = new Label("🚩 Flagged");
-                flagChip.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:#d97706;" +
-                        "-fx-background-color:#fef3c7;-fx-padding:2 8;-fx-background-radius:6;");
-                topRow.getChildren().add(flagChip);
+                Label flg = new Label("Flagged");
+                flg.setStyle("-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:#b45309;-fx-background-color:#fef3c7;-fx-padding:2 7;-fx-background-radius:4;");
+                topRow.getChildren().add(flg);
             }
-            // Earned marks chip
-            Label earnedChip = new Label(isCorrect ? "+" + (int)earned + " ✓" : (unanswered ? "— No answer" : "0  ✗"));
-            earnedChip.setStyle("-fx-font-size:11px;-fx-font-weight:bold;" +
-                    "-fx-text-fill:" + (isCorrect ? "#15803d" : (unanswered ? txtS : "#b91c1c")) + ";" +
-                    "-fx-background-color:" + (isCorrect ? "#dcfce7" : (unanswered ? (UIUtils.darkMode?"#2d3748":"#f1f5f9") : "#fee2e2")) + ";" +
-                    "-fx-padding:2 9;-fx-background-radius:6;");
-            topRow.getChildren().addAll(0, java.util.List.of(qNum, markChip, sp));
+            double earned = isCorrect ? qMark : 0;
+            Label earnedChip = new Label(isCorrect ? "+" + (int)earned : (unanswered ? "No answer" : "0"));
+            earnedChip.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;" +
+                "-fx-text-fill:" + (isCorrect?"#0e7a56":(unanswered?txtS:"#c0392b")) + ";" +
+                "-fx-background-color:" + (isCorrect?"#d1f0e8":(unanswered?UIUtils.bgMuted():"#fde8e8")) + ";" +
+                "-fx-padding:2 8;-fx-background-radius:4;");
+            topRow.getChildren().addAll(0, java.util.List.of(qNumLbl, markChip, sp));
             topRow.getChildren().add(earnedChip);
 
-            // Question text
-            Label qTextLbl = new Label(q.getQuestionText());
-            qTextLbl.setStyle("-fx-font-size:13.5px;-fx-font-weight:bold;-fx-text-fill:" + txtD + ";");
-            qTextLbl.setWrapText(true);
+            Label qTxtLbl = new Label(q.getQuestionText());
+            qTxtLbl.setStyle("-fx-font-size:13.5px;-fx-font-weight:600;-fx-text-fill:" + txtD + ";");
+            qTxtLbl.setWrapText(true);
 
-            // Answer rows
-            VBox answerBlock = new VBox(5);
-
+            VBox answerBlock = new VBox(4);
             if (q instanceof MCQ mcq) {
                 String[] opts = mcq.getOptions();
                 for (int oi = 0; oi < opts.length; oi++) {
-                    String optChar = String.valueOf((char)('A' + oi));
-                    boolean isStudentPick = optChar.equals(studentAns);
-                    boolean isCorrectOpt  = oi == mcq.getCorrectIndex();
+                    String oc = String.valueOf((char)('A'+oi));
+                    boolean isStudentPick = oc.equals(studentAns);
+                    boolean isCorrectOpt  = oi==mcq.getCorrectIndex();
 
-                    String rowBg, rowBorder, letterBg, letterTxt, optTxt;
+                    String rBg, rBorder, lBg, lTxt, oTxt;
                     if (isCorrectOpt && isStudentPick) {
-                        // Correct + picked → green
-                        rowBg = UIUtils.darkMode ? "#14532d44" : "#dcfce7";
-                        rowBorder = "#22c55e";
-                        letterBg = "#22c55e"; letterTxt = "white"; optTxt = "#15803d";
+                        rBg=UIUtils.darkMode?"rgba(14,122,86,0.18)":"#d1f0e8"; rBorder="#0e7a56";
+                        lBg="#0e7a56"; lTxt="white"; oTxt="#0e7a56";
                     } else if (isCorrectOpt) {
-                        // Correct but not picked → show correct in green
-                        rowBg = UIUtils.darkMode ? "#14532d22" : "#f0fdf4";
-                        rowBorder = "#22c55e66";
-                        letterBg = "#22c55e88"; letterTxt = "white"; optTxt = txtD;
+                        rBg=UIUtils.darkMode?"rgba(14,122,86,0.08)":"#f0fdf8"; rBorder="#0e7a5660";
+                        lBg="#0e7a5688"; lTxt="white"; oTxt=txtD;
                     } else if (isStudentPick) {
-                        // Student picked wrong → red
-                        rowBg = UIUtils.darkMode ? "#7f1d1d44" : "#fee2e2";
-                        rowBorder = "#ef4444";
-                        letterBg = "#ef4444"; letterTxt = "white"; optTxt = "#b91c1c";
+                        rBg=UIUtils.darkMode?"rgba(192,57,43,0.16)":"#fde8e8"; rBorder="#c0392b";
+                        lBg="#c0392b"; lTxt="white"; oTxt="#c0392b";
                     } else {
-                        rowBg = card; rowBorder = bdr;
-                        letterBg = UIUtils.darkMode ? "#2d3748" : "#f1f5f9";
-                        letterTxt = txtS; optTxt = txtM;
+                        rBg=card; rBorder=bdr;
+                        lBg=UIUtils.darkMode?"#29334a":"#f0f1f4"; lTxt=txtS; oTxt=txtM;
                     }
 
-                    HBox optRow = new HBox(12); optRow.setAlignment(Pos.CENTER_LEFT);
-                    optRow.setPadding(new Insets(8, 14, 8, 14));
-                    optRow.setStyle("-fx-background-color:" + rowBg + ";" +
-                            "-fx-border-color:" + rowBorder + ";-fx-border-width:1;" +
-                            "-fx-border-radius:8;-fx-background-radius:8;");
-
-                    Label letter = new Label(optChar);
-                    letter.setStyle("-fx-font-size:11px;-fx-font-weight:bold;" +
-                            "-fx-min-width:24;-fx-min-height:24;-fx-alignment:center;" +
-                            "-fx-background-color:" + letterBg + ";-fx-text-fill:" + letterTxt + ";" +
-                            "-fx-background-radius:6;");
-                    Label optLbl = new Label(opts[oi]);
-                    optLbl.setStyle("-fx-font-size:13px;-fx-text-fill:" + optTxt + ";");
-                    optLbl.setWrapText(true); HBox.setHgrow(optLbl, Priority.ALWAYS);
-
-                    // Indicator icons
-                    if (isCorrectOpt) {
-                        Label tick = new Label("✓");
-                        tick.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:#22c55e;");
-                        optRow.getChildren().addAll(letter, optLbl, tick);
-                    } else if (isStudentPick) {
-                        Label cross = new Label("✗");
-                        cross.setStyle("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:#ef4444;");
-                        optRow.getChildren().addAll(letter, optLbl, cross);
-                    } else {
-                        optRow.getChildren().addAll(letter, optLbl);
-                    }
+                    HBox optRow = new HBox(10); optRow.setAlignment(Pos.CENTER_LEFT);
+                    optRow.setPadding(new Insets(7, 12, 7, 12));
+                    optRow.setStyle("-fx-background-color:"+rBg+";-fx-border-color:"+rBorder+";-fx-border-width:1;-fx-border-radius:6;-fx-background-radius:6;");
+                    Label letter = new Label(oc);
+                    letter.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-min-width:24;-fx-min-height:24;-fx-alignment:center;-fx-background-radius:4;-fx-background-color:"+lBg+";-fx-text-fill:"+lTxt+";");
+                    Label optLbl = new Label(opts[oi]); optLbl.setStyle("-fx-font-size:13px;-fx-text-fill:"+oTxt+";"); optLbl.setWrapText(true); HBox.setHgrow(optLbl, Priority.ALWAYS);
+                    optRow.getChildren().addAll(letter, optLbl);
+                    if (isCorrectOpt) optRow.getChildren().add(UIUtils.icon(UIUtils.ICO_CHECK, "#0e7a56", 12));
+                    else if (isStudentPick) optRow.getChildren().add(UIUtils.icon(UIUtils.ICO_CLOSE, "#c0392b", 12));
                     answerBlock.getChildren().add(optRow);
                 }
             } else {
-                // Text / Range: show student answer vs correct
-                HBox ansRow = new HBox(14); ansRow.setAlignment(Pos.CENTER_LEFT);
-
+                HBox ansRow = new HBox(16); ansRow.setAlignment(Pos.CENTER_LEFT);
                 VBox yourAns = new VBox(3);
-                Label yaLbl = new Label("YOUR ANSWER");
-                yaLbl.setStyle("-fx-font-size:9px;-fx-font-weight:bold;-fx-text-fill:" + txtS + ";-fx-letter-spacing:0.8px;");
+                Label yaCaption = UIUtils.sectionLabel("Your Answer");
                 Label yaVal = new Label(unanswered ? "—" : studentAns);
-                yaVal.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:" +
-                        (isCorrect ? "#15803d" : (unanswered ? txtS : "#b91c1c")) + ";");
-                yourAns.getChildren().addAll(yaLbl, yaVal);
-
+                yaVal.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + (isCorrect?"#0e7a56":(unanswered?txtS:"#c0392b")) + ";");
+                yourAns.getChildren().addAll(yaCaption, yaVal);
                 VBox corrAns = new VBox(3);
-                Label caLbl = new Label(q instanceof RangeQuestion ? "ACCEPTED RANGE" : "CORRECT ANSWER");
-                caLbl.setStyle("-fx-font-size:9px;-fx-font-weight:bold;-fx-text-fill:" + txtS + ";-fx-letter-spacing:0.8px;");
-                Label caVal = new Label(correctDisplay);
-                caVal.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:#15803d;");
-                corrAns.getChildren().addAll(caLbl, caVal);
-
-                ansRow.getChildren().addAll(yourAns, new Label("→") {{ setStyle("-fx-font-size:16px;-fx-text-fill:"+txtS+";"); }}, corrAns);
+                Label caCaption = UIUtils.sectionLabel(q instanceof RangeQuestion ? "Accepted Range" : "Correct Answer");
+                Label caVal = new Label(correctDisplay); caVal.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:#0e7a56;");
+                corrAns.getChildren().addAll(caCaption, caVal);
+                Label arrow = new Label("→"); arrow.setStyle("-fx-font-size:16px;-fx-text-fill:"+txtS+";");
+                ansRow.getChildren().addAll(yourAns, arrow, corrAns);
                 answerBlock.getChildren().add(ansRow);
             }
 
-            cardBody.getChildren().addAll(topRow, qTextLbl, answerBlock);
+            cardBody.getChildren().addAll(topRow, qTxtLbl, answerBlock);
             cardWrap.getChildren().addAll(accentBar, cardBody);
-            // Card shadow
-            DropShadow cds = new DropShadow();
-            cds.setColor(Color.color(0,0,0, UIUtils.darkMode?0.2:0.06));
-            cds.setRadius(8); cds.setOffsetY(2);
-            cardWrap.setEffect(cds);
+            DropShadow cds = new DropShadow(); cds.setColor(Color.color(0,0,0, UIUtils.darkMode?0.18:0.04)); cds.setRadius(6); cds.setOffsetY(1); cardWrap.setEffect(cds);
             reviewBox.getChildren().add(cardWrap);
         }
 
-        // ── Back button ───────────────────────────────────
-        Button btnBack = buildPremiumBtn("← Back to Dashboard", UIUtils.ACCENT_GREEN);
-        btnBack.setPrefWidth(240); btnBack.setPrefHeight(46);
-        btnBack.setOnAction(e -> { activeNavIndex = 0; stage.setScene(createDashboardScene(stage, student, app)); });
+        Button btnBack2 = UIUtils.primaryBtn("", "Return to Dashboard", UIUtils.ACCENT_TEAL);
+        btnBack2.setPrefWidth(220); btnBack2.setPrefHeight(42);
+        btnBack2.setOnAction(e -> { activeNavIndex = 0; stage.setScene(createDashboardScene(stage, student, app)); });
 
-        center.getChildren().addAll(headerRow, scoreRow, UIUtils.divider(), reviewHdr, reviewBox, UIUtils.divider(), btnBack);
+        center.getChildren().addAll(resultHeader, UIUtils.divider(), reviewHdr, reviewBox, UIUtils.divider(), btnBack2);
 
-        center.setOpacity(0); center.setTranslateY(20);
+        center.setOpacity(0); center.setTranslateY(16);
         scroll.setContent(center);
         root.setCenter(scroll);
 
@@ -1111,544 +1602,265 @@ public class StudentPortal {
         UIUtils.applyStyle(scene);
         stage.setScene(scene);
 
-        FadeTransition ft = new FadeTransition(Duration.millis(380), center); ft.setToValue(1);
-        TranslateTransition tt = new TranslateTransition(Duration.millis(380), center);
-        tt.setToY(0); tt.setInterpolator(Interpolator.EASE_OUT);
-        new ParallelTransition(ft, tt).play();
+        FadeTransition ft2 = new FadeTransition(Duration.millis(340), center); ft2.setToValue(1);
+        TranslateTransition tt2 = new TranslateTransition(Duration.millis(340), center);
+        tt2.setToY(0); tt2.setInterpolator(Interpolator.EASE_OUT);
+        new ParallelTransition(ft2, tt2).play();
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  PLACEHOLDER PAGES
-    // ╚══════════════════════════════════════════════════════╝
-    // ╔══════════════════════════════════════════════════════╗
-    //  MY RESULTS PAGE — shows best score per exam
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderMyResultsPage(javafx.scene.layout.AnchorPane contentArea,
-                                            Stage stage, Student student, HelloApplication app) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(22); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("📊  My Results"),
-                UIUtils.subheading("Your best score per exam"), UIUtils.divider());
+    // ══════════════════════════════════════════════════════════════
+    //  DASHBOARD PAGES
+    // ══════════════════════════════════════════════════════════════
+
+    private static void renderMyResultsPage(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+        VBox page = new VBox(18); page.setPadding(new Insets(30, 38, 30, 38));
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        HBox titleRow = new HBox(14); titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Academic Record"));
+        page.getChildren().addAll(titleRow, UIUtils.subheading("Your examination results"), UIUtils.divider());
 
         List<ExamResult> results = ResultDAO.loadForStudent(student.getID());
         if (results.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("📂","No results yet",
-                    "Complete an exam to see your results here.", UIUtils.ACCENT_BLUE));
+            page.getChildren().add(emptyState(UIUtils.ICO_HISTORY, "No Results Yet", "Complete an examination to see your record here."));
         } else {
             for (ExamResult r : results) {
-                VBox card = UIUtils.card(700); card.setMaxWidth(700);
-                card.setPadding(new Insets(18,20,18,20)); card.setSpacing(0);
+                String gc = r.pct()>=65 ? UIUtils.ACCENT_GREEN : r.pct()>=50 ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_RED;
+                VBox card = UIUtils.card(700); card.setMaxWidth(Double.MAX_VALUE);
+                card.setPadding(new Insets(16, 20, 16, 20)); card.setSpacing(0);
 
-                String gcolor = r.pct()>=65 ? UIUtils.ACCENT_GREEN : r.pct()>=50 ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_RED;
-
-                HBox row = new HBox(16); row.setAlignment(Pos.CENTER_LEFT);
-
-                // Score circle
+                HBox row = new HBox(14); row.setAlignment(Pos.CENTER_LEFT);
                 StackPane sc = new StackPane();
-                Circle bg2 = new Circle(32); bg2.setFill(Color.web(gcolor,0.13));
-                bg2.setStroke(Color.web(gcolor)); bg2.setStrokeWidth(2);
-                VBox inn = new VBox(0); inn.setAlignment(Pos.CENTER);
-                Label sc1 = new Label(String.format("%.0f",r.score));
-                sc1.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+gcolor+";");
-                Label sc2 = new Label("/"+((int)r.totalMarks));
-                sc2.setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.textMid()+";");
-                inn.getChildren().addAll(sc1,sc2); sc.getChildren().addAll(bg2,inn);
+                Circle cBg = new Circle(30); cBg.setFill(Color.web(gc, 0.10)); cBg.setStroke(Color.web(gc)); cBg.setStrokeWidth(1.5);
+                VBox scIn = new VBox(0); scIn.setAlignment(Pos.CENTER);
+                Label scVal = new Label(String.format("%.0f", r.score));
+                scVal.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + gc + ";");
+                Label scOf = new Label("/"+((int)r.totalMarks));
+                scOf.setStyle("-fx-font-size:9.5px;-fx-text-fill:"+UIUtils.textMid()+";");
+                scIn.getChildren().addAll(scVal, scOf);
+                sc.getChildren().addAll(cBg, scIn);
 
-                // Info
                 VBox info = new VBox(4);
-                String title = r.examTitle!=null&&!r.examTitle.isBlank() ? r.examTitle : r.examSubject;
-                Label nameLbl = new Label(title);
-                nameLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-                Label meta = new Label("📚 "+r.examSubject+"  •  Grade "+r.examGrade
-                        +"  •  "+r.correct+"/"+r.totalQ+" correct  •  "+r.dateStr());
-                meta.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
+                String title = (r.examTitle!=null&&!r.examTitle.isBlank())?r.examTitle:r.examSubject;
+                Label nameLbl = new Label(title); nameLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+                Label meta = new Label(r.examSubject + "  ·  Grade " + r.examGrade + "  ·  " + r.correct+"/"+r.totalQ+" correct  ·  "+r.dateStr());
+                meta.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textSubtle()+";");
                 info.getChildren().addAll(nameLbl, meta);
 
-                Region sp2 = new Region(); HBox.setHgrow(sp2, Priority.ALWAYS);
+                Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
 
-                // Grade badge
-                Label gradeBadge = new Label("Grade "+r.grade());
-                gradeBadge.setStyle("-fx-background-color:"+gcolor+"22;-fx-text-fill:"+gcolor
-                        +";-fx-font-weight:bold;-fx-font-size:13px;-fx-padding:4 14;-fx-background-radius:8;");
-
-                // Percentage bar
-                VBox barBox = new VBox(2); barBox.setMinWidth(100);
-                Label pctLbl = new Label(String.format("%.1f%%",r.pct()));
+                VBox barBox = new VBox(3); barBox.setMinWidth(90);
+                Label pctLbl = new Label(String.format("%.1f%%", r.pct()));
                 pctLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
                 javafx.scene.control.ProgressBar pb = new javafx.scene.control.ProgressBar(r.pct()/100);
-                pb.setPrefWidth(100); pb.setPrefHeight(6);
-                pb.setStyle("-fx-accent:"+gcolor+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:3;");
+                pb.setPrefWidth(90); pb.setPrefHeight(5);
+                pb.setStyle("-fx-accent:"+gc+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:99;");
                 barBox.getChildren().addAll(pctLbl, pb);
 
-                row.getChildren().addAll(sc, info, sp2, barBox, gradeBadge);
+                Label gradeBadge = new Label("Grade " + r.grade());
+                gradeBadge.setStyle("-fx-font-size:12px;-fx-font-weight:700;-fx-text-fill:"+gc+";-fx-background-color:"+gc+"18;-fx-padding:3 10;-fx-background-radius:4;");
+
+                row.getChildren().addAll(sc, info, spacer, barBox, gradeBadge);
                 card.getChildren().add(row);
                 page.getChildren().add(card);
             }
         }
-        wrapInScroll(contentArea, page);
+        wrapInScroll(area, page);
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  ONGOING EXAMS — live exams the student can join
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderOngoingPage(javafx.scene.layout.AnchorPane contentArea,
-                                          Stage stage, Student student, HelloApplication app) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(22); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("📡  Ongoing Exams"),
-                UIUtils.subheading("Live exams happening right now — click Join to start"),
-                UIUtils.divider());
+    private static void renderAnalyticsPage(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+        VBox page = new VBox(22); page.setPadding(new Insets(30, 38, 30, 38));
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
-        List<Exam> live = ExamBank.getLiveExams();
-        if (live.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("📡","No ongoing exams",
-                    "When a teacher starts an exam, it will appear here.", UIUtils.ACCENT_ORG));
-        } else {
-            for (Exam ex : live) {
-                VBox card = UIUtils.card(700); card.setMaxWidth(700);
-                card.setPadding(new Insets(18,20,18,20)); card.setSpacing(8);
-
-                HBox topRow = new HBox(12); topRow.setAlignment(Pos.CENTER_LEFT);
-                Label liveDot = new Label("🟢"); liveDot.setStyle("-fx-font-size:12px;");
-                String et = ex.getTitle()!=null&&!ex.getTitle().isBlank() ? ex.getTitle() : ex.getSubject()+" Exam";
-                Label titleLbl = new Label(et);
-                titleLbl.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-                Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
-                Label codeBadge = UIUtils.badge(ex.getExamCode(), UIUtils.ACCENT_GREEN);
-
-                // Remaining time
-                String remStr = ex.getLiveEndMillis()>0 ? "⏱ "+ex.getRemainingFormatted()+" left" : "⏱ No time limit";
-                Label remLbl = new Label(remStr);
-                remLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.ACCENT_ORG+";-fx-font-weight:bold;");
-
-                topRow.getChildren().addAll(liveDot, titleLbl, sp2, remLbl, codeBadge);
-
-                Label meta = new Label("📚 "+ex.getSubject()+"  •  Grade "+ex.getGrade()
-                        +"  •  "+ex.getDuration()+" min  •  "+ex.getQuestionsMap().size()+" questions"
-                        +"  •  "+((int)ex.getTotalMarks())+" marks");
-                meta.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
-
-                Button btnJoin = buildPremiumBtn("🚀  Join Now", UIUtils.ACCENT_GREEN);
-                btnJoin.setPrefWidth(140); btnJoin.setPrefHeight(38);
-                btnJoin.setOnAction(e -> showExamDetailPopup(ex, stage, student, app));
-
-                card.getChildren().addAll(topRow, meta, btnJoin);
-                page.getChildren().add(card);
-            }
-        }
-        wrapInScroll(contentArea, page);
-    }
-
-    // ╔══════════════════════════════════════════════════════╗
-    //  SCHEDULED EXAMS — upcoming exams with countdown
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderScheduledPage(javafx.scene.layout.AnchorPane contentArea) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(22); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("📅  Scheduled Exams"),
-                UIUtils.subheading("Upcoming exams with their countdown timers"),
-                UIUtils.divider());
-
-        long now = System.currentTimeMillis();
-        List<Exam> scheduled = ExamBank.allExams.stream()
-                .filter(e -> !e.isLive() && e.getScheduledStartMillis() > now)
-                .sorted(java.util.Comparator.comparingLong(Exam::getScheduledStartMillis))
-                .collect(java.util.stream.Collectors.toList());
-
-        if (scheduled.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("📅","No upcoming exams",
-                    "Your teacher hasn't scheduled any exams yet.", UIUtils.ACCENT_PURP));
-        } else {
-            for (Exam ex : scheduled) {
-                VBox card = UIUtils.card(700); card.setMaxWidth(700);
-                card.setPadding(new Insets(18,20,18,20)); card.setSpacing(8);
-
-                HBox topRow = new HBox(12); topRow.setAlignment(Pos.CENTER_LEFT);
-                String et = ex.getTitle()!=null&&!ex.getTitle().isBlank() ? ex.getTitle() : ex.getSubject()+" Exam";
-                Label titleLbl = new Label("📅  "+et);
-                titleLbl.setStyle("-fx-font-size:15px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-                Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
-
-                // Live countdown label — updates every second
-                Label countdownLbl = new Label(ex.getStartCountdownFormatted());
-                countdownLbl.setStyle("-fx-font-family:Monospaced;-fx-font-size:17px;-fx-font-weight:bold;" +
-                        "-fx-text-fill:"+UIUtils.ACCENT_PURP+";");
-                topRow.getChildren().addAll(titleLbl, sp2,
-                        new Label("Starts in ") {{ setStyle("-fx-font-size:12px;-fx-text-fill:"+UIUtils.textMid()+";"); }},
-                        countdownLbl);
-
-                Label meta = new Label("📚 "+ex.getSubject()+"  •  Grade "+ex.getGrade()
-                        +"  •  "+ex.getDuration()+" min  •  "+ex.getQuestionsMap().size()+" questions");
-                meta.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
-
-                // Scheduled time display
-                java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(ex.getScheduledStartMillis())
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
-                String dateStr = ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy  •  HH:mm"));
-                Label dateLbl = new Label("🗓  "+dateStr);
-                dateLbl.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.ACCENT_PURP+";");
-
-                // Tick the countdown every second
-                Timeline tl = new Timeline(new KeyFrame(Duration.seconds(1), ev ->
-                        countdownLbl.setText(ex.getStartCountdownFormatted())));
-                tl.setCycleCount(Animation.INDEFINITE); tl.play();
-                // Stop ticking when card is removed from scene
-                countdownLbl.sceneProperty().addListener((obs,o,n)->{ if(n==null) tl.stop(); });
-
-                card.getChildren().addAll(topRow, dateLbl, meta);
-                page.getChildren().add(card);
-            }
-        }
-        wrapInScroll(contentArea, page);
-    }
-
-    // ╔══════════════════════════════════════════════════════╗
-    //  ANALYTICS — performance chart + subject breakdown
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderAnalyticsPage(javafx.scene.layout.AnchorPane contentArea, Student student) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(24); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("📈  Performance Analytics"),
-                UIUtils.subheading("Your score trends and subject breakdown"),
-                UIUtils.divider());
+        HBox titleRow = new HBox(14); titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Performance Analytics"));
+        page.getChildren().addAll(titleRow, UIUtils.subheading("Score history and subject breakdown"), UIUtils.divider());
 
         List<ExamResult> results = ResultDAO.loadForStudent(student.getID());
         if (results.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("📈","No data yet",
-                    "Complete some exams to see your analytics.", UIUtils.ACCENT_YELL));
-            wrapInScroll(contentArea, page);
+            page.getChildren().add(emptyState(UIUtils.ICO_ANALYTICS, "No Data Yet", "Complete some examinations to view your analytics."));
+            wrapInScroll(area, page);
             return;
         }
 
-        // ── Overall stats row ─────────────────────────────
-        double avgPct = results.stream().mapToDouble(ExamResult::pct).average().orElse(0);
-        double bestPct = results.stream().mapToDouble(ExamResult::pct).max().orElse(0);
-        long passCount = results.stream().filter(r->r.pct()>=50).count();
+        double avg  = results.stream().mapToDouble(ExamResult::pct).average().orElse(0);
+        double best = results.stream().mapToDouble(ExamResult::pct).max().orElse(0);
+        long passed = results.stream().filter(r->r.pct()>=50).count();
 
-        HBox statsRow = new HBox(16); statsRow.setAlignment(Pos.CENTER_LEFT);
-        statsRow.getChildren().addAll(
-                makeStatCard("📊", String.format("%.1f%%",avgPct),  "Average Score",  UIUtils.ACCENT_BLUE),
-                makeStatCard("🏆", String.format("%.1f%%",bestPct), "Best Score",     UIUtils.ACCENT_GREEN),
-                makeStatCard("✅", String.valueOf(passCount),        "Exams Passed",   UIUtils.ACCENT_PURP),
-                makeStatCard("📝", String.valueOf(results.size()),   "Exams Taken",    UIUtils.ACCENT_ORG)
+        HBox statRow = new HBox(12); statRow.setAlignment(Pos.CENTER_LEFT);
+        statRow.getChildren().addAll(
+            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avg), "Average Score",  UIUtils.ACCENT_TEAL),
+            UIUtils.statCard(UIUtils.ICO_TROPHY,    String.format("%.1f%%",best),"Best Score",     UIUtils.ACCENT_GREEN),
+            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(passed),       "Passed",         UIUtils.ACCENT_PURP),
+            UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(results.size()),"Total Taken",   UIUtils.ACCENT_ORG)
         );
 
-        // ── Bar chart of recent scores ────────────────────
-        VBox chartCard = UIUtils.card(700); chartCard.setMaxWidth(700);
-        chartCard.setPadding(new Insets(20)); chartCard.setSpacing(12);
-        chartCard.getChildren().add(new Label("📊  Score History (recent 8)") {{
-            setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-        }});
+        VBox chartCard = UIUtils.card(700); chartCard.setMaxWidth(Double.MAX_VALUE);
+        chartCard.setPadding(new Insets(18)); chartCard.setSpacing(10);
+        Label chartHdr = new Label("Score History");
+        chartHdr.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+        chartCard.getChildren().add(chartHdr);
 
         List<ExamResult> recent = results.subList(0, Math.min(8, results.size()));
-        double maxMark = recent.stream().mapToDouble(r->r.totalMarks).max().orElse(100);
+        double BAR_MAX = 380;
 
-        // Simple bar chart using HBoxes
-        double BAR_MAX_W = 420;
         for (int i = recent.size()-1; i >= 0; i--) {
             ExamResult r = recent.get(i);
-            String gc = r.pct()>=65 ? UIUtils.ACCENT_GREEN : r.pct()>=50 ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_RED;
-            String lblText = (r.examTitle!=null&&!r.examTitle.isBlank()?r.examTitle:r.examSubject);
-            if (lblText.length()>22) lblText = lblText.substring(0,20)+"…";
-
-            Label nameLbl = new Label(lblText);
-            nameLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
-            nameLbl.setMinWidth(150); nameLbl.setMaxWidth(150);
-
-            double barW = BAR_MAX_W * (r.score / maxMark);
-            Region bar = new Region();
-            bar.setPrefWidth(Math.max(barW,6)); bar.setPrefHeight(22);
-            bar.setStyle("-fx-background-color:"+gc+";-fx-background-radius:4;");
-
-            Label valLbl = new Label(String.format("%.0f%%", r.pct()));
-            valLbl.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:"+gc+";");
-
-            HBox barRow = new HBox(8, nameLbl, bar, valLbl);
-            barRow.setAlignment(Pos.CENTER_LEFT);
+            String gc = r.pct()>=65?UIUtils.ACCENT_GREEN:r.pct()>=50?UIUtils.ACCENT_BLUE:UIUtils.ACCENT_RED;
+            String lb = (r.examTitle!=null&&!r.examTitle.isBlank()?r.examTitle:r.examSubject);
+            if (lb.length()>22) lb=lb.substring(0,20)+"…";
+            Label nameLbl = new Label(lb); nameLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";"); nameLbl.setMinWidth(148);
+            double barW = BAR_MAX*(r.pct()/100);
+            Region bar = new Region(); bar.setPrefWidth(Math.max(barW,4)); bar.setPrefHeight(18);
+            bar.setStyle("-fx-background-color:"+gc+";-fx-background-radius:3;");
+            Label valLbl = new Label(String.format("%.0f%%",r.pct())); valLbl.setStyle("-fx-font-size:11px;-fx-font-weight:700;-fx-text-fill:"+gc+";");
+            HBox barRow = new HBox(8, nameLbl, bar, valLbl); barRow.setAlignment(Pos.CENTER_LEFT);
             chartCard.getChildren().add(barRow);
         }
 
-        // ── Subject breakdown ─────────────────────────────
-        VBox subCard = UIUtils.card(700); subCard.setMaxWidth(700);
-        subCard.setPadding(new Insets(20)); subCard.setSpacing(10);
-        subCard.getChildren().add(new Label("📚  By Subject") {{
-            setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-        }});
+        VBox subCard = UIUtils.card(700); subCard.setMaxWidth(Double.MAX_VALUE);
+        subCard.setPadding(new Insets(18)); subCard.setSpacing(9);
+        Label subHdr = new Label("By Subject");
+        subHdr.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+        subCard.getChildren().add(subHdr);
 
         Map<String,List<ExamResult>> bySub = new java.util.LinkedHashMap<>();
         for (ExamResult r : results) bySub.computeIfAbsent(r.examSubject, k->new ArrayList<>()).add(r);
-        String[] subColors = {UIUtils.ACCENT_BLUE,UIUtils.ACCENT_GREEN,UIUtils.ACCENT_PURP,UIUtils.ACCENT_ORG,UIUtils.ACCENT_YELL};
+        String[] subColors = {UIUtils.ACCENT_TEAL,UIUtils.ACCENT_GREEN,UIUtils.ACCENT_PURP,UIUtils.ACCENT_ORG,UIUtils.ACCENT_YELL};
         int ci = 0;
         for (Map.Entry<String,List<ExamResult>> e : bySub.entrySet()) {
             String c = subColors[ci++ % subColors.length];
-            double avg = e.getValue().stream().mapToDouble(ExamResult::pct).average().orElse(0);
-            HBox sr = new HBox(12); sr.setAlignment(Pos.CENTER_LEFT);
-            Circle dot = new Circle(6); dot.setFill(Color.web(c));
-            Label subLbl = new Label(e.getKey()); subLbl.setMinWidth(140);
-            subLbl.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-            javafx.scene.control.ProgressBar pb2 = new javafx.scene.control.ProgressBar(avg/100);
-            pb2.setPrefWidth(200); pb2.setPrefHeight(10);
-            pb2.setStyle("-fx-accent:"+c+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:5;");
-            Label avgLbl = new Label(String.format("%.1f%% avg  (%d exams)",avg,e.getValue().size()));
-            avgLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textMid()+";");
-            sr.getChildren().addAll(dot, subLbl, pb2, avgLbl);
+            double avg2 = e.getValue().stream().mapToDouble(ExamResult::pct).average().orElse(0);
+            HBox sr = new HBox(10); sr.setAlignment(Pos.CENTER_LEFT);
+            Circle dot = new Circle(5, Color.web(c));
+            Label subLbl = new Label(e.getKey()); subLbl.setMinWidth(138);
+            subLbl.setStyle("-fx-font-size:12px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+            javafx.scene.control.ProgressBar pb = new javafx.scene.control.ProgressBar(avg2/100);
+            pb.setPrefWidth(180); pb.setPrefHeight(7);
+            pb.setStyle("-fx-accent:"+c+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:99;");
+            Label avgLbl = new Label(String.format("%.1f%% avg  (%d)",avg2,e.getValue().size()));
+            avgLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textSubtle()+";");
+            sr.getChildren().addAll(dot, subLbl, pb, avgLbl);
             subCard.getChildren().add(sr);
         }
 
-        page.getChildren().addAll(statsRow, chartCard, subCard);
-        wrapInScroll(contentArea, page);
+        page.getChildren().addAll(statRow, chartCard, subCard);
+        wrapInScroll(area, page);
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  LEADERBOARD — top students per exam
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderLeaderboardPage(javafx.scene.layout.AnchorPane contentArea, Student student) {
-        contentArea.getChildren().clear();
-        VBox page = new VBox(22); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("🏆  Leaderboard"),
-                UIUtils.subheading("Top scores for each exam"), UIUtils.divider());
+    private static void renderLeaderboardPage(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+        VBox page = new VBox(18); page.setPadding(new Insets(30, 38, 30, 38));
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
-        // Group all results by examId
+        HBox titleRow = new HBox(14); titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Leaderboard"));
+        page.getChildren().addAll(titleRow, UIUtils.subheading("Top performances per examination"), UIUtils.divider());
+
         List<ExamResult> all = ResultDAO.loadAll();
         if (all.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("🏆","No scores yet",
-                    "Be the first to complete an exam!", "#f43f5e"));
-            wrapInScroll(contentArea, page);
+            page.getChildren().add(emptyState(UIUtils.ICO_TROPHY, "No Results Yet", "Be the first to complete an examination."));
+            wrapInScroll(area, page);
             return;
         }
 
-        Map<Integer, List<ExamResult>> byExam = new java.util.LinkedHashMap<>();
-        // Keep only best per student per exam
-        for (ExamResult r : all) {
-            byExam.computeIfAbsent(r.examId, k->new ArrayList<>()).add(r);
-        }
+        Map<Integer,List<ExamResult>> byExam = new java.util.LinkedHashMap<>();
+        for (ExamResult r : all) byExam.computeIfAbsent(r.examId, k->new ArrayList<>()).add(r);
 
         for (Map.Entry<Integer,List<ExamResult>> entry : byExam.entrySet()) {
             List<ExamResult> top = entry.getValue().stream()
-                    .sorted((a,b)->Double.compare(b.score,a.score))
-                    .limit(10)
-                    .collect(java.util.stream.Collectors.toList());
+                .sorted((a,b)->Double.compare(b.score,a.score)).limit(10)
+                .collect(java.util.stream.Collectors.toList());
 
             ExamResult first = top.get(0);
-            String examLabel = first.examTitle!=null&&!first.examTitle.isBlank()
-                    ? first.examTitle : first.examSubject;
+            String examLabel = (first.examTitle!=null&&!first.examTitle.isBlank())?first.examTitle:first.examSubject;
 
-            VBox card = UIUtils.card(700); card.setMaxWidth(700);
-            card.setPadding(new Insets(18,20,18,20)); card.setSpacing(8);
+            VBox card = UIUtils.card(700); card.setMaxWidth(Double.MAX_VALUE);
+            card.setPadding(new Insets(16, 20, 16, 20)); card.setSpacing(7);
 
-            Label examHdr = new Label("🏆  "+examLabel+"  —  "+first.examSubject+" (Grade "+first.examGrade+")");
-            examHdr.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-            card.getChildren().add(examHdr);
-            card.getChildren().add(UIUtils.divider());
+            HBox hdr = new HBox(10); hdr.setAlignment(Pos.CENTER_LEFT);
+            Region trophyIco = UIUtils.icon(UIUtils.ICO_TROPHY, UIUtils.ACCENT_ORG, 14);
+            Label examHdr = new Label(examLabel + "  ·  " + first.examSubject + "  Grade " + first.examGrade);
+            examHdr.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+            hdr.getChildren().addAll(trophyIco, examHdr);
+            card.getChildren().addAll(hdr, UIUtils.divider());
 
-            String[] medals = {"🥇","🥈","🥉"};
+            String[] medals = {"1st","2nd","3rd"};
             for (int rank = 0; rank < top.size(); rank++) {
                 ExamResult r = top.get(rank);
                 String gc = r.pct()>=65?UIUtils.ACCENT_GREEN:r.pct()>=50?UIUtils.ACCENT_BLUE:UIUtils.ACCENT_RED;
+                boolean isMe = r.studentId.equals(student.getID());
 
                 HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
-                row.setPadding(new Insets(6,10,6,10));
-
-                // Highlight current student
-                boolean isMe = r.studentId.equals(student.getID());
-                if (isMe) row.setStyle("-fx-background-color:"+UIUtils.ACCENT_GREEN+"15;-fx-background-radius:8;");
+                row.setPadding(new Insets(6, 10, 6, 10));
+                if (isMe) row.setStyle("-fx-background-color:rgba(15,125,116,0.08);-fx-background-radius:6;");
+                else if (rank%2==0) row.setStyle("-fx-background-color:"+UIUtils.bgMuted()+";-fx-background-radius:6;");
 
                 Label rankLbl = new Label(rank<3 ? medals[rank] : "#"+(rank+1));
-                rankLbl.setStyle("-fx-font-size:16px;"); rankLbl.setMinWidth(36);
+                rankLbl.setStyle("-fx-font-size:11.5px;-fx-font-weight:700;-fx-text-fill:" + (rank==0?UIUtils.ACCENT_ORG:rank==1?UIUtils.textMid():UIUtils.textSubtle()) + ";");
+                rankLbl.setMinWidth(36);
 
-                Label idLbl = new Label(isMe ? "You ("+r.studentId+")" : r.studentId);
-                idLbl.setStyle("-fx-font-size:13px;-fx-font-weight:"+(isMe?"bold":"normal")
-                        +";-fx-text-fill:"+(isMe?UIUtils.ACCENT_GREEN:UIUtils.textDark())+";");
+                Label idLbl = new Label(isMe ? "You  ("+r.studentId+")" : r.studentId);
+                idLbl.setStyle("-fx-font-size:13px;-fx-font-weight:"+(isMe?"700":"500")+";-fx-text-fill:"+(isMe?"#0f7d74":UIUtils.textDark())+";");
                 idLbl.setMinWidth(160);
 
-                Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
-
+                Region sp2 = new Region(); HBox.setHgrow(sp2, Priority.ALWAYS);
                 javafx.scene.control.ProgressBar pb = new javafx.scene.control.ProgressBar(r.pct()/100);
-                pb.setPrefWidth(140); pb.setPrefHeight(8);
-                pb.setStyle("-fx-accent:"+gc+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:4;");
-
-                Label scoreLbl = new Label(String.format("%.0f / %.0f  (%.1f%%)", r.score, r.totalMarks, r.pct()));
-                scoreLbl.setStyle("-fx-font-size:12px;-fx-font-weight:bold;-fx-text-fill:"+gc+";");
-                scoreLbl.setMinWidth(150);
-
+                pb.setPrefWidth(120); pb.setPrefHeight(6);
+                pb.setStyle("-fx-accent:"+gc+";-fx-background-color:"+UIUtils.border()+";-fx-background-radius:99;");
+                Label scoreLbl = new Label(String.format("%.0f / %.0f  (%.1f%%)",r.score,r.totalMarks,r.pct()));
+                scoreLbl.setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:"+gc+";");
+                scoreLbl.setMinWidth(148);
                 row.getChildren().addAll(rankLbl, idLbl, sp2, pb, scoreLbl);
                 card.getChildren().add(row);
             }
             page.getChildren().add(card);
         }
-        wrapInScroll(contentArea, page);
+        wrapInScroll(area, page);
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  ANNOUNCEMENTS PAGE
-    // ╚══════════════════════════════════════════════════════╝
-    private static void renderAnnouncementsPage(javafx.scene.layout.AnchorPane contentArea) {
-        contentArea.getChildren().clear();
-
-        // Clean expired before showing
-        ResultDAO.deleteExpired();
-
-        VBox page = new VBox(18); page.setPadding(new Insets(36,40,36,40));
-        page.setStyle("-fx-background-color:"+UIUtils.bgContent()+";");
-        page.getChildren().addAll(UIUtils.heading("📢  Announcements"),
-                UIUtils.subheading("Notices and updates from your teachers"),
-                UIUtils.divider());
-
-        List<Announcement> list = ResultDAO.loadAnnouncements();
-        if (list.isEmpty()) {
-            page.getChildren().add(buildPlaceholder("📢","No announcements",
-                    "Your teacher hasn't posted any notices yet.", UIUtils.ACCENT_BLUE));
-        } else {
-            for (Announcement a : list) {
-                VBox card = new VBox(6);
-                card.setPadding(new Insets(16,20,16,20));
-                card.setStyle("-fx-background-color:"+UIUtils.bgCard()+";" +
-                        "-fx-border-color:"+a.color+"55;-fx-border-width:0 0 0 4;" +
-                        "-fx-background-radius:10;-fx-border-radius:10;");
-                DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05));
-                ds.setRadius(8); ds.setOffsetY(2); card.setEffect(ds);
-
-                HBox hdr = new HBox(10); hdr.setAlignment(Pos.CENTER_LEFT);
-                Label titleLbl = new Label(a.title);
-                titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";");
-                Region sp2 = new Region(); HBox.setHgrow(sp2,Priority.ALWAYS);
-
-                // Expiry info for student
-                if (a.expireAt > 0) {
-                    Label expLbl = new Label("⏰ "+a.expireStr());
-                    expLbl.setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.ACCENT_ORG+";" +
-                            "-fx-background-color:"+UIUtils.ACCENT_ORG+"18;-fx-padding:2 8;-fx-background-radius:6;");
-                    hdr.getChildren().addAll(titleLbl, sp2, expLbl);
-                } else {
-                    Label dateLbl = new Label(a.dateStr());
-                    dateLbl.setStyle("-fx-font-size:11px;-fx-text-fill:"+UIUtils.textSubtle()+";");
-                    hdr.getChildren().addAll(titleLbl, sp2, dateLbl);
-                }
-
-                Label bodyLbl = new Label(a.body);
-                bodyLbl.setStyle("-fx-font-size:13px;-fx-text-fill:"+UIUtils.textMid()+";");
-                bodyLbl.setWrapText(true);
-
-                card.getChildren().addAll(hdr, bodyLbl);
-                page.getChildren().add(card);
-            }
-        }
-
-        // Auto-refresh every 60 s so expired notices disappear without restart
-        ScrollPane sp = new ScrollPane(page);
-        sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
-        AnchorPane.setTopAnchor(sp,0.0); AnchorPane.setBottomAnchor(sp,0.0);
-        AnchorPane.setLeftAnchor(sp,0.0); AnchorPane.setRightAnchor(sp,0.0);
-        contentArea.getChildren().add(sp);
-
-        Timeline autoRefresh = new Timeline(new KeyFrame(Duration.seconds(60), ev ->
-                renderAnnouncementsPage(contentArea)));
-        autoRefresh.setCycleCount(Animation.INDEFINITE); autoRefresh.play();
-        sp.sceneProperty().addListener((obs,o,n) -> { if (n==null) autoRefresh.stop(); });
-
-        UIUtils.slideIn(page, true);
-    }
-
+    // ══════════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ══════════════════════════════════════════════════════════════
     private static void wrapInScroll(javafx.scene.layout.AnchorPane area, VBox page) {
         ScrollPane sp = new ScrollPane(page);
         sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
-        AnchorPane.setTopAnchor(sp,0.0); AnchorPane.setBottomAnchor(sp,0.0);
-        AnchorPane.setLeftAnchor(sp,0.0); AnchorPane.setRightAnchor(sp,0.0);
-        area.getChildren().add(sp); UIUtils.slideIn(page,true);
+        javafx.scene.layout.AnchorPane.setTopAnchor(sp,0.0); javafx.scene.layout.AnchorPane.setBottomAnchor(sp,0.0);
+        javafx.scene.layout.AnchorPane.setLeftAnchor(sp,0.0); javafx.scene.layout.AnchorPane.setRightAnchor(sp,0.0);
+        area.getChildren().add(sp);
+        UIUtils.slideIn(page, true);
     }
 
-    private static VBox makeStatCard(String icon, String value, String label, String color) {
-        VBox card = new VBox(4); card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(14,20,14,20));
-        card.setStyle("-fx-background-color:"+UIUtils.bgCard()+";-fx-background-radius:12;" +
-                "-fx-border-color:"+color+"33;-fx-border-radius:12;-fx-border-width:1;");
-        DropShadow ds2 = new DropShadow(); ds2.setColor(Color.web(color,0.12)); ds2.setRadius(8); ds2.setOffsetY(2);
-        card.setEffect(ds2);
-        card.getChildren().addAll(
-                new Label(icon)  {{ setStyle("-fx-font-size:20px;"); }},
-                new Label(value) {{ setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"+color+";"); }},
-                new Label(label) {{ setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.textMid()+";"); }}
-        );
-        return card;
-    }
-
-    private static VBox buildPlaceholder(String icon, String title, String sub, String color) {
-        VBox c = UIUtils.card(500); c.setMaxWidth(500); c.setAlignment(Pos.CENTER); c.setPadding(new Insets(44));
-        c.getChildren().addAll(
-                new Label(icon)  {{ setStyle("-fx-font-size:44px;"); }},
-                new Label(title) {{ setStyle("-fx-font-size:17px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.textDark()+";"); }},
-                new Label(sub)   {{ setStyle("-fx-font-size:13px;-fx-text-fill:"+UIUtils.textMid()+";"); setWrapText(true); }}
-        );
+    private static VBox emptyState(String svgIcon, String title, String sub) {
+        VBox c = UIUtils.card(480); c.setMaxWidth(480); c.setAlignment(Pos.CENTER);
+        c.setPadding(new Insets(40));
+        StackPane ico = new StackPane(UIUtils.icon(svgIcon, UIUtils.textSubtle(), 24));
+        ico.setPrefSize(52, 52);
+        ico.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:10;");
+        Label t = new Label(title); t.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:"+UIUtils.textDark()+";");
+        Label s = new Label(sub); s.setStyle("-fx-font-size:12.5px;-fx-text-fill:"+UIUtils.textMid()+";"); s.setWrapText(true);
+        c.getChildren().addAll(ico, t, s);
         return c;
     }
 
-    // ╔══════════════════════════════════════════════════════╗
-    //  STYLE HELPERS
-    // ╚══════════════════════════════════════════════════════╝
-    private static Button buildPremiumBtn(String text, String color) {
-        Button b = new Button(text);
-        b.setStyle("-fx-background-color:linear-gradient(to bottom right,"+color+","+darken(color)+");" +
-                "-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;" +
-                "-fx-background-radius:10;-fx-cursor:hand;-fx-padding:10 20;");
-        DropShadow ds = new DropShadow(); ds.setColor(Color.web(color,0.38)); ds.setOffsetY(4); ds.setRadius(12); b.setEffect(ds);
-        b.setOnMouseEntered(e -> { b.setTranslateY(-2); ds.setOffsetY(7); ds.setRadius(18); });
-        b.setOnMouseExited(e  -> { b.setTranslateY(0);  ds.setOffsetY(4); ds.setRadius(12); });
-        b.setOnMousePressed(e  -> { b.setTranslateY(1);  ds.setOffsetY(2); });
-        b.setOnMouseReleased(e -> { b.setTranslateY(-1); ds.setOffsetY(7); });
-        return b;
+    private static String qNavStyle(String borderCol, boolean dark) {
+        String bg = dark ? "#1c2333" : "#f0f1f4";
+        String txt = dark ? "#6b7b96" : "#7a8699";
+        return "-fx-background-color:" + bg + ";-fx-text-fill:" + txt + ";-fx-font-size:10.5px;-fx-font-weight:500;-fx-background-radius:5;-fx-cursor:hand;-fx-border-color:transparent;";
     }
-
-    // Flag button style — adapts to dark/light
-    private static String flagStyle(boolean active, boolean dark) {
-        if (active) return "-fx-background-color:#f59e0b22;-fx-text-fill:#f59e0b;-fx-font-weight:bold;-fx-font-size:12px;-fx-background-radius:7;-fx-padding:5 12;-fx-cursor:hand;-fx-border-color:#f59e0b;-fx-border-width:1;-fx-border-radius:7;";
-        String base = dark?"#2d3748":"#f1f5f9", txt = dark?"#94a3b8":"#64748b";
-        return "-fx-background-color:"+base+";-fx-text-fill:"+txt+";-fx-font-size:12px;-fx-background-radius:7;-fx-padding:5 12;-fx-cursor:hand;-fx-border-color:transparent;";
+    private static String qNavStyleActive(String color, boolean dark) {
+        return "-fx-background-color:" + color + ";-fx-text-fill:white;-fx-font-size:10.5px;-fx-font-weight:700;-fx-background-radius:5;-fx-cursor:hand;";
     }
-
-    // Nav button — only green (answered) and amber (flagged), otherwise plain
-    private static String qNavStyle(String color, boolean ignored, boolean dark) {
-        boolean isSpecial = color.equals("#10b981") || color.equals("#f59e0b");
-        String txtColor = isSpecial ? "white" : (dark ? "#8b949e" : "#64748b");
-        String bg = isSpecial ? color : (dark ? "#2d3748" : "#e2e8f0");
-        return "-fx-background-color:"+bg+";-fx-text-fill:"+txtColor+";-fx-font-weight:"+(isSpecial?"bold":"normal")+";-fx-font-size:11px;-fx-background-radius:6;-fx-cursor:hand;";
+    private static String flagBtnStyle(boolean active, boolean dark) {
+        if (active) return "-fx-background-color:#fef3c7;-fx-text-fill:#b45309;-fx-font-weight:700;-fx-font-size:11.5px;-fx-background-radius:5;-fx-padding:4 11;-fx-cursor:hand;-fx-border-color:#f59e0b;-fx-border-width:1;-fx-border-radius:5;";
+        String base = dark ? "#222a3c" : "#f0f1f4";
+        String txt  = dark ? "#6b7b96" : "#7a8699";
+        return "-fx-background-color:" + base + ";-fx-text-fill:" + txt + ";-fx-font-size:11.5px;-fx-background-radius:5;-fx-padding:4 11;-fx-cursor:hand;-fx-border-color:transparent;";
     }
-
-    private static VBox makeStatBox(String icon, String value, String label, String color) {
-        VBox b = new VBox(3); b.setAlignment(Pos.CENTER);
-        b.getChildren().addAll(
-                new Label(icon)  {{ setStyle("-fx-font-size:18px;"); }},
-                new Label(value) {{ setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"+color+";"); }},
-                new Label(label) {{ setStyle("-fx-font-size:10px;-fx-text-fill:"+UIUtils.textMid()+";"); }}
-        );
-        return b;
-    }
-
-    private static String darken(String hex) {
-        try { Color c=Color.web(hex); return String.format("#%02x%02x%02x",(int)(c.getRed()*195),(int)(c.getGreen()*195),(int)(c.getBlue()*195)); }
-        catch (Exception e) { return hex; }
-    }
-
     private static String formatTime(int s) {
         int h=s/3600, m=(s%3600)/60, sec=s%60;
-        return h>0?String.format("%02d:%02d:%02d",h,m,sec):String.format("%02d:%02d",m,sec);
-    }
-
-    private static void shakeNode(javafx.scene.Node node) {
-        TranslateTransition tt = new TranslateTransition(Duration.millis(55), node);
-        tt.setFromX(0); tt.setByX(10); tt.setCycleCount(6); tt.setAutoReverse(true);
-        tt.setOnFinished(e -> node.setTranslateX(0)); tt.play();
-    }
-
-    private static void animatePopupIn(javafx.scene.Node node) {
-        node.setScaleX(0.88); node.setScaleY(0.88); node.setOpacity(0);
-        ScaleTransition st = new ScaleTransition(Duration.millis(260), node);
-        st.setToX(1); st.setToY(1); st.setInterpolator(Interpolator.EASE_OUT);
-        FadeTransition ft = new FadeTransition(Duration.millis(260), node); ft.setToValue(1);
-        new ParallelTransition(st,ft).play();
+        return h>0 ? String.format("%02d:%02d:%02d",h,m,sec) : String.format("%02d:%02d",m,sec);
     }
 }

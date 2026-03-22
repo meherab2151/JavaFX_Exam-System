@@ -1,19 +1,24 @@
 package org.example.demo;
 
+import javafx.animation.*;
 import javafx.application.Application;
 import javafx.geometry.*;
 import javafx.scene.*;
 import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.*;
 import javafx.scene.shape.*;
 import javafx.stage.Stage;
+import javafx.util.Duration;
+
 import java.util.ArrayList;
 
-// ═══════════════════════════════════════════════════════════
-//  HelloApplication.java
-//  UPDATED: also loads exams from DB on startup.
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  HelloApplication.java — EduExam Entry Point
+//  Brand panel: EduExam wordmark only, no pillar descriptions
+//  Portal cards: rich SVG vector art for Student and Instructor
+// ═══════════════════════════════════════════════════════════════════
 public class HelloApplication extends Application {
 
     private static final ArrayList<Teacher> teachers = new ArrayList<>();
@@ -21,142 +26,377 @@ public class HelloApplication extends Application {
 
     @Override
     public void start(Stage stage) {
-
-        // 1. Init DB (creates file + all tables if needed)
         DatabaseManager.init();
-
-        // 2. Load persisted users
         teachers.addAll(UserDAO.loadAllTeachers());
         students.addAll(UserDAO.loadAllStudents());
-
-        // 3. Load persisted questions
         QuestionBank.allQuestions.addAll(QuestionDAO.loadAll());
-        System.out.println("[App] Loaded " + QuestionBank.allQuestions.size() + " questions from DB.");
-
-        // 4. Load persisted exams, then clean up any that were still marked live
-        //    when the app was closed (their liveEndMillis is now in the past).
-        //    Without this, the dashboard ticker fires immediately and "ends" them
-        //    in front of the teacher the moment they log in.
         ExamBank.allExams.addAll(ExamDAO.loadAll());
+
+        // Expire stale live exams
         long now = System.currentTimeMillis();
         for (Exam e : ExamBank.allExams) {
             if (e.isLive() && e.getLiveEndMillis() > 0 && now >= e.getLiveEndMillis()) {
-                e.setLive(false);
-                if (e.getScheduleDetails() == null || !e.getScheduleDetails().startsWith("Ended"))
-                    e.setScheduleDetails("Ended: " + java.time.LocalDateTime.now()
-                            .format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")));
+                e.resetToDraft();
                 ExamDAO.save(e);
-                System.out.println("[App] Cleaned up expired live exam id=" + e.getDbId());
             }
         }
 
-        // 5. Close DB cleanly on exit
         stage.setOnCloseRequest(e -> DatabaseManager.close());
-
-        stage.setTitle("EduExam – Online Assessment System");
+        stage.setTitle("EduExam — Online Assessment Platform");
         stage.setScene(createMainScene(stage));
-        stage.setResizable(false);
+        stage.setResizable(true);
         stage.show();
     }
 
     @Override
-    public void stop() {
-        DatabaseManager.close();
-    }
+    public void stop() { DatabaseManager.close(); }
 
+    // ══════════════════════════════════════════════════════════════
+    //  MAIN SCENE
+    // ══════════════════════════════════════════════════════════════
     public Scene createMainScene(Stage stage) {
         BorderPane root = new BorderPane();
 
-        VBox left = new VBox(24);
-        left.setPrefWidth(430);
-        left.setAlignment(Pos.CENTER);
-        left.setPadding(new Insets(60));
-        left.setStyle("-fx-background-color:" + UIUtils.BG_DARK + ";");
+        // ── LEFT: Brand panel — wordmark only ────────────────────
+        StackPane left = new StackPane();
+        left.setPrefWidth(400);
+        left.setStyle("-fx-background-color:#111722;");
 
-        Label logo  = new Label("🏫");
-        logo.setStyle("-fx-font-size:72px;-fx-text-fill:white;");
-        Label brand = new Label("EduExam");
-        brand.setStyle("-fx-font-size:42px;-fx-font-weight:bold;-fx-text-fill:white;");
-        Label tag   = new Label("The Smart Online Assessment Platform");
-        tag.setStyle("-fx-font-size:15px;-fx-text-fill:#64748b;-fx-text-alignment:center;");
-        tag.setWrapText(true); tag.setMaxWidth(300); tag.setAlignment(Pos.CENTER);
+        Pane gridLines = buildGridLines(400, 580);
 
-        HBox dots = new HBox(10);
-        dots.setAlignment(Pos.CENTER);
-        for (String c : new String[]{UIUtils.ACCENT_BLUE, UIUtils.ACCENT_GREEN, UIUtils.ACCENT_PURP}) {
-            Circle dot = new Circle(6, Color.web(c));
-            dots.getChildren().add(dot);
-        }
-        left.getChildren().addAll(logo, brand, tag, dots);
+        VBox brandBox = new VBox(0);
+        brandBox.setAlignment(Pos.CENTER_LEFT);
+        brandBox.setPadding(new Insets(0, 0, 0, 52));
+        StackPane.setAlignment(brandBox, Pos.CENTER_LEFT);
 
-        VBox right = new VBox(30);
+        // Teal rule
+        Region tealRule = new Region();
+        tealRule.setPrefSize(36, 3);
+        tealRule.setStyle("-fx-background-color:#0f7d74;-fx-background-radius:99;");
+        VBox.setMargin(tealRule, new Insets(0, 0, 24, 0));
+
+        // Wordmark
+        HBox wordmark = new HBox(0);
+        wordmark.setAlignment(Pos.CENTER_LEFT);
+        Label wordLeft = new Label("Edu");
+        wordLeft.setStyle(
+            "-fx-font-size:44px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;-fx-letter-spacing:-1.5px;"
+        );
+        Label wordRight = new Label("Exam");
+        wordRight.setStyle(
+            "-fx-font-size:44px;-fx-font-weight:300;-fx-text-fill:#0f7d74;-fx-letter-spacing:-1.5px;"
+        );
+        wordmark.getChildren().addAll(wordLeft, wordRight);
+        VBox.setMargin(wordmark, new Insets(0, 0, 12, 0));
+
+        Label tagline = new Label("Online Assessment Platform");
+        tagline.setStyle(
+            "-fx-font-size:13px;-fx-text-fill:#4a566e;" +
+            "-fx-font-weight:500;-fx-letter-spacing:1.4px;"
+        );
+
+        brandBox.getChildren().addAll(tealRule, wordmark, tagline);
+        left.getChildren().addAll(gridLines, brandBox);
+
+        // ── RIGHT: Portal selector ───────────────────────────────
+        VBox right = new VBox(22);
         right.setAlignment(Pos.CENTER);
-        right.setPadding(new Insets(60, 70, 60, 70));
-        right.setStyle("-fx-background-color:" + UIUtils.BG_LIGHT + ";");
+        right.setPadding(new Insets(60, 60, 60, 60));
+        right.setStyle("-fx-background-color:#fafaf8;");
 
-        Label selTitle = new Label("Choose Your Portal");
-        selTitle.setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
-        Label selSub = UIUtils.subheading("Select your role to continue");
+        VBox rightHeader = new VBox(6);
+        Label selectTitle = new Label("Select Your Portal");
+        selectTitle.setStyle(
+            "-fx-font-size:22px;-fx-font-weight:700;-fx-text-fill:#1c2333;-fx-letter-spacing:-0.3px;"
+        );
+        Label selectSub = new Label("Identify your role to access your workspace");
+        selectSub.setStyle("-fx-font-size:13px;-fx-text-fill:#6b7585;");
+        rightHeader.getChildren().addAll(selectTitle, selectSub);
 
         VBox studentCard = buildPortalCard(
-                "🎓", "Student",
-                "Join live exams and track your scores",
-                UIUtils.ACCENT_GREEN, "#052e16",
-                () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
-        );
-        VBox teacherCard = buildPortalCard(
-                "📚", "Teacher",
-                "Create exams, manage questions and results",
-                UIUtils.ACCENT_BLUE, UIUtils.BG_DARK,
-                () -> stage.setScene(TeacherPortal.createLoginScene(stage, teachers, this))
+            buildStudentArt(),
+            "Student",
+            "Sit live examinations, review results and monitor academic progress",
+            UIUtils.ACCENT_GREEN,
+            () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
         );
 
-        right.getChildren().addAll(selTitle, selSub, studentCard, teacherCard);
+        VBox teacherCard = buildPortalCard(
+            buildInstructorArt(),
+            "Instructor",
+            "Author examinations, manage the question bank and analyse outcomes",
+            UIUtils.ACCENT_BLUE,
+            () -> stage.setScene(TeacherPortal.createLoginScene(stage, teachers, this))
+        );
+
+        HBox footer = new HBox(8);
+        footer.setAlignment(Pos.CENTER_LEFT);
+        Region lockIco = UIUtils.icon(UIUtils.ICO_LOCK, "#9aa1b0", 11);
+        Label footerLbl = new Label("Secured · All examination data encrypted at rest");
+        footerLbl.setStyle("-fx-font-size:11px;-fx-text-fill:#9aa1b0;");
+        footer.getChildren().addAll(lockIco, footerLbl);
+
+        right.getChildren().addAll(rightHeader, studentCard, teacherCard, footer);
+
         root.setLeft(left);
         root.setCenter(right);
 
-        Scene scene = new Scene(root, 1000, 600);
+        Scene scene = new Scene(root, 1000, 580);
         UIUtils.applyStyle(scene);
-        UIUtils.slideIn(right, true);
+
+        right.setOpacity(0); right.setTranslateX(20);
+        PauseTransition pause = new PauseTransition(Duration.millis(60));
+        pause.setOnFinished(e -> {
+            FadeTransition ft = new FadeTransition(Duration.millis(300), right); ft.setToValue(1);
+            TranslateTransition tt = new TranslateTransition(Duration.millis(300), right);
+            tt.setToX(0); tt.setInterpolator(Interpolator.EASE_OUT);
+            new ParallelTransition(ft, tt).play();
+        });
+        pause.play();
+
         return scene;
     }
 
-    private VBox buildPortalCard(String icon, String title, String desc,
-                                 String accent, String darkBg, Runnable action) {
-        VBox card = new VBox(10);
-        card.setPrefWidth(320);
-        card.setPadding(new Insets(22));
-        card.setStyle("-fx-background-color:white;-fx-background-radius:16;"
-                + "-fx-border-color:" + UIUtils.BORDER + ";-fx-border-radius:16;-fx-cursor:hand;");
-        javafx.scene.effect.DropShadow ds = new javafx.scene.effect.DropShadow();
-        ds.setColor(Color.color(0,0,0,0.07)); ds.setRadius(14); ds.setOffsetY(4);
+    // ── Faint architectural grid lines ────────────────────────────
+    private Pane buildGridLines(double w, double h) {
+        Pane p = new Pane();
+        p.setPrefSize(w, h);
+        p.setMouseTransparent(true);
+
+        for (double x = 40; x < w; x += 80) {
+            Line l = new Line(x, 0, x, h);
+            l.setStroke(Color.web("#ffffff", 0.025));
+            l.setStrokeWidth(0.5);
+            p.getChildren().add(l);
+        }
+        for (double y = 40; y < h; y += 80) {
+            Line l = new Line(0, y, w, y);
+            l.setStroke(Color.web("#ffffff", 0.025));
+            l.setStrokeWidth(0.5);
+            p.getChildren().add(l);
+        }
+
+        Line br1h = new Line(32, 32, 64, 32);
+        Line br1v = new Line(32, 32, 32, 64);
+        br1h.setStroke(Color.web("#0f7d74", 0.55)); br1h.setStrokeWidth(1.5);
+        br1v.setStroke(Color.web("#0f7d74", 0.55)); br1v.setStrokeWidth(1.5);
+
+        Line br2h = new Line(w-32, h-32, w-64, h-32);
+        Line br2v = new Line(w-32, h-32, w-32, h-64);
+        br2h.setStroke(Color.web("#0f7d74", 0.35)); br2h.setStrokeWidth(1);
+        br2v.setStroke(Color.web("#0f7d74", 0.35)); br2v.setStrokeWidth(1);
+
+        p.getChildren().addAll(br1h, br1v, br2h, br2v);
+        return p;
+    }
+
+    // ── Student vector art — person with open book ────────────────
+    private Pane buildStudentArt() {
+        Pane art = new Pane();
+        art.setPrefSize(52, 52);
+
+        // Head
+        Circle head = new Circle(26, 12, 8);
+        head.setFill(Color.web("#0e7a56", 0.85));
+        head.setStroke(Color.web("#0e7a56")); head.setStrokeWidth(1);
+
+        // Shoulders/body (arc suggesting torso)
+        Arc shoulders = new Arc(26, 27, 12, 7, 0, 180);
+        shoulders.setType(javafx.scene.shape.ArcType.CHORD);
+        shoulders.setFill(Color.web("#0e7a56", 0.70));
+        shoulders.setStroke(Color.web("#0e7a56")); shoulders.setStrokeWidth(1);
+
+        // Open book (two pages, spread open)
+        // Left page
+        Polygon leftPage = new Polygon(
+            10.0, 42.0,  10.0, 33.0,  26.0, 35.0,  26.0, 44.0
+        );
+        leftPage.setFill(Color.web("#d1f0e8", 0.9));
+        leftPage.setStroke(Color.web("#0e7a56", 0.7)); leftPage.setStrokeWidth(1);
+
+        // Right page
+        Polygon rightPage = new Polygon(
+            26.0, 44.0,  26.0, 35.0,  42.0, 33.0,  42.0, 42.0
+        );
+        rightPage.setFill(Color.web("#b8e8d8", 0.9));
+        rightPage.setStroke(Color.web("#0e7a56", 0.7)); rightPage.setStrokeWidth(1);
+
+        // Book spine (center crease)
+        Line spine = new Line(26, 35, 26, 44);
+        spine.setStroke(Color.web("#0e7a56")); spine.setStrokeWidth(1.5);
+
+        // Lines on left page (text representation)
+        for (int i = 0; i < 3; i++) {
+            Line line = new Line(13, 36 + i*2.5, 23, 36.5 + i*2.5);
+            line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
+            art.getChildren().add(line);
+        }
+        // Lines on right page
+        for (int i = 0; i < 3; i++) {
+            Line line = new Line(29, 36 + i*2.5, 39, 36.5 + i*2.5);
+            line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
+            art.getChildren().add(line);
+        }
+
+        // Graduation cap (mortarboard)
+        // Board top (horizontal ellipse)
+        Ellipse capBoard = new Ellipse(26, 5, 10, 3);
+        capBoard.setFill(Color.web("#0e7a56"));
+
+        // Cap base
+        Rectangle capBase = new Rectangle(21, 5, 10, 4);
+        capBase.setFill(Color.web("#0e7a56", 0.8));
+
+        // Cap tassel
+        Line tassel = new Line(36, 5, 38, 10);
+        tassel.setStroke(Color.web("#0f7d74")); tassel.setStrokeWidth(1.5);
+        Circle tasselEnd = new Circle(38, 11, 2, Color.web("#0f7d74"));
+
+        art.getChildren().addAll(leftPage, rightPage, spine, shoulders, head, capBase, capBoard, tassel, tasselEnd);
+        return art;
+    }
+
+    // ── Instructor vector art — person at board with pointer ──────
+    private Pane buildInstructorArt() {
+        Pane art = new Pane();
+        art.setPrefSize(52, 52);
+
+        // Whiteboard / blackboard (background rectangle)
+        Rectangle board = new Rectangle(2, 4, 36, 26);
+        board.setFill(Color.web("#0f7d74", 0.12));
+        board.setStroke(Color.web("#0f7d74", 0.6)); board.setStrokeWidth(1.5);
+        board.setArcWidth(3); board.setArcHeight(3);
+
+        // Board stand legs
+        Line legLeft  = new Line(8, 30, 6, 36);
+        Line legRight = new Line(30, 30, 32, 36);
+        legLeft.setStroke(Color.web("#0f7d74", 0.5)); legLeft.setStrokeWidth(1.5);
+        legRight.setStroke(Color.web("#0f7d74", 0.5)); legRight.setStrokeWidth(1.5);
+
+        // Writing on board — formula lines
+        Line writeLine1 = new Line(7, 12, 22, 12);
+        writeLine1.setStroke(Color.web("#0f7d74", 0.7)); writeLine1.setStrokeWidth(1.5);
+        // Small equation marks
+        Line eqLeft  = new Line(7, 17, 12, 17);
+        Line eqRight = new Line(7, 19.5, 12, 19.5);
+        eqLeft.setStroke(Color.web("#0f7d74", 0.5)); eqLeft.setStrokeWidth(1);
+        eqRight.setStroke(Color.web("#0f7d74", 0.5)); eqRight.setStrokeWidth(1);
+        // Equals sign
+        Line eq1 = new Line(14, 16.5, 18, 16.5);
+        Line eq2 = new Line(14, 19.0, 18, 19.0);
+        eq1.setStroke(Color.web("#0f7d74", 0.5)); eq1.setStrokeWidth(1);
+        eq2.setStroke(Color.web("#0f7d74", 0.5)); eq2.setStrokeWidth(1);
+        // Result
+        Line result = new Line(20, 17, 28, 17);
+        result.setStroke(Color.web("#0f7d74", 0.6)); result.setStrokeWidth(1.2);
+
+        // Instructor person (standing to the right of board)
+        // Head
+        Circle head = new Circle(43, 14, 6);
+        head.setFill(Color.web("#0f7d74", 0.85));
+        head.setStroke(Color.web("#0f7d74")); head.setStrokeWidth(1);
+
+        // Body (rectangle)
+        Rectangle body = new Rectangle(38, 21, 10, 14);
+        body.setFill(Color.web("#0f7d74", 0.65));
+        body.setArcWidth(3); body.setArcHeight(3);
+
+        // Arm pointing at board with pointer
+        Line arm = new Line(38, 24, 32, 20);
+        arm.setStroke(Color.web("#0f7d74", 0.8)); arm.setStrokeWidth(2);
+
+        // Pointer stick
+        Line pointer = new Line(32, 20, 26, 16);
+        pointer.setStroke(Color.web("#0f7d74")); pointer.setStrokeWidth(1.5);
+        Circle pointerTip = new Circle(26, 16, 1.5, Color.web("#0f7d74"));
+
+        // Legs
+        Line legL = new Line(40, 35, 38, 46);
+        Line legR = new Line(44, 35, 46, 46);
+        legL.setStroke(Color.web("#0f7d74", 0.7)); legL.setStrokeWidth(2);
+        legR.setStroke(Color.web("#0f7d74", 0.7)); legR.setStrokeWidth(2);
+
+        // Shoes
+        Line shoeL = new Line(38, 46, 35, 47);
+        Line shoeR = new Line(46, 46, 49, 47);
+        shoeL.setStroke(Color.web("#0f7d74")); shoeL.setStrokeWidth(2);
+        shoeR.setStroke(Color.web("#0f7d74")); shoeR.setStrokeWidth(2);
+
+        // Tie (small triangle on body)
+        Polygon tie = new Polygon(43.0, 22.0, 41.5, 30.0, 44.5, 30.0);
+        tie.setFill(Color.web("#0e7a56", 0.5));
+
+        art.getChildren().addAll(
+            board, legLeft, legRight,
+            writeLine1, eqLeft, eqRight, eq1, eq2, result,
+            body, arm, pointer, pointerTip, head, tie, legL, legR, shoeL, shoeR
+        );
+        return art;
+    }
+
+    // ── Portal selection card with custom art pane ────────────────
+    private VBox buildPortalCard(Pane artPane, String title, String desc,
+                                  String accent, Runnable action) {
+        VBox card = new VBox(14);
+        card.setPrefWidth(360);
+        card.setPadding(new Insets(20, 22, 20, 22));
+        card.setStyle(
+            "-fx-background-color:#ffffff;" +
+            "-fx-background-radius:9;" +
+            "-fx-border-color:#e6e8ec;" +
+            "-fx-border-radius:9;-fx-border-width:1;" +
+            "-fx-cursor:hand;"
+        );
+        DropShadow ds = new DropShadow();
+        ds.setColor(Color.color(0,0,0,0.04)); ds.setRadius(8); ds.setOffsetY(2);
         card.setEffect(ds);
 
-        HBox top = new HBox(14); top.setAlignment(Pos.CENTER_LEFT);
-        Circle iconBg = new Circle(24, Color.web(accent + "22"));
-        Label  iconL  = new Label(icon); iconL.setStyle("-fx-font-size:22px;");
-        StackPane iconStack = new StackPane(iconBg, iconL);
+        // Art container
+        StackPane artBox = new StackPane(artPane);
+        artBox.setPrefSize(52, 52);
+        artBox.setStyle("-fx-background-color:" + accent + "10;-fx-background-radius:10;");
 
-        VBox text = new VBox(3);
-        Label t = new Label(title);
-        t.setStyle("-fx-font-size:18px;-fx-font-weight:bold;-fx-text-fill:"+UIUtils.TEXT_DARK+";");
-        Label d = new Label(desc);
-        d.setStyle("-fx-font-size:13px;-fx-text-fill:"+UIUtils.TEXT_MID+";");
-        d.setWrapText(true);
-        text.getChildren().addAll(t, d);
-        top.getChildren().addAll(iconStack, text);
+        VBox textArea = new VBox(4);
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:#1c2333;-fx-letter-spacing:-0.1px;");
+        Label descLbl = new Label(desc);
+        descLbl.setStyle("-fx-font-size:12px;-fx-text-fill:#6b7585;-fx-wrap-text:true;");
+        descLbl.setWrapText(true);
+        textArea.getChildren().addAll(titleLbl, descLbl);
 
-        Button btn = UIUtils.primaryBtn("→", "Enter " + title + " Portal", accent);
-        btn.setPrefWidth(Double.MAX_VALUE);
-        btn.setOnAction(e -> action.run());
-        card.getChildren().addAll(top, btn);
+        HBox topRow = new HBox(14, artBox, textArea);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        HBox ctaRow = new HBox(6);
+        ctaRow.setAlignment(Pos.CENTER_LEFT);
+        Label ctaLbl = new Label("Access portal");
+        ctaLbl.setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:" + accent + ";");
+        Region arrowIco = UIUtils.icon(UIUtils.ICO_CHEVRON_R, accent, 12);
+        ctaRow.getChildren().addAll(ctaLbl, arrowIco);
+
+        card.getChildren().addAll(topRow, UIUtils.divider(), ctaRow);
+        card.setOnMouseClicked(e -> action.run());
 
         card.setOnMouseEntered(e -> {
-            ds.setRadius(22); ds.setOffsetY(8); ds.setColor(Color.web(accent, 0.18));
-            card.setTranslateY(-3);
+            ds.setOffsetY(6); ds.setRadius(18); ds.setColor(Color.web(accent, 0.11));
+            card.setStyle(
+                "-fx-background-color:#ffffff;" +
+                "-fx-background-radius:9;" +
+                "-fx-border-color:" + accent + "55;" +
+                "-fx-border-radius:9;-fx-border-width:1.5;" +
+                "-fx-cursor:hand;"
+            );
+            card.setTranslateY(-2);
         });
         card.setOnMouseExited(e -> {
-            ds.setRadius(14); ds.setOffsetY(4); ds.setColor(Color.color(0,0,0,0.07));
+            ds.setOffsetY(2); ds.setRadius(8); ds.setColor(Color.color(0,0,0,0.04));
+            card.setStyle(
+                "-fx-background-color:#ffffff;" +
+                "-fx-background-radius:9;" +
+                "-fx-border-color:#e6e8ec;" +
+                "-fx-border-radius:9;-fx-border-width:1;" +
+                "-fx-cursor:hand;"
+            );
             card.setTranslateY(0);
         });
         return card;

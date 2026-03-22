@@ -10,204 +10,348 @@ import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.layout.*;
 import javafx.scene.paint.*;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.*;
 import javafx.util.Duration;
 
+// ═══════════════════════════════════════════════════════════════════
+//  UIUtils.java — EduExam Production Design System
+//
+//  Aesthetic: Clean institutional — authoritative, precise, scholarly
+//  Palette:   Charcoal (#1c2333) primary · Teal (#0f7d74) accent
+//  Icons:     SVG path geometry — zero emojis
+//  Typography: Tight tracked letterforms, controlled hierarchy
+//  Motion:    Functional, measured — 160–280ms
+//
+//  Institutional DNA: MIT + Oxford register. White space earns trust.
+//  Light mode: warm white #fafaf8. Dark: deep slate #111722.
+// ═══════════════════════════════════════════════════════════════════
 public class UIUtils {
 
-    // ── Theme state — light by default ───────────────────
+    // ── Theme state ───────────────────────────────────────────────
     public static boolean darkMode = false;
 
-    // Dynamic color getters
-    public static String bgSidebar()  { return "#0f172a"; }                        // sidebar always dark
-    public static String bgContent()  { return darkMode ? "#0d1117" : "#f8fafc"; }
-    public static String bgSurface()  { return darkMode ? "#161b22" : "#ffffff"; }
+    // ── Dynamic palette — charcoal + teal ────────────────────────
+    public static String bgContent()  { return darkMode ? "#111722" : "#fafaf8"; }
+    public static String bgSurface()  { return darkMode ? "#171d2b" : "#ffffff"; }
     public static String bgCard()     { return darkMode ? "#1c2333" : "#ffffff"; }
-    public static String bgHover()    { return darkMode ? "#21262d" : "#f1f5f9"; }
-    public static String border()     { return darkMode ? "#30363d" : "#e2e8f0"; }
-    public static String textDark()   { return darkMode ? "#e6edf3" : "#0f172a"; }
-    public static String textMid()    { return darkMode ? "#8b949e" : "#475569"; }
-    public static String textSubtle() { return darkMode ? "#6e7681" : "#94a3b8"; }
+    public static String bgSidebar()  { return "#111722"; }             // always dark
+    public static String bgHover()    { return darkMode ? "#222a3c" : "#f0f7f6"; }
+    public static String bgInput()    { return darkMode ? "#1c2333" : "#ffffff"; }
+    public static String bgMuted()    { return darkMode ? "#1a2030" : "#f5f6f7"; }
+    public static String border()     { return darkMode ? "#29334a" : "#e6e8ec"; }
+    public static String borderFocus(){ return "#0f7d74"; }
+    public static String textDark()   { return darkMode ? "#e8eaf2" : "#1c2333"; }
+    public static String textMid()    { return darkMode ? "#7e8aa0" : "#4a5568"; }
+    public static String textSubtle() { return darkMode ? "#505869" : "#9aa1b0"; }
 
-    // Static compat aliases
-    public static final String BG_DARK      = "#0f172a";
-    public static final String BG_DARK2     = "#1e293b";
-    public static final String BG_LIGHT     = "#f8fafc";
+    // ── Fixed palette constants (backward compat aliases) ─────────
+    public static final String BG_DARK      = "#111722";
+    public static final String BG_DARK2     = "#1c2333";
+    public static final String BG_LIGHT     = "#fafaf8";
+    public static final String BORDER       = "#e6e8ec";
+    public static final String TEXT_DARK    = "#1c2333";
+    public static final String TEXT_MID     = "#4a5568";
+    public static final String TEXT_SUBTLE  = "#9aa1b0";
+    public static final String TEXT_LIGHT   = "#fafaf8";
     public static final String BG_SURFACE   = "#ffffff";
-    public static final String CARD_BG      = BG_SURFACE;
-    public static final String BORDER       = "#e2e8f0";
-    public static final String BORDER_FOCUS = "#2563eb";
-    public static final String TEXT_DARK    = "#0f172a";
-    public static final String TEXT_MID     = "#475569";
-    public static final String TEXT_SUBTLE  = "#94a3b8";
-    public static final String TEXT_LIGHT   = "#f8fafc";
 
-    // Accents — same in both themes
-    public static final String ACCENT_BLUE  = "#2563eb";
-    public static final String ACCENT_GREEN = "#16a34a";
-    public static final String ACCENT_PURP  = "#7c3aed";
-    public static final String ACCENT_ORG   = "#ea580c";
-    public static final String ACCENT_RED   = "#ef4444";
-    public static final String ACCENT_YELL  = "#d97706";
+    // ── Semantic accent palette — teal-anchored ───────────────────
+    public static final String ACCENT_BLUE  = "#0f7d74";   // teal — primary
+    public static final String ACCENT_GREEN = "#0e7a56";   // forest green — success
+    public static final String ACCENT_PURP  = "#5046a0";   // slate indigo — secondary
+    public static final String ACCENT_ORG   = "#b45309";   // amber — warning
+    public static final String ACCENT_RED   = "#c0392b";   // crimson — danger
+    public static final String ACCENT_YELL  = "#8a6504";   // warm ochre
+    public static final String ACCENT_TEAL  = "#0f7d74";   // teal — info (same as primary)
 
-    // ── iOS-style theme toggle switch ─────────────────────────
-    // Track: pill shape. Thumb: circle with emoji. Animates on click.
-    // Left (☀) = Light,  Right (🌙) = Dark
-    public static StackPane themeToggleSwitch(Runnable onToggle) {
-        final double TRACK_W = 56, TRACK_H = 28, THUMB_R = 11;
-        final double THUMB_OFF = 6;   // margin from edge
-        final double X_LIGHT = THUMB_OFF + THUMB_R;          // thumb centre x when light
-        final double X_DARK  = TRACK_W - THUMB_OFF - THUMB_R; // thumb centre x when dark
-
-        // Track (pill background)
-        Rectangle track = new Rectangle(TRACK_W, TRACK_H);
-        track.setArcWidth(TRACK_H); track.setArcHeight(TRACK_H);
-        track.setFill(darkMode ? Color.web("#334155") : Color.web("#cbd5e1"));
-
-        // Thumb (circle)
-        Circle thumb = new Circle(THUMB_R);
-        thumb.setFill(Color.WHITE);
-        DropShadow ts = new DropShadow(4, Color.color(0,0,0,0.25));
-        thumb.setEffect(ts);
-
-        // Emoji label inside thumb — colored ☀ amber, 🌙 indigo
-        Label emoji = new Label(darkMode ? "🌙" : "☀");
-        emoji.setStyle("-fx-font-size:12px;-fx-text-fill:" + (darkMode ? "#818cf8" : "#f59e0b") + ";");
-
-        // Stack: track → thumb + emoji together
-        StackPane thumbStack = new StackPane(thumb, emoji);
-        thumbStack.setPrefSize(THUMB_R * 2, THUMB_R * 2);
-
-        StackPane switchNode = new StackPane(track, thumbStack);
-        switchNode.setPrefSize(TRACK_W, TRACK_H);
-        switchNode.setCursor(javafx.scene.Cursor.HAND);
-
-        // Position thumb to correct side initially
-        double initX = darkMode ? (X_DARK - TRACK_W / 2) : (X_LIGHT - TRACK_W / 2);
-        thumbStack.setTranslateX(initX);
-
-        switchNode.setOnMouseClicked(e -> {
-            darkMode = !darkMode;
-
-            // Animate thumb slide
-            double toX = darkMode ? (X_DARK - TRACK_W / 2) : (X_LIGHT - TRACK_W / 2);
-            TranslateTransition anim = new TranslateTransition(Duration.millis(200), thumbStack);
-            anim.setToX(toX);
-            anim.setInterpolator(Interpolator.EASE_BOTH);
-            anim.play();
-
-            // Swap track colour
-            FillTransition ft = new FillTransition(Duration.millis(200), track);
-            ft.setToValue(darkMode ? Color.web("#334155") : Color.web("#cbd5e1"));
-            ft.play();
-
-            // Swap emoji + color
-            emoji.setText(darkMode ? "🌙" : "☀");
-            emoji.setStyle("-fx-font-size:12px;-fx-text-fill:" + (darkMode ? "#818cf8" : "#f59e0b") + ";");
-
-            onToggle.run();
-        });
-
-        return switchNode;
+    // ── Internal helpers ──────────────────────────────────────────
+    private static String hex(Color c) {
+        return String.format("#%02x%02x%02x",
+                (int)(c.getRed()*255),(int)(c.getGreen()*255),(int)(c.getBlue()*255));
     }
 
-    // ── Typography ────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  SVG ICON LIBRARY  —  16×16 viewBox paths
+    //  Rendered as -fx-shape on a Region. Zero emojis.
+    //  Usage: UIUtils.icon(UIUtils.ICO_CHECK, "#0f7d74", 16)
+    // ══════════════════════════════════════════════════════════════
+
+    public static final String ICO_DASHBOARD = "M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z";
+    public static final String ICO_EXAM      = "M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1zm1 3h6M5 8h4M5 11h3";
+    public static final String ICO_QUESTION  = "M6 5.5A2.5 2.5 0 0111 7c0 1.5-1.5 2-2.5 2.5V11M8.5 13v.5";
+    public static final String ICO_BANK      = "M2 6l6-4 6 4v1H2zm1 2h10v6H3zm3 0v6m4-6v6";
+    public static final String ICO_HISTORY   = "M12 8A4 4 0 114 8a4 4 0 018 0zM8 6v2l1.5 1.5";
+    public static final String ICO_TROPHY    = "M5 2h6l-1 4H6zm-2 0h2M11 2h2M4 6c0 2.5 1.5 4 4 4s4-1.5 4-4M6 10v2M10 10v2M4 12h8";
+    public static final String ICO_ANNOUNCE  = "M3 7h2v4H3zM5 5l6-3v10L5 9V5zm8 1v4";
+    public static final String ICO_LOGOUT    = "M10 3h3a1 1 0 011 1v8a1 1 0 01-1 1h-3M7 10l3-2-3-2M3 8h7";
+    public static final String ICO_SETTINGS  = "M8 5a3 3 0 100 6 3 3 0 000-6zM8 2v1M8 13v1M3.22 3.22l.7.7M12.07 12.07l.7.7M2 8h1M13 8h1M3.22 12.78l.7-.7M12.07 3.93l.7-.7";
+    public static final String ICO_STUDENT   = "M8 2a3 3 0 100 6 3 3 0 000-6zM3 14c0-2.8 2.2-5 5-5s5 2.2 5 5";
+    public static final String ICO_TEACHER   = "M8 2a3 3 0 100 6 3 3 0 000-6zM3 14c0-2.8 2.2-5 5-5s5 2.2 5 5M10 7l2 2-4 4";
+    public static final String ICO_BACK      = "M10 4L6 8l4 4";
+    public static final String ICO_FORWARD   = "M6 4l4 4-4 4";
+    public static final String ICO_CLOSE     = "M4 4l8 8M12 4l-8 8";
+    public static final String ICO_CHECK     = "M3 8l4 4 6-7";
+    public static final String ICO_PLUS      = "M8 3v10M3 8h10";
+    public static final String ICO_EDIT      = "M11 3l2 2-8 8H3v-2zm1-1l1-1 2 2-1 1";
+    public static final String ICO_DELETE    = "M4 5h8M6 5V3h4v2M5 5v8a1 1 0 001 1h4a1 1 0 001-1V5";
+    public static final String ICO_SEARCH    = "M10.5 10.5l3 3M6.5 11a4.5 4.5 0 100-9 4.5 4.5 0 000 9z";
+    public static final String ICO_LIVE      = "M4.93 4.93A6 6 0 1011.07 11.07M8 8m-1.5 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0";
+    public static final String ICO_SCHEDULE  = "M4 2v2M12 2v2M2 8h12M3 4h10a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1zm4 6h2M9 10l1.5 1.5";
+    public static final String ICO_CLOCK     = "M8 2a6 6 0 100 12A6 6 0 008 2zM8 5v3l2 1.5";
+    public static final String ICO_CHART     = "M2 12l4-5 3 3 3-6 2 2";
+    public static final String ICO_COPY      = "M5 4H3a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-2M6 2h6a1 1 0 011 1v8a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z";
+    public static final String ICO_FLAG      = "M4 2v12M4 2h8l-2 4 2 4H4";
+    public static final String ICO_SEND      = "M2 12L14 8 2 4v3.5l8 .5-8 .5z";
+    public static final String ICO_KEY       = "M5.5 9.5a4 4 0 110-7 4 4 0 010 7zm5.5-4l3 3-1.5 1.5-1-1L11 8M9.5 6.5l1 1";
+    public static final String ICO_LOCK      = "M5 8V6a3 3 0 016 0v2M3 8h10a1 1 0 011 1v4a1 1 0 01-1 1H3a1 1 0 01-1-1V9a1 1 0 011-1zm5 2v2";
+    public static final String ICO_EYE       = "M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5zm7-2a2 2 0 100 4 2 2 0 000-4z";
+    public static final String ICO_FILTER    = "M2 4h12M4 8h8M6 12h4";
+    public static final String ICO_SORT      = "M2 4h8M2 8h6M2 12h4M11 6l3 3-3 3";
+    public static final String ICO_DOWNLOAD  = "M8 3v8M5 8l3 3 3-3M3 13h10";
+    public static final String ICO_UPLOAD    = "M8 11V3M5 6l3-3 3 3M3 13h10";
+    public static final String ICO_INFO      = "M8 7v4M8 5v.5M8 2a6 6 0 100 12A6 6 0 008 2z";
+    public static final String ICO_WARN      = "M8 3L1 13h14zM8 8v2M8 12v.5";
+    public static final String ICO_STAR      = "M8 2l1.8 3.6L14 6.2l-3 2.9.7 4.1L8 11l-3.7 2.2.7-4.1-3-2.9 4.2-.6z";
+    public static final String ICO_MENU      = "M3 4h10M3 8h10M3 12h10";
+    public static final String ICO_CHEVRON_D = "M4 6l4 4 4-4";
+    public static final String ICO_CHEVRON_R = "M6 4l4 4-4 4";
+    public static final String ICO_USERS     = "M5 7a3 3 0 100-6 3 3 0 000 6zm-4 7c0-2.2 1.8-4 4-4M11 7a3 3 0 100-6 3 3 0 000 6zm2 1a4 4 0 014 4";
+    public static final String ICO_ANALYTICS = "M2 12l3-5 2.5 3L11 5l3 7";
+    public static final String ICO_BADGE     = "M8 2a3 3 0 100 6 3 3 0 000-6zM5 10h6l1 4H4z";
+    public static final String ICO_DOT_FILL  = "M8 4a4 4 0 100 8 4 4 0 000-8z";
+    public static final String ICO_STOP      = "M4 4h8v8H4z";
+    public static final String ICO_GRID      = "M2 2h4v4H2zM9 2h5v4H9zM2 8h5v6H2zM9 8h5v2H9zm0 4h5v2H9z";
+    public static final String ICO_CODE      = "M5 7l-3 1 3 1M11 7l3 1-3 1M9 5l-2 6";
+
+    /**
+     * Creates a vector icon as a Region with -fx-shape.
+     */
+    public static Region icon(String svgPath, String colorHex, double size) {
+        Region r = new Region();
+        r.setPrefSize(size, size);
+        r.setMinSize(size, size);
+        r.setMaxSize(size, size);
+        r.setStyle(
+            "-fx-background-color:" + colorHex + ";" +
+            "-fx-shape:\"" + svgPath + "\";" +
+            "-fx-scale-shape:true;" +
+            "-fx-background-size:cover;"
+        );
+        return r;
+    }
+
+    /**
+     * Icon + label in a row.
+     */
+    public static HBox iconLabel(String svgPath, String colorHex, double iconSize,
+                                  String text, String textStyle) {
+        Region ic = icon(svgPath, colorHex, iconSize);
+        Label  lb = new Label(text);
+        lb.setStyle(textStyle);
+        HBox row = new HBox(8, ic, lb);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  THEME TOGGLE — minimal pill switch
+    //  Left half = Light  |  Right half = Dark
+    // ══════════════════════════════════════════════════════════════
+    public static StackPane themeToggleSwitch(Runnable onToggle) {
+        final double TW = 48, TH = 24, TR = 9;
+        final double OFF = 3.5;
+        final double X_L = OFF + TR;
+        final double X_D = TW - OFF - TR;
+
+        Rectangle track = new Rectangle(TW, TH);
+        track.setArcWidth(TH); track.setArcHeight(TH);
+        track.setFill(darkMode ? Color.web("#2a3450") : Color.web("#d1d9e0"));
+
+        Circle thumb = new Circle(TR);
+        thumb.setFill(darkMode ? Color.web("#0f7d74") : Color.WHITE);
+        DropShadow ts = new DropShadow(4, Color.color(0,0,0,0.20));
+        thumb.setEffect(ts);
+
+        // Sun/moon geometry inside thumb
+        Region modeIcon = icon(
+            darkMode ? "M8 2a6 6 0 000 12 5 5 0 010-12z" : "M8 4a4 4 0 100 8 4 4 0 000-8z",
+            darkMode ? "#ffffff" : "#b45309",
+            8
+        );
+
+        StackPane thumbStack = new StackPane(thumb, modeIcon);
+        thumbStack.setPrefSize(TR*2, TR*2);
+
+        StackPane sw = new StackPane(track, thumbStack);
+        sw.setPrefSize(TW, TH);
+        sw.setCursor(javafx.scene.Cursor.HAND);
+
+        thumbStack.setTranslateX(darkMode ? (X_D - TW/2) : (X_L - TW/2));
+
+        sw.setOnMouseClicked(e -> {
+            darkMode = !darkMode;
+            double toX = darkMode ? (X_D - TW/2) : (X_L - TW/2);
+            TranslateTransition tt = new TranslateTransition(Duration.millis(180), thumbStack);
+            tt.setToX(toX); tt.setInterpolator(Interpolator.EASE_BOTH); tt.play();
+            FillTransition ft = new FillTransition(Duration.millis(180), track);
+            ft.setToValue(darkMode ? Color.web("#2a3450") : Color.web("#d1d9e0")); ft.play();
+            thumb.setFill(darkMode ? Color.web("#0f7d74") : Color.WHITE);
+            modeIcon.setStyle(
+                "-fx-background-color:" + (darkMode ? "#ffffff" : "#b45309") + ";" +
+                "-fx-shape:\"" + (darkMode ?
+                    "M8 2a6 6 0 000 12 5 5 0 010-12z" :
+                    "M8 4a4 4 0 100 8 4 4 0 000-8z") + "\";" +
+                "-fx-scale-shape:true;"
+            );
+            onToggle.run();
+        });
+        return sw;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  TYPOGRAPHY
+    // ══════════════════════════════════════════════════════════════
     public static Label heading(String text) {
         Label l = new Label(text);
-        l.setStyle("-fx-font-size:22px;-fx-font-weight:bold;-fx-text-fill:" + textDark() + ";-fx-letter-spacing:-0.5px;");
+        l.setStyle(
+            "-fx-font-size:19px;" +
+            "-fx-font-weight:700;" +
+            "-fx-text-fill:" + textDark() + ";" +
+            "-fx-letter-spacing:-0.2px;"
+        );
         return l;
     }
 
     public static Label subheading(String text) {
         Label l = new Label(text);
-        l.setStyle("-fx-font-size:13px;-fx-text-fill:" + textMid() + ";-fx-font-weight:normal;");
+        l.setStyle(
+            "-fx-font-size:13px;" +
+            "-fx-text-fill:" + textMid() + ";" +
+            "-fx-font-weight:400;"
+        );
         return l;
     }
 
     public static Label sectionLabel(String text) {
         Label l = new Label(text.toUpperCase());
-        l.setStyle("-fx-font-size:11px;-fx-font-weight:bold;-fx-text-fill:" + textSubtle() + ";-fx-letter-spacing:0.8px;");
-        return l;
-    }
-
-    public static Label badge(String text, String color) {
-        Label l = new Label(text);
         l.setStyle(
-                "-fx-background-color:" + color + "22;" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:bold;-fx-font-size:11px;" +
-                        "-fx-padding:3 9 3 9;-fx-background-radius:6;"
+            "-fx-font-size:10px;" +
+            "-fx-font-weight:700;" +
+            "-fx-text-fill:" + textSubtle() + ";" +
+            "-fx-letter-spacing:1.5px;"
         );
         return l;
     }
 
-    // ── Card ──────────────────────────────────────────────────
+    /** Pill badge — tinted background, tight tracking */
+    public static Label badge(String text, String color) {
+        Label l = new Label(text);
+        l.setStyle(
+            "-fx-background-color:" + color + "18;" +
+            "-fx-text-fill:" + color + ";" +
+            "-fx-font-weight:600;" +
+            "-fx-font-size:10.5px;" +
+            "-fx-padding:2 8 2 8;" +
+            "-fx-background-radius:4;" +
+            "-fx-letter-spacing:0.2px;"
+        );
+        return l;
+    }
+
+    /** Status dot + label */
+    public static HBox statusDot(String label, String color) {
+        Circle dot = new Circle(4, Color.web(color));
+        DropShadow glow = new DropShadow(5, Color.web(color, 0.4));
+        dot.setEffect(glow);
+        Label lbl = new Label(label);
+        lbl.setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:" + color + ";");
+        HBox row = new HBox(6, dot, lbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  CARDS
+    // ══════════════════════════════════════════════════════════════
     public static VBox card(double width) {
         VBox c = new VBox(12);
         c.setPadding(new Insets(20));
         c.setPrefWidth(width);
         c.setStyle(
-                "-fx-background-color:" + bgCard() + ";" +
-                        "-fx-background-radius:12;" +
-                        "-fx-border-color:" + border() + ";" +
-                        "-fx-border-radius:12;-fx-border-width:1;"
+            "-fx-background-color:" + bgCard() + ";" +
+            "-fx-background-radius:8;" +
+            "-fx-border-color:" + border() + ";" +
+            "-fx-border-radius:8;-fx-border-width:1;"
         );
         DropShadow ds = new DropShadow();
-        ds.setColor(Color.color(0, 0, 0, darkMode ? 0.3 : 0.06));
-        ds.setOffsetY(2); ds.setRadius(12);
+        ds.setColor(Color.color(0,0,0, darkMode ? 0.22 : 0.04));
+        ds.setOffsetY(1); ds.setRadius(6);
         c.setEffect(ds);
-        c.setOnMouseEntered(e -> { ds.setOffsetY(6); ds.setRadius(20); ds.setColor(Color.color(0,0,0, darkMode ? 0.45 : 0.10)); c.setTranslateY(-2); });
-        c.setOnMouseExited(e  -> { ds.setOffsetY(2); ds.setRadius(12); ds.setColor(Color.color(0,0,0, darkMode ? 0.30 : 0.06)); c.setTranslateY(0); });
+        c.setOnMouseEntered(e -> {
+            ds.setOffsetY(3); ds.setRadius(12);
+            ds.setColor(Color.color(0,0,0, darkMode?0.35:0.07));
+            c.setTranslateY(-1);
+        });
+        c.setOnMouseExited(e -> {
+            ds.setOffsetY(1); ds.setRadius(6);
+            ds.setColor(Color.color(0,0,0, darkMode?0.22:0.04));
+            c.setTranslateY(0);
+        });
         return c;
     }
 
-    // ── Stat card ─────────────────────────────────────────────
-    public static VBox statCard(String icon, String value, String label, String accent) {
-        VBox c = new VBox(4);
-        c.setPadding(new Insets(0));
-        c.setPrefWidth(175);
+    /** KPI stat card — accent top strip */
+    public static VBox statCard(String svgIcon, String value, String label, String accent) {
+        VBox c = new VBox(0);
+        c.setPrefWidth(158);
         c.setStyle(
-                "-fx-background-color:" + bgCard() + ";" +
-                        "-fx-background-radius:12;" +
-                        "-fx-border-color:" + border() + ";" +
-                        "-fx-border-radius:12;-fx-border-width:1;"
+            "-fx-background-color:" + bgCard() + ";" +
+            "-fx-background-radius:8;" +
+            "-fx-border-color:" + border() + ";" +
+            "-fx-border-radius:8;-fx-border-width:1;"
         );
         DropShadow ds = new DropShadow();
-        ds.setColor(Color.color(0, 0, 0, darkMode ? 0.3 : 0.05));
-        ds.setOffsetY(2); ds.setRadius(10);
+        ds.setColor(Color.color(0,0,0, darkMode ? 0.20 : 0.035));
+        ds.setOffsetY(1); ds.setRadius(6);
         c.setEffect(ds);
 
+        // Top strip — 3px rule, teal-family
         Region strip = new Region();
-        strip.setPrefHeight(4);
-        strip.setStyle("-fx-background-color:" + accent + ";-fx-background-radius:12 12 0 0;");
+        strip.setPrefHeight(3);
+        strip.setStyle("-fx-background-color:" + accent + ";-fx-background-radius:8 8 0 0;");
 
-        VBox body = new VBox(4);
-        body.setPadding(new Insets(16, 18, 16, 18));
+        VBox body = new VBox(6);
+        body.setPadding(new Insets(13, 16, 14, 16));
         body.setAlignment(Pos.CENTER_LEFT);
-        Label ico = new Label(icon); ico.setStyle("-fx-font-size:22px;-fx-text-fill:" + textDark() + ";");
-        Label val = new Label(value); val.setStyle("-fx-font-size:26px;-fx-font-weight:bold;-fx-text-fill:" + textDark() + ";");
-        Label lbl = new Label(label); lbl.setStyle("-fx-font-size:12px;-fx-text-fill:" + textMid() + ";");
+
+        Region ico = icon(svgIcon, accent, 16);
+        Label val = new Label(value);
+        val.setStyle("-fx-font-size:24px;-fx-font-weight:700;-fx-text-fill:" + textDark() + ";-fx-letter-spacing:-0.5px;");
+        Label lbl = new Label(label);
+        lbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:500;-fx-letter-spacing:0.4px;");
         body.getChildren().addAll(ico, val, lbl);
         c.getChildren().addAll(strip, body);
-        c.setOnMouseEntered(e -> { ds.setOffsetY(5); ds.setRadius(18); c.setTranslateY(-2); });
-        c.setOnMouseExited(e  -> { ds.setOffsetY(2); ds.setRadius(10); c.setTranslateY(0);  });
+
+        c.setOnMouseEntered(e -> { ds.setOffsetY(4); ds.setRadius(12); c.setTranslateY(-1); });
+        c.setOnMouseExited(e  -> { ds.setOffsetY(1); ds.setRadius(6);  c.setTranslateY(0);  });
         return c;
     }
 
-    // ── Styled fields ─────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  FORM FIELDS
+    // ══════════════════════════════════════════════════════════════
     public static TextField styledField(String prompt) {
         TextField tf = new TextField();
         tf.setPromptText(prompt);
         tf.setStyle(
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:" + border() + ";" +
-                        "-fx-border-radius:8;-fx-background-radius:8;" +
-                        "-fx-font-size:14px;-fx-padding:10 14;" +
-                        "-fx-text-fill:" + textDark() + ";" +
-                        "-fx-prompt-text-fill:" + textSubtle() + ";"
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:" + border() + ";" +
+            "-fx-border-radius:6;-fx-background-radius:6;" +
+            "-fx-font-size:13.5px;-fx-padding:10 13;" +
+            "-fx-text-fill:" + textDark() + ";" +
+            "-fx-prompt-text-fill:" + textSubtle() + ";"
         );
-        tf.setPrefHeight(42);
+        tf.setPrefHeight(40);
         return tf;
     }
 
@@ -215,260 +359,200 @@ public class UIUtils {
         PasswordField pf = new PasswordField();
         pf.setPromptText(prompt);
         pf.setStyle(
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:" + border() + ";" +
-                        "-fx-border-radius:8;-fx-background-radius:8;" +
-                        "-fx-font-size:14px;-fx-padding:10 14;" +
-                        "-fx-text-fill:" + textDark() + ";" +
-                        "-fx-prompt-text-fill:" + textSubtle() + ";"
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:" + border() + ";" +
+            "-fx-border-radius:6;-fx-background-radius:6;" +
+            "-fx-font-size:13.5px;-fx-padding:10 13;" +
+            "-fx-text-fill:" + textDark() + ";" +
+            "-fx-prompt-text-fill:" + textSubtle() + ";"
         );
-        pf.setPrefHeight(42);
+        pf.setPrefHeight(40);
         return pf;
     }
 
-    // ── Styled TextArea ───────────────────────────────────────
     public static TextArea styledTextArea(String prompt, double prefHeight) {
         TextArea ta = new TextArea();
         ta.setPromptText(prompt);
         ta.setWrapText(true);
         ta.setPrefHeight(prefHeight);
         ta.setStyle(
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:" + border() + ";" +
-                        "-fx-border-radius:8;-fx-background-radius:8;" +
-                        "-fx-font-size:13px;" +
-                        "-fx-text-fill:" + textDark() + ";" +
-                        "-fx-prompt-text-fill:" + textSubtle() + ";" +
-                        "-fx-control-inner-background:" + bgSurface() + ";"
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:" + border() + ";" +
+            "-fx-border-radius:6;-fx-background-radius:6;" +
+            "-fx-font-size:13px;" +
+            "-fx-text-fill:" + textDark() + ";" +
+            "-fx-prompt-text-fill:" + textSubtle() + ";" +
+            "-fx-control-inner-background:" + bgInput() + ";"
         );
         return ta;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  MODERN COMBOBOX — B×C fusion
-    //  Trigger : underline-only (Style C / Material)
-    //  Popup   : frosted glass card — background set via Java
-    //            API (Color.rgb with alpha) because JavaFX CSS
-    //            does NOT support rgba() unlike context-menu.
-    //  Rows    : animated 3px left accent bar (ScaleTransition)
-    //            + text scale-up on selected (Style C effects)
-    // ═══════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
+    //  COMBO BOX — material-style underline with floating label
+    //  Glass popup, animated row accent bar
+    // ══════════════════════════════════════════════════════════════
 
-    // ── Popup / row colour constants ─────────────────────────
-    private static final Color   IND_600    = Color.web("#6366f1");
-    private static final Color   IND_400    = Color.web("#818cf8");
-    private static final Color   GREEN_CHK  = Color.web("#10b981");
-    private static final Color   POPUP_BG   = Color.rgb(248, 249, 255, 0.96);
-    private static final Color   POPUP_BDR  = Color.rgb( 99, 102, 241, 0.22);
-    private static final Color   ROW_HOV_BG = Color.rgb( 99, 102, 241, 0.08);
-    private static final Color   ROW_SEL_BG = Color.rgb( 99, 102, 241, 0.13);
-    private static final Color   ROW_TXT    = Color.web("#475569");
-    private static final Color   ROW_TXT_ON = Color.web("#1e1b4b");
-    private static final javafx.scene.layout.CornerRadii ROW_RX
-            = new javafx.scene.layout.CornerRadii(9);
+    private static final Color TEAL_600  = Color.web("#0f7d74");
+    private static final Color TEAL_400  = Color.web("#4aada5");
+    private static final Color GRN_CHK   = Color.web("#0e7a56");
+    private static final Color POPUP_BG  = Color.rgb(250, 251, 252, 0.98);
+    private static final Color POPUP_BDR = Color.rgb(15, 125, 116, 0.18);
+    private static final Color ROW_HOV   = Color.rgb(15, 125, 116, 0.07);
+    private static final Color ROW_SEL   = Color.rgb(15, 125, 116, 0.12);
+    private static final Color ROW_TXT   = Color.web("#4a5568");
+    private static final Color ROW_TXT_ON= Color.web("#1c2333");
+    private static final CornerRadii ROW_RX = new CornerRadii(5);
 
-    private static String hex(Color c) {
-        return String.format("#%02x%02x%02x",
-                (int)(c.getRed()*255),(int)(c.getGreen()*255),(int)(c.getBlue()*255));
-    }
-
-    /** Apply glass card to popup ListView. Sets transparent CSS first so Java Background wins. */
     private static void glassify(javafx.scene.control.ListView<?> lv) {
         lv.setStyle("-fx-background-color:transparent;-fx-border-color:transparent;"
-                + "-fx-background-radius:14;-fx-border-radius:14;");
-        lv.setBackground(new Background(new BackgroundFill(
-                POPUP_BG, new javafx.scene.layout.CornerRadii(14), Insets.EMPTY)));
-        lv.setBorder(new javafx.scene.layout.Border(new javafx.scene.layout.BorderStroke(
-                POPUP_BDR, javafx.scene.layout.BorderStrokeStyle.SOLID,
-                new javafx.scene.layout.CornerRadii(14),
-                new javafx.scene.layout.BorderWidths(0.8))));
+                + "-fx-background-radius:8;-fx-border-radius:8;");
+        lv.setBackground(new Background(new BackgroundFill(POPUP_BG, new CornerRadii(8), Insets.EMPTY)));
+        lv.setBorder(new Border(new BorderStroke(POPUP_BDR, BorderStrokeStyle.SOLID, new CornerRadii(8), new BorderWidths(1))));
         DropShadow ds = new DropShadow();
-        ds.setColor(Color.rgb(80, 70, 180, 0.18));
-        ds.setRadius(44); ds.setOffsetY(14); ds.setSpread(0.02);
+        ds.setColor(Color.rgb(28,35,51,0.14)); ds.setRadius(28); ds.setOffsetY(8);
         lv.setEffect(ds);
-        lv.setPadding(new Insets(5));
-        // open animation
-        lv.setOpacity(0); lv.setScaleX(0.97); lv.setScaleY(0.95);
-        FadeTransition ft = new FadeTransition(Duration.millis(180), lv); ft.setToValue(1);
-        ScaleTransition sx = new ScaleTransition(Duration.millis(180), lv);
-        sx.setToX(1); sx.setInterpolator(Interpolator.EASE_OUT);
-        ScaleTransition sy = new ScaleTransition(Duration.millis(180), lv);
-        sy.setToY(1); sy.setInterpolator(Interpolator.EASE_OUT);
+        lv.setPadding(new Insets(4));
+        lv.setOpacity(0); lv.setScaleX(0.97); lv.setScaleY(0.96);
+        FadeTransition ft = new FadeTransition(Duration.millis(150), lv); ft.setToValue(1);
+        ScaleTransition sx = new ScaleTransition(Duration.millis(150), lv); sx.setToX(1); sx.setInterpolator(Interpolator.EASE_OUT);
+        ScaleTransition sy = new ScaleTransition(Duration.millis(150), lv); sy.setToY(1); sy.setInterpolator(Interpolator.EASE_OUT);
         new ParallelTransition(ft, sx, sy).play();
     }
 
-    /** Get popup ListView from skin — works JavaFX 17+ without cast to internal class. */
     private static javafx.scene.control.ListView<?> popupLv(Skin<?> skin) {
-        try { // JavaFX 20+ public API
+        try {
             var m = skin.getClass().getMethod("getListView");
             return (javafx.scene.control.ListView<?>) m.invoke(skin);
         } catch (Exception ignored) {}
-        Class<?> c = skin.getClass();  // JavaFX 17-19 field reflection
+        Class<?> c = skin.getClass();
         while (c != null) {
             try {
                 var f = c.getDeclaredField("listView");
                 f.setAccessible(true);
                 return (javafx.scene.control.ListView<?>) f.get(skin);
             } catch (NoSuchFieldException e) { c = c.getSuperclass(); }
-            catch (Exception e)            { break; }
+            catch (Exception e) { break; }
         }
         return null;
     }
 
     public static <T> StackPane styledCombo(String floatLabel) {
         ComboBox<T> cb = new ComboBox<>();
-        cb.setPrefHeight(48);
+        cb.setPrefHeight(44);
         cb.setMaxWidth(Double.MAX_VALUE);
 
-        final String BASE_STYLE =
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:transparent transparent #6366f1 transparent;" +
-                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
-                        "-fx-font-size:14px;-fx-padding:10 12 10 12;-fx-cursor:hand;";
-        final String SELECTED_STYLE =
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:transparent transparent #6366f1 transparent;" +
-                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
-                        "-fx-font-size:14px;-fx-padding:18 12 4 12;-fx-cursor:hand;";
-        final String ERROR_STYLE =
-                "-fx-background-color:" + bgSurface() + ";" +
-                        "-fx-border-color:transparent transparent #ef4444 transparent;" +
-                        "-fx-border-width:0 0 2 0;-fx-border-radius:0;-fx-background-radius:0;" +
-                        "-fx-font-size:14px;-fx-padding:10 12 10 12;-fx-cursor:hand;";
-        cb.setStyle(BASE_STYLE);
+        final String BASE =
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:transparent transparent #0f7d74 transparent;" +
+            "-fx-border-width:0 0 1.5 0;-fx-border-radius:0;-fx-background-radius:0;" +
+            "-fx-font-size:13.5px;-fx-padding:10 12;-fx-cursor:hand;";
+        final String SELECTED =
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:transparent transparent #0f7d74 transparent;" +
+            "-fx-border-width:0 0 1.5 0;-fx-border-radius:0;-fx-background-radius:0;" +
+            "-fx-font-size:13.5px;-fx-padding:17 12 4 12;-fx-cursor:hand;";
+        final String ERROR =
+            "-fx-background-color:" + bgInput() + ";" +
+            "-fx-border-color:transparent transparent #c0392b transparent;" +
+            "-fx-border-width:0 0 1.5 0;-fx-border-radius:0;-fx-background-radius:0;" +
+            "-fx-font-size:13.5px;-fx-padding:10 12;-fx-cursor:hand;";
+        cb.setStyle(BASE);
 
         Label lbl = new Label(floatLabel);
-        lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle()
-                + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
+        lbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:400;-fx-mouse-transparent:true;");
         lbl.setMouseTransparent(true);
-        lbl.setTranslateX(14);
+        lbl.setTranslateX(13);
 
         StackPane wrapper = new StackPane(cb, lbl);
         wrapper.setAlignment(Pos.CENTER_LEFT);
         wrapper.setUserData(cb);
-        wrapper.setId(BASE_STYLE + "||" + SELECTED_STYLE + "||" + ERROR_STYLE);
+        wrapper.setId(BASE + "||" + SELECTED + "||" + ERROR);
 
         cb.valueProperty().addListener((obs, o, n) -> {
             if (n != null) {
-                TranslateTransition tt = new TranslateTransition(Duration.millis(170), lbl);
-                tt.setToY(-14); tt.setInterpolator(Interpolator.EASE_OUT); tt.play();
-                lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;"
-                        + "-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
-                cb.setStyle(SELECTED_STYLE);
+                TranslateTransition tt = new TranslateTransition(Duration.millis(150), lbl);
+                tt.setToY(-13); tt.setInterpolator(Interpolator.EASE_OUT); tt.play();
+                lbl.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:#0f7d74;-fx-mouse-transparent:true;-fx-letter-spacing:0.8px;");
+                cb.setStyle(SELECTED);
             } else {
-                TranslateTransition tt = new TranslateTransition(Duration.millis(170), lbl);
+                TranslateTransition tt = new TranslateTransition(Duration.millis(150), lbl);
                 tt.setToY(0); tt.setInterpolator(Interpolator.EASE_OUT); tt.play();
-                lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle()
-                        + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
-                cb.setStyle(BASE_STYLE);
+                lbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:400;-fx-mouse-transparent:true;");
+                cb.setStyle(BASE);
             }
         });
-
-        cb.setOnMouseEntered(e -> { if (cb.getValue()==null) cb.setStyle(BASE_STYLE.replace("#6366f1","#818cf8")); });
-        cb.setOnMouseExited(e  -> { if (cb.getValue()==null) cb.setStyle(BASE_STYLE); });
 
         javafx.application.Platform.runLater(() -> {
             if (cb.getValue() != null) {
-                lbl.setTranslateY(-14);
-                lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;"
-                        + "-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
-                cb.setStyle(SELECTED_STYLE);
+                lbl.setTranslateY(-13);
+                lbl.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:#0f7d74;-fx-mouse-transparent:true;-fx-letter-spacing:0.8px;");
+                cb.setStyle(SELECTED);
             }
         });
 
-        // ── CellFactory — Style C: left bar + text scale ─────
-        // RULES: setText(null) always. Graphic = HBox row.
-        // setBackground() via Java API — no setStyle() on cell body.
         cb.setCellFactory(lv -> new javafx.scene.control.ListCell<T>() {
-
-            private final Rectangle bar    = new Rectangle(3, 26, IND_600);
-            private final Circle    dot    = new Circle(7, GREEN_CHK);
+            private final Rectangle bar    = new Rectangle(3, 20, TEAL_600);
+            private final Circle    dot    = new Circle(6, GRN_CHK);
             private final Label     chkTxt = new Label("✓");
             private final StackPane chk    = new StackPane(dot, chkTxt);
             private final StackPane slot   = new StackPane();
             private final Label     rowLbl = new Label();
             private final HBox      row;
-
             {
-                bar.setArcWidth(3); bar.setArcHeight(3);
-                bar.setScaleY(0);   bar.setOpacity(0);
+                bar.setArcWidth(3); bar.setArcHeight(3); bar.setScaleY(0); bar.setOpacity(0);
                 chkTxt.setStyle("-fx-font-size:9px;-fx-font-weight:bold;-fx-text-fill:white;");
-                chk.setPrefSize(16,16);  chk.setMaxSize(16,16);
-                slot.setPrefSize(16,16); slot.setMaxSize(16,16);
-                rowLbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + hex(ROW_TXT) + ";");
-                Region g1 = new Region(); g1.setPrefWidth(10);
-                Region g2 = new Region(); g2.setPrefWidth(8);
+                chk.setPrefSize(14,14); chk.setMaxSize(14,14);
+                slot.setPrefSize(14,14); slot.setMaxSize(14,14);
+                rowLbl.setStyle("-fx-font-size:13px;-fx-text-fill:" + hex(ROW_TXT) + ";");
+                Region g1 = new Region(); g1.setPrefWidth(9);
+                Region g2 = new Region(); g2.setPrefWidth(7);
                 row = new HBox(0, bar, g1, slot, g2, rowLbl);
                 row.setAlignment(Pos.CENTER_LEFT);
-                row.setPadding(new Insets(9, 14, 9, 0));
-                setText(null);
-                setGraphic(row);
-                setPadding(Insets.EMPTY);
-                setBackground(Background.EMPTY);
-                setCursor(javafx.scene.Cursor.HAND);
+                row.setPadding(new Insets(8, 12, 8, 0));
+                setText(null); setGraphic(row); setPadding(Insets.EMPTY);
+                setBackground(Background.EMPTY); setCursor(javafx.scene.Cursor.HAND);
             }
-
             private void animBar(boolean show) {
-                ScaleTransition st = new ScaleTransition(Duration.millis(180), bar);
-                st.setToY(show ? 1.0 : 0.0); st.setInterpolator(Interpolator.EASE_OUT);
-                FadeTransition ft = new FadeTransition(Duration.millis(180), bar);
-                ft.setToValue(show ? 1.0 : 0.0);
+                ScaleTransition st = new ScaleTransition(Duration.millis(150), bar);
+                st.setToY(show ? 1 : 0); st.setInterpolator(Interpolator.EASE_OUT);
+                FadeTransition ft = new FadeTransition(Duration.millis(150), bar);
+                ft.setToValue(show ? 1 : 0);
                 new ParallelTransition(st, ft).play();
             }
-
-            private void animText(boolean sel) {
-                ScaleTransition st = new ScaleTransition(Duration.millis(160), rowLbl);
-                st.setToX(sel ? 1.04 : 1.0); st.setToY(sel ? 1.04 : 1.0);
-                st.setInterpolator(Interpolator.EASE_OUT); st.play();
-            }
-
             private void paint(boolean sel, boolean hov) {
-                Color bg = sel ? ROW_SEL_BG : hov ? ROW_HOV_BG : Color.TRANSPARENT;
+                Color bg = sel?ROW_SEL:hov?ROW_HOV:Color.TRANSPARENT;
                 setBackground(new Background(new BackgroundFill(bg, ROW_RX, Insets.EMPTY)));
-                Color tc = (sel || hov) ? ROW_TXT_ON : ROW_TXT;
-                rowLbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + hex(tc)
-                        + ";-fx-font-weight:" + (sel ? "bold" : "normal") + ";");
-                bar.setFill(sel ? IND_600 : IND_400);
-                slot.getChildren().setAll(sel ? chk : new Region());
+                Color tc = (sel||hov)?ROW_TXT_ON:ROW_TXT;
+                rowLbl.setStyle("-fx-font-size:13px;-fx-text-fill:"+hex(tc)+";-fx-font-weight:"+(sel?"600":"400")+";");
+                bar.setFill(sel?TEAL_600:TEAL_400);
+                slot.getChildren().setAll(sel?chk:new Region());
             }
-
             @Override protected void updateItem(T item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(null);
-                if (empty || item == null) {
-                    setGraphic(null); setBackground(Background.EMPTY); return;
-                }
+                if (empty||item==null) { setGraphic(null); setBackground(Background.EMPTY); return; }
                 rowLbl.setText(item.toString());
                 setGraphic(row);
-                boolean sel = isSelected();
-                paint(sel, false);
-                bar.setScaleY(sel ? 1.0 : 0.0); bar.setOpacity(sel ? 1.0 : 0.0);
-                rowLbl.setScaleX(sel ? 1.04 : 1.0); rowLbl.setScaleY(sel ? 1.04 : 1.0);
+                paint(isSelected(), false);
+                bar.setScaleY(isSelected()?1:0); bar.setOpacity(isSelected()?1:0);
             }
-
-            {
-                setOnMouseEntered(e -> { paint(isSelected(), true);  if (!isSelected()) animBar(true);  });
-                setOnMouseExited(e  -> { paint(isSelected(), false); if (!isSelected()) animBar(false); });
-                selectedProperty().addListener((obs, was, now) -> {
-                    paint(now, false); animBar(now); animText(now);
-                });
-            }
+            { setOnMouseEntered(e->{paint(isSelected(),true); if(!isSelected()) animBar(true);});
+              setOnMouseExited(e ->{paint(isSelected(),false);if(!isSelected()) animBar(false);});
+              selectedProperty().addListener((ob,was,now)->{paint(now,false); animBar(now);}); }
         });
 
-        // ── Glass popup — hook via skin (lookup() won't work) ─
         Runnable wire = () -> {
             Skin<?> skin = cb.getSkin();
-            if (skin == null) return;
-            javafx.scene.control.ListView<?> popupList = popupLv(skin);
-            if (popupList != null) glassify(popupList);
+            if (skin==null) return;
+            var popupList = popupLv(skin);
+            if (popupList!=null) glassify(popupList);
         };
-        cb.skinProperty().addListener((obs, o, n) -> { if (n!=null) javafx.application.Platform.runLater(wire); });
+        cb.skinProperty().addListener((obs,o,n)-> { if(n!=null) javafx.application.Platform.runLater(wire); });
         cb.setOnShowing(e -> javafx.application.Platform.runLater(wire));
-
         return wrapper;
     }
 
-    public static <T> StackPane styledCombo(String floatLabel, String ignoredPrompt) {
+    public static <T> StackPane styledCombo(String floatLabel, String ignored) {
         return styledCombo(floatLabel);
     }
 
@@ -482,511 +566,508 @@ public class UIUtils {
         String[] styles = wrapper.getId().split("\\|\\|");
         cb.setStyle(styles[2]);
         Label lbl = (Label) wrapper.getChildren().get(1);
-        if (cb.getValue() == null)
-            lbl.setStyle("-fx-font-size:14px;-fx-text-fill:#ef4444;-fx-font-weight:normal;-fx-mouse-transparent:true;");
+        if (cb.getValue()==null)
+            lbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:#c0392b;-fx-font-weight:400;-fx-mouse-transparent:true;");
     }
 
     public static void comboClear(StackPane wrapper) {
         ComboBox<?> cb = getCombo(wrapper);
         String[] styles = wrapper.getId().split("\\|\\|");
         Label lbl = (Label) wrapper.getChildren().get(1);
-        if (cb.getValue() != null) {
+        if (cb.getValue()!=null) {
             cb.setStyle(styles[1]);
-            lbl.setStyle("-fx-font-size:10px;-fx-font-weight:bold;-fx-text-fill:#6366f1;-fx-mouse-transparent:true;");
+            lbl.setStyle("-fx-font-size:9.5px;-fx-font-weight:700;-fx-text-fill:#0f7d74;-fx-mouse-transparent:true;-fx-letter-spacing:0.8px;");
         } else {
             cb.setStyle(styles[0]);
-            lbl.setStyle("-fx-font-size:14px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:normal;-fx-mouse-transparent:true;");
+            lbl.setStyle("-fx-font-size:13.5px;-fx-text-fill:" + textSubtle() + ";-fx-font-weight:400;-fx-mouse-transparent:true;");
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  MODERN MENU ITEM — Effects A + B + C, hover via CustomMenuItem
-    //
-    //  Root cause of the persistent indigo hover:
-    //  MenuItem.setGraphic() sets a CHILD node. JavaFX's MenuItemSkin
-    //  still owns and repaints the row background itself — so any
-    //  Background we set on the graphic HBox gets painted under the
-    //  skin layer and loses.
-    //
-    //  Fix — CustomMenuItem:
-    //  CustomMenuItem.setContent() replaces the skin's entire cell
-    //  node with our HBox. There is no separate skin paint layer.
-    //  setBackground() on the HBox is exactly equivalent to
-    //  setBackground() on a ComboBox ListCell — the same API that
-    //  makes the ComboBox hover work correctly.
-    //
-    //  A — Semantic chip colour + scale pop
-    //  B — Accent bar grows + text slides
-    //  C — Ring glow on chip
-    //  Text: normal at rest → bold on hover, colour = chipColor
-    //
-    //  Usage:
-    //    MenuItem edit   = UIUtils.modernMenuItem("✏️","Edit",   "#047857", false);
-    //    MenuItem delete = UIUtils.modernMenuItem("🗑️","Delete", "#ef4444", true);
-    //    MenuButton btn  = new MenuButton("Actions");
-    //    btn.getItems().addAll(edit, new SeparatorMenuItem(), delete);
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Creates a CustomMenuItem with effects A (semantic chip + scale pop),
-     * B (accent bar grows + text slide), and C (ring glow on chip).
-     * Uses CustomMenuItem.setContent() so setBackground() on the row
-     * wins over the skin — same mechanism as the ComboBox ListCell hover.
-     *
-     * @param emoji     Icon emoji e.g. "✏️"
-     * @param label     Display text
-     * @param chipColor Semantic hex colour for chip / bar / glow / hover text
-     * @param isDanger  true → red hover tint row bg, adds "danger" style class
-     */
-    public static MenuItem modernMenuItem(String emoji, String label,
-                                          String chipColor, boolean isDanger) {
-        // ── Accent colour components ──────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  MODERN MENU ITEM — vector icon chip, accent bar
+    // ══════════════════════════════════════════════════════════════
+    public static MenuItem modernMenuItem(String svgPath, String label, String chipColor, boolean isDanger) {
         Color accent = Color.web(chipColor);
-        int cr = (int)(accent.getRed()   * 255);
-        int cg = (int)(accent.getGreen() * 255);
-        int cb = (int)(accent.getBlue()  * 255);
+        int cr=(int)(accent.getRed()*255), cg=(int)(accent.getGreen()*255), cb2=(int)(accent.getBlue()*255);
 
-        // ── B — Accent bar ────────────────────────────────────
-        Rectangle bar = new Rectangle(3, 22);
+        // Handle legacy emoji input
+        if (svgPath.length() <= 2 || svgPath.codePointCount(0, svgPath.length()) <= 2)
+            svgPath = emojiToSvg(svgPath);
+
+        Rectangle bar = new Rectangle(3, 18);
         bar.setArcWidth(3); bar.setArcHeight(3);
         bar.setFill(Color.web(chipColor));
         bar.setScaleY(0); bar.setOpacity(0); bar.setVisible(false);
-        StackPane barWrap = new StackPane(bar);
-        barWrap.setPrefWidth(5); barWrap.setPrefHeight(28);
-        barWrap.setAlignment(Pos.CENTER);
+        StackPane barWrap = new StackPane(bar); barWrap.setPrefWidth(4); barWrap.setPrefHeight(24);
 
-        // ── A — Semantic chip ─────────────────────────────────
-        final String chipBgRest    = String.format(
-                "-fx-background-radius:8;-fx-background-color:rgba(%d,%d,%d,0.11);", cr, cg, cb);
-        final String chipBgHovered = String.format(
-                "-fx-background-radius:8;-fx-background-color:rgba(%d,%d,%d,0.20);", cr, cg, cb);
+        Region chipIco = icon(svgPath, chipColor, 13);
+        StackPane chip = new StackPane(chipIco);
+        chip.setPrefSize(24,24); chip.setMinSize(24,24); chip.setMaxSize(24,24);
+        chip.setStyle(String.format("-fx-background-radius:5;-fx-background-color:rgba(%d,%d,%d,0.10);",cr,cg,cb2));
 
-        Label iconLbl = new Label(emoji);
-        iconLbl.setStyle("-fx-font-size:14px;");
-        StackPane chip = new StackPane(iconLbl);
-        chip.setPrefSize(28, 28); chip.setMinSize(28, 28); chip.setMaxSize(28, 28);
-        chip.setStyle(chipBgRest);
-
-        // ── C — Ring glow ─────────────────────────────────────
-        DropShadow glow = new DropShadow();
-        glow.setColor(Color.web(chipColor, 0.0));
-        glow.setRadius(10); glow.setSpread(0);
-        glow.setOffsetX(0); glow.setOffsetY(0);
-        chip.setEffect(glow);
-
-        // ── Label ─────────────────────────────────────────────
         Label textLbl = new Label(label);
-        final String textRest = isDanger
-                ? "-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#dc2626;"
-                : "-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#374151;";
-        final String textHov  = isDanger
-                ? "-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:#dc2626;"
-                : String.format("-fx-font-size:13px;-fx-font-weight:bold;-fx-text-fill:%s;", chipColor);
-        textLbl.setStyle(textRest);
+        final String tRest = isDanger
+            ? "-fx-font-size:13px;-fx-font-weight:400;-fx-text-fill:#c0392b;"
+            : "-fx-font-size:13px;-fx-font-weight:400;-fx-text-fill:#2d3a50;";
+        final String tHov = isDanger
+            ? "-fx-font-size:13px;-fx-font-weight:600;-fx-text-fill:#c0392b;"
+            : "-fx-font-size:13px;-fx-font-weight:600;-fx-text-fill:" + chipColor + ";";
+        textLbl.setStyle(tRest);
 
-        // ── Row — this IS the cell node (CustomMenuItem.setContent) ──
-        Region spacer = new Region(); spacer.setPrefWidth(8);
-        HBox row = new HBox(0, barWrap, spacer, chip,
-                new Region() {{ setPrefWidth(10); }}, textLbl);
+        Region spacer = new Region(); spacer.setPrefWidth(7);
+        HBox row = new HBox(0, barWrap, spacer, chip, new Region(){{setPrefWidth(9);}}, textLbl);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setMaxWidth(Double.MAX_VALUE);
         row.setPadding(new Insets(7, 12, 7, 0));
 
-        // Row Background constants — same API as ComboBox ListCell.paint()
-        final javafx.scene.layout.CornerRadii RX = new javafx.scene.layout.CornerRadii(9);
+        final CornerRadii RX = new CornerRadii(5);
         final Background BG_REST  = Background.EMPTY;
         final Background BG_HOVER = isDanger
-                ? new Background(new BackgroundFill(Color.rgb(239, 68, 68, 0.08), RX, Insets.EMPTY))
-                : new Background(new BackgroundFill(Color.rgb(15,  23, 42, 0.05), RX, Insets.EMPTY));
-        row.setBackground(BG_REST);
+            ? new Background(new BackgroundFill(Color.rgb(192,57,43,0.07), RX, Insets.EMPTY))
+            : new Background(new BackgroundFill(Color.rgb(28,35,51,0.04), RX, Insets.EMPTY));
 
-        // ── Hover ON ──────────────────────────────────────────
+        DropShadow glow = new DropShadow();
+        glow.setColor(Color.web(chipColor, 0.0)); glow.setRadius(7);
+        chip.setEffect(glow);
+
+        final String finalSvgPath = svgPath;
         row.setOnMouseEntered(e -> {
-            row.setBackground(BG_HOVER);                        // row bg — no skin to fight
-            chip.setStyle(chipBgHovered);                       // A — chip brightens
-            textLbl.setStyle(textHov);                          // text bold + colour
-
-            ScaleTransition popOut = new ScaleTransition(Duration.millis(110), iconLbl);
-            popOut.setToX(1.18); popOut.setToY(1.18);
-            popOut.setInterpolator(Interpolator.EASE_OUT);
-            ScaleTransition popIn  = new ScaleTransition(Duration.millis(90),  iconLbl);
-            popIn.setToX(1.0);  popIn.setToY(1.0);
-            popIn.setInterpolator(Interpolator.EASE_IN);
-            new SequentialTransition(popOut, popIn).play();     // A — emoji pop
-
-            bar.setVisible(true);
-            bar.setOpacity(1);
-            ScaleTransition barGrow = new ScaleTransition(Duration.millis(180), bar);
-            barGrow.setToY(1); barGrow.setInterpolator(Interpolator.EASE_OUT);
-            barGrow.play();                                     // B — bar grows
-
-            TranslateTransition slide = new TranslateTransition(Duration.millis(150), textLbl);
-            slide.setToX(3); slide.setInterpolator(Interpolator.EASE_OUT);
-            slide.play();                                       // B — text slides
-
-            new Timeline(
-                    new KeyFrame(Duration.ZERO,          new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.0))),
-                    new KeyFrame(Duration.millis(180),   new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.45)))
-            ).play();                                           // C — glow fades in
+            row.setBackground(BG_HOVER);
+            chip.setStyle(String.format("-fx-background-radius:5;-fx-background-color:rgba(%d,%d,%d,0.18);",cr,cg,cb2));
+            textLbl.setStyle(tHov);
+            bar.setVisible(true); bar.setOpacity(1);
+            ScaleTransition stIn = new ScaleTransition(Duration.millis(150), bar);
+            stIn.setToY(1); stIn.setInterpolator(Interpolator.EASE_OUT); stIn.play();
+            TranslateTransition ttIn = new TranslateTransition(Duration.millis(130), textLbl);
+            ttIn.setToX(2); ttIn.play();
+            new Timeline(new KeyFrame(Duration.millis(150), new KeyValue(glow.colorProperty(), Color.web(chipColor,0.38)))).play();
         });
-
-        // ── Hover OFF ─────────────────────────────────────────
         row.setOnMouseExited(e -> {
             row.setBackground(BG_REST);
-            chip.setStyle(chipBgRest);
-            textLbl.setStyle(textRest);
-
-            ScaleTransition barShrink = new ScaleTransition(Duration.millis(140), bar);
-            barShrink.setToY(0); barShrink.setInterpolator(Interpolator.EASE_IN);
-            barShrink.setOnFinished(ev -> { bar.setOpacity(0); bar.setVisible(false); });
-            barShrink.play();
-
-            TranslateTransition slideBack = new TranslateTransition(Duration.millis(130), textLbl);
-            slideBack.setToX(0); slideBack.setInterpolator(Interpolator.EASE_IN);
-            slideBack.play();
-
-            new Timeline(
-                    new KeyFrame(Duration.ZERO,          new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.45))),
-                    new KeyFrame(Duration.millis(150),   new KeyValue(glow.colorProperty(), Color.web(chipColor, 0.0)))
-            ).play();
+            chip.setStyle(String.format("-fx-background-radius:5;-fx-background-color:rgba(%d,%d,%d,0.10);",cr,cg,cb2));
+            textLbl.setStyle(tRest);
+            ScaleTransition sg = new ScaleTransition(Duration.millis(120), bar); sg.setToY(0); sg.setInterpolator(Interpolator.EASE_IN);
+            sg.setOnFinished(ev->{bar.setOpacity(0); bar.setVisible(false);}); sg.play();
+            TranslateTransition ttOut = new TranslateTransition(Duration.millis(110), textLbl);
+            ttOut.setToX(0); ttOut.play();
+            new Timeline(new KeyFrame(Duration.millis(120), new KeyValue(glow.colorProperty(), Color.web(chipColor,0.0)))).play();
         });
 
-        // ── CustomMenuItem — row IS the cell, no skin paint layer ──
-        CustomMenuItem item = new CustomMenuItem(row, true); // hideOnClick = true
-        item.setStyle("-fx-padding:0;");                     // skin adds default padding — zero it
+        CustomMenuItem item = new CustomMenuItem(row, true);
+        item.setStyle("-fx-padding:0;");
         if (isDanger) item.getStyleClass().add("danger");
         return item;
     }
 
-    /**
-     * Convenience overload — chipColor defaults to blue for normal, red for danger.
-     */
-    public static MenuItem modernMenuItem(String emoji, String label, boolean isDanger) {
-        return modernMenuItem(emoji, label,
-                isDanger ? "#ef4444" : "#047857", isDanger);
+    private static String emojiToSvg(String emoji) {
+        return switch (emoji.trim()) {
+            case "✏️","✏" -> ICO_EDIT;
+            case "🗑️","🗑" -> ICO_DELETE;
+            case "📋"      -> ICO_EXAM;
+            case "📡"      -> ICO_LIVE;
+            case "⏹️","⏹" -> ICO_STOP;
+            case "📅"      -> ICO_SCHEDULE;
+            default        -> ICO_INFO;
+        };
     }
 
-    // ── PRIMARY button ────────────────────────────────────────
-    // Soft semantic fill: tinted background + matching border, no drop shadow.
-    // color = accent hex (e.g. ACCENT_GREEN). Text is auto-tinted from same hue.
+    // ══════════════════════════════════════════════════════════════
+    //  BUTTONS
+    // ══════════════════════════════════════════════════════════════
+
+    /** Primary filled button — teal family */
     public static Button primaryBtn(String icon, String text, String color) {
-        String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
-        Button b = new Button(label);
-
-        // Derive a soft tinted background (15% alpha of accent) and a border (35% alpha).
-        // JavaFX CSS does not support rgba() on -fx-background-color, so we use
-        // derive() which lightens toward white — same visual effect.
-        String bgNormal  = "derive(" + color + ", +72%)";
-        String bgHover   = "derive(" + color + ", +60%)";
-        String bgPressed = "derive(" + color + ", +50%)";
-
-        String normal =
-                "-fx-background-color:" + bgNormal + ";" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:500;-fx-font-size:13px;" +
-                        "-fx-background-radius:8;-fx-padding:9 18;" +
-                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
-                        "-fx-cursor:hand;";
-        String hover =
-                "-fx-background-color:" + bgHover + ";" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:500;-fx-font-size:13px;" +
-                        "-fx-background-radius:8;-fx-padding:9 18;" +
-                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
-                        "-fx-cursor:hand;";
-        String pressed =
-                "-fx-background-color:" + bgPressed + ";" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:500;-fx-font-size:13px;" +
-                        "-fx-background-radius:8;-fx-padding:9 18;" +
-                        "-fx-border-color:" + color + ";-fx-border-radius:8;-fx-border-width:1;" +
-                        "-fx-cursor:hand;";
-
-        b.setStyle(normal);
-        b.setOnMouseEntered(e  -> { b.setStyle(hover);   b.setTranslateY(-1); });
-        b.setOnMouseExited(e   -> { b.setStyle(normal);  b.setTranslateY(0);  });
-        b.setOnMousePressed(e  -> { b.setStyle(pressed); b.setTranslateY(1);  });
-        b.setOnMouseReleased(e -> { b.setStyle(hover);   b.setTranslateY(-1); });
+        Button b = new Button(text);
+        final String NORMAL =
+            "-fx-background-color:" + color + ";" +
+            "-fx-text-fill:white;" +
+            "-fx-font-weight:600;-fx-font-size:13px;" +
+            "-fx-background-radius:6;-fx-padding:9 18;" +
+            "-fx-border-color:transparent;-fx-cursor:hand;" +
+            "-fx-letter-spacing:0.1px;";
+        final String HOVER =
+            "-fx-background-color:derive(" + color + ",-8%);" +
+            "-fx-text-fill:white;" +
+            "-fx-font-weight:600;-fx-font-size:13px;" +
+            "-fx-background-radius:6;-fx-padding:9 18;" +
+            "-fx-border-color:transparent;-fx-cursor:hand;";
+        b.setStyle(NORMAL);
+        DropShadow ds = new DropShadow();
+        ds.setColor(Color.web(color, 0.25)); ds.setOffsetY(2); ds.setRadius(8);
+        b.setEffect(ds);
+        b.setOnMouseEntered(e  -> { b.setStyle(HOVER);  b.setTranslateY(-1); ds.setOffsetY(4); ds.setRadius(12); });
+        b.setOnMouseExited(e   -> { b.setStyle(NORMAL); b.setTranslateY(0);  ds.setOffsetY(2); ds.setRadius(8); });
+        b.setOnMousePressed(e  -> { b.setTranslateY(1); ds.setOffsetY(1); });
+        b.setOnMouseReleased(e -> { b.setTranslateY(-1); ds.setOffsetY(4); });
         return b;
     }
 
-    // ── GHOST button ──────────────────────────────────────────
-    // Near-invisible at rest (subtle border), soft tint on hover.
-    // Visually recedes behind primaryBtn — clearly a tertiary/cancel action.
+    /** Ghost outline button */
     public static Button ghostBtn(String icon, String text, String color) {
-        String label = (icon == null || icon.isEmpty()) ? text : icon + "  " + text;
-        Button b = new Button(label);
-        String normal =
-                "-fx-background-color:transparent;" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:500;-fx-font-size:13px;" +
-                        "-fx-border-color:derive(" + color + ",+30%);" +
-                        "-fx-border-radius:8;-fx-background-radius:8;" +
-                        "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:0.8;";
-        String hover =
-                "-fx-background-color:derive(" + color + ",+80%);" +
-                        "-fx-text-fill:" + color + ";" +
-                        "-fx-font-weight:500;-fx-font-size:13px;" +
-                        "-fx-border-color:derive(" + color + ",+30%);" +
-                        "-fx-border-radius:8;-fx-background-radius:8;" +
-                        "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:0.8;";
-        b.setStyle(normal);
-        b.setOnMouseEntered(e  -> b.setStyle(hover));
-        b.setOnMouseExited(e   -> b.setStyle(normal));
+        Button b = new Button(text);
+        final String NORMAL =
+            "-fx-background-color:transparent;" +
+            "-fx-text-fill:" + color + ";" +
+            "-fx-font-weight:500;-fx-font-size:13px;" +
+            "-fx-border-color:derive(" + color + ",+20%);" +
+            "-fx-border-radius:6;-fx-background-radius:6;" +
+            "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:1;";
+        final String HOVER =
+            "-fx-background-color:derive(" + color + ",+82%);" +
+            "-fx-text-fill:" + color + ";" +
+            "-fx-font-weight:500;-fx-font-size:13px;" +
+            "-fx-border-color:derive(" + color + ",+10%);" +
+            "-fx-border-radius:6;-fx-background-radius:6;" +
+            "-fx-padding:9 18;-fx-cursor:hand;-fx-border-width:1;";
+        b.setStyle(NORMAL);
+        b.setOnMouseEntered(e  -> b.setStyle(HOVER));
+        b.setOnMouseExited(e   -> b.setStyle(NORMAL));
         b.setOnMousePressed(e  -> b.setTranslateY(1));
         b.setOnMouseReleased(e -> b.setTranslateY(0));
         return b;
     }
 
-    // ── SIDEBAR buttons (legacy — kept for backward compat) ───
+    // ══════════════════════════════════════════════════════════════
+    //  SIDEBAR NAV ITEMS — charcoal dark, teal active accent
+    // ══════════════════════════════════════════════════════════════
+    public static StackPane modernSidebarBtn(String svgOrEmoji, String text, String accentColor) {
+        // Map emoji to SVG if needed
+        String svgPath = (svgOrEmoji.length() <= 2 || svgOrEmoji.codePointCount(0, svgOrEmoji.length()) <= 2)
+            ? emojiToSvgNav(svgOrEmoji) : svgOrEmoji;
+
+        Rectangle glass = new Rectangle(210, 40);
+        glass.setArcWidth(7); glass.setArcHeight(7);
+        glass.setFill(Color.web("#ffffff", 0.06)); glass.setOpacity(0);
+
+        Rectangle pill = new Rectangle(3, 20);
+        pill.setArcWidth(3); pill.setArcHeight(3);
+        pill.setFill(Color.web(accentColor)); pill.setOpacity(0);
+        StackPane pillWrap = new StackPane(pill); pillWrap.setPrefSize(3,40); pillWrap.setAlignment(Pos.CENTER);
+
+        Rectangle iconBg = new Rectangle(26, 26);
+        iconBg.setArcWidth(6); iconBg.setArcHeight(6);
+        iconBg.setFill(Color.web("#ffffff", 0.05));
+        Region iconNode = icon(svgPath, "#6b7b96", 13);
+        StackPane iconBox = new StackPane(iconBg, iconNode);
+        iconBox.setPrefSize(26,26);
+
+        Label textLbl = new Label(text);
+        textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#6b7b96;-fx-letter-spacing:0.1px;");
+
+        HBox row = new HBox(9, pillWrap, iconBox, textLbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(0, 10, 0, 6));
+
+        StackPane wrapper = new StackPane(glass, row);
+        wrapper.setPrefSize(210, 40);
+        wrapper.setAlignment(Pos.CENTER_LEFT);
+        wrapper.setCursor(javafx.scene.Cursor.HAND);
+        wrapper.setId(accentColor);
+
+        wrapper.setOnMouseEntered(e -> {
+            if (glass.getOpacity() < 0.5) {
+                FadeTransition ft = new FadeTransition(Duration.millis(130), glass); ft.setToValue(0.38); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#b8c2d4;");
+            }
+        });
+        wrapper.setOnMouseExited(e -> {
+            if (glass.getOpacity() < 0.8) {
+                FadeTransition ft = new FadeTransition(Duration.millis(130), glass); ft.setToValue(0); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#6b7b96;");
+            }
+        });
+        wrapper.setOnMousePressed(e  -> wrapper.setScaleX(0.97));
+        wrapper.setOnMouseReleased(e -> wrapper.setScaleX(1.0));
+        return wrapper;
+    }
+
+    private static String emojiToSvgNav(String emoji) {
+        return switch (emoji.trim()) {
+            case "🏠","🏡" -> ICO_DASHBOARD;
+            case "📝"      -> ICO_EXAM;
+            case "➕"      -> ICO_PLUS;
+            case "📚"      -> ICO_BANK;
+            case "📂"      -> ICO_HISTORY;
+            case "🏆"      -> ICO_TROPHY;
+            case "📢"      -> ICO_ANNOUNCE;
+            case "🚪"      -> ICO_LOGOUT;
+            case "🎯"      -> "M8 2a6 6 0 100 12A6 6 0 008 2zm0 3a3 3 0 100 6 3 3 0 000-6zm0 2a1 1 0 100 2 1 1 0 000-2z";
+            case "📊"      -> ICO_ANALYTICS;
+            case "📡"      -> ICO_LIVE;
+            case "📅"      -> ICO_SCHEDULE;
+            case "📈"      -> ICO_CHART;
+            case "🔑"      -> ICO_KEY;
+            default        -> ICO_MENU;
+        };
+    }
+
+    public static void modernSidebarSetActive(StackPane wrapper) {
+        String color = wrapper.getId();
+        Rectangle glass  = (Rectangle) wrapper.getChildren().get(0);
+        HBox      row    = (HBox)      wrapper.getChildren().get(1);
+        StackPane pillW  = (StackPane) row.getChildren().get(0);
+        StackPane iconBox= (StackPane) row.getChildren().get(1);
+        Label     textLbl= (Label)     row.getChildren().get(2);
+        Rectangle pill   = (Rectangle) pillW.getChildren().get(0);
+        Rectangle iconBg = (Rectangle) iconBox.getChildren().get(0);
+        Region    iconN  = (Region)    iconBox.getChildren().get(1);
+
+        FadeTransition glassIn = new FadeTransition(Duration.millis(180), glass); glassIn.setToValue(1); glassIn.play();
+        pill.setScaleY(0);
+        FadeTransition pillFadeIn = new FadeTransition(Duration.millis(180), pill); pillFadeIn.setToValue(1); pillFadeIn.play();
+        ScaleTransition pillScaleIn = new ScaleTransition(Duration.millis(180), pill);
+        pillScaleIn.setToY(1); pillScaleIn.setInterpolator(Interpolator.EASE_OUT); pillScaleIn.play();
+        iconBg.setFill(Color.web(color, 0.16));
+        // Reset icon to accent color
+        String cur = iconN.getStyle();
+        iconN.setStyle(cur.replaceAll("-fx-background-color:[^;]+;", "-fx-background-color:" + color + ";"));
+        textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + color + ";-fx-letter-spacing:0.1px;");
+
+        wrapper.setOnMouseEntered(null);
+        wrapper.setOnMouseExited(null);
+    }
+
+    public static void modernSidebarSetInactive(StackPane wrapper) {
+        String color = wrapper.getId();
+        Rectangle glass  = (Rectangle) wrapper.getChildren().get(0);
+        HBox      row    = (HBox)      wrapper.getChildren().get(1);
+        StackPane pillW  = (StackPane) row.getChildren().get(0);
+        StackPane iconBox= (StackPane) row.getChildren().get(1);
+        Label     textLbl= (Label)     row.getChildren().get(2);
+        Rectangle pill   = (Rectangle) pillW.getChildren().get(0);
+        Rectangle iconBg = (Rectangle) iconBox.getChildren().get(0);
+        Region    iconN  = (Region)    iconBox.getChildren().get(1);
+
+        FadeTransition glassOut = new FadeTransition(Duration.millis(140), glass); glassOut.setToValue(0); glassOut.play();
+        FadeTransition pillOut  = new FadeTransition(Duration.millis(140), pill);  pillOut.setToValue(0);  pillOut.play();
+        iconBg.setFill(Color.web("#ffffff", 0.05));
+        iconN.setStyle(iconN.getStyle().replaceAll("-fx-background-color:[^;]+;", "-fx-background-color:#6b7b96;"));
+        textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#6b7b96;-fx-letter-spacing:0.1px;");
+
+        wrapper.setOnMouseEntered(e -> {
+            if (glass.getOpacity() < 0.5) {
+                FadeTransition ft = new FadeTransition(Duration.millis(130), glass); ft.setToValue(0.38); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#b8c2d4;");
+            }
+        });
+        wrapper.setOnMouseExited(e -> {
+            if (glass.getOpacity() < 0.8) {
+                FadeTransition ft = new FadeTransition(Duration.millis(130), glass); ft.setToValue(0); ft.play();
+                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:500;-fx-text-fill:#6b7b96;");
+            }
+        });
+    }
+
+    // ── Legacy sidebar helpers ────────────────────────────────────
     public static void sidebarBtn(Button b, String icon, String label, String color) {
-        b.setText(icon + "   " + label);
-        String inactive =
-                "-fx-background-color:transparent;-fx-text-fill:" + TEXT_SUBTLE + ";" +
-                        "-fx-font-size:13px;-fx-font-weight:normal;" +
-                        "-fx-background-radius:8;-fx-padding:10 12 10 16;" +
-                        "-fx-cursor:hand;-fx-alignment:center-left;";
-        String hov =
-                "-fx-background-color:" + color + "14;-fx-text-fill:" + color + ";" +
-                        "-fx-font-size:13px;-fx-font-weight:bold;" +
-                        "-fx-background-radius:8;-fx-padding:10 12 10 16;" +
-                        "-fx-cursor:hand;-fx-alignment:center-left;";
+        b.setText(label);
+        String inactive = "-fx-background-color:transparent;-fx-text-fill:#6b7b96;-fx-font-size:13px;-fx-font-weight:500;-fx-background-radius:6;-fx-padding:9 12 9 14;-fx-cursor:hand;-fx-alignment:center-left;";
+        String hov = "-fx-background-color:" + color + "18;-fx-text-fill:" + color + ";-fx-font-size:13px;-fx-font-weight:600;-fx-background-radius:6;-fx-padding:9 12 9 14;-fx-cursor:hand;-fx-alignment:center-left;";
         b.setStyle(inactive);
         b.setOnMouseEntered(e -> b.setStyle(hov));
         b.setOnMouseExited(e  -> b.setStyle(inactive));
     }
 
     public static Button sidebarBtn(String icon, String label, String color) {
-        Button b = new Button(icon + "   " + label);
+        Button b = new Button(label);
         b.setMaxWidth(Double.MAX_VALUE);
         b.setAlignment(Pos.CENTER_LEFT);
         sidebarBtn(b, icon, label, color);
         return b;
     }
 
-    // ── Modern sidebar nav item ───────────────────────────────
-    public static StackPane modernSidebarBtn(String icon, String text, String accentColor) {
-        // Frosted glass hover layer
-        Rectangle glass = new Rectangle(220, 44);
-        glass.setArcWidth(10); glass.setArcHeight(10);
-        glass.setFill(Color.web("#ffffff", 0.07));
-        glass.setOpacity(0);
-
-        // Active indicator pill (left edge)
-        Rectangle pill = new Rectangle(3, 24);
-        pill.setArcWidth(3); pill.setArcHeight(3);
-        pill.setFill(Color.web(accentColor));
-        pill.setOpacity(0);
-        StackPane pillWrap = new StackPane(pill);
-        pillWrap.setPrefSize(3, 44);
-        pillWrap.setAlignment(Pos.CENTER);
-
-        // Icon box
-        Rectangle iconBg = new Rectangle(30, 30);
-        iconBg.setArcWidth(8); iconBg.setArcHeight(8);
-        iconBg.setFill(Color.web("#ffffff", 0.06));
-        Label iconLbl = new Label(icon);
-        iconLbl.setStyle("-fx-font-size:14px;-fx-text-fill:white;");
-        StackPane iconBox = new StackPane(iconBg, iconLbl);
-        iconBox.setPrefSize(30, 30);
-
-        // Text label
-        Label textLbl = new Label(text);
-        textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
-
-        HBox row = new HBox(10, pillWrap, iconBox, textLbl);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(0, 12, 0, 8));
-
-        StackPane wrapper = new StackPane(glass, row);
-        wrapper.setPrefSize(220, 44);
-        wrapper.setAlignment(Pos.CENTER_LEFT);
-        wrapper.setCursor(javafx.scene.Cursor.HAND);
-        wrapper.setId(accentColor); // store accent for set-active helpers
-
-        // Hover handlers (inactive state only — active state clears these)
-        wrapper.setOnMouseEntered(e -> {
-            if (glass.getOpacity() < 0.5) {
-                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
-                ft.setToValue(0.45); ft.play();
-                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#cbd5e1;");
-            }
-        });
-        wrapper.setOnMouseExited(e -> {
-            if (glass.getOpacity() < 0.8) {
-                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
-                ft.setToValue(0); ft.play();
-                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
-            }
-        });
-
-        // Click press micro-animation
-        wrapper.setOnMousePressed(e  -> wrapper.setScaleX(0.97));
-        wrapper.setOnMouseReleased(e -> wrapper.setScaleX(1.0));
-
-        return wrapper;
-    }
-
-    /** Animate the nav item into its active state. */
-    public static void modernSidebarSetActive(StackPane wrapper) {
-        String color = wrapper.getId();
-
-        Rectangle glass   = (Rectangle) wrapper.getChildren().get(0);
-        HBox      row     = (HBox)      wrapper.getChildren().get(1);
-        StackPane pillWrap = (StackPane) row.getChildren().get(0);
-        StackPane iconBox  = (StackPane) row.getChildren().get(1);
-        Label     textLbl  = (Label)     row.getChildren().get(2);
-        Rectangle pill     = (Rectangle) pillWrap.getChildren().get(0);
-        Rectangle iconBg   = (Rectangle) iconBox.getChildren().get(0);
-
-        // Frosted glass fade-in
-        FadeTransition glassFade = new FadeTransition(Duration.millis(200), glass);
-        glassFade.setToValue(1); glassFade.play();
-
-        // Pill slide-in (scale from 0 → 1 on Y)
-        pill.setScaleY(0);
-        FadeTransition pillFade = new FadeTransition(Duration.millis(200), pill);
-        pillFade.setToValue(1);
-        ScaleTransition pillScale = new ScaleTransition(Duration.millis(220), pill);
-        pillScale.setToY(1);
-        pillScale.setInterpolator(Interpolator.EASE_OUT);
-        new ParallelTransition(pillFade, pillScale).play();
-
-        // Icon box fill with accent color
-        iconBg.setFill(Color.web(color));
-
-        // Text bold + accent color
-        textLbl.setStyle(
-                "-fx-font-size:13px;-fx-font-weight:bold;" +
-                        "-fx-text-fill:" + color + ";"
-        );
-
-        // Hover overrides when active — keep glass at 1
-        wrapper.setOnMouseEntered(null);
-        wrapper.setOnMouseExited(null);
-    }
-
-    /** Reset a nav item back to its inactive state. */
-    public static void modernSidebarSetInactive(StackPane wrapper) {
-        String color = wrapper.getId();
-
-        Rectangle glass   = (Rectangle) wrapper.getChildren().get(0);
-        HBox      row     = (HBox)      wrapper.getChildren().get(1);
-        StackPane pillWrap = (StackPane) row.getChildren().get(0);
-        StackPane iconBox  = (StackPane) row.getChildren().get(1);
-        Label     textLbl  = (Label)     row.getChildren().get(2);
-        Rectangle pill     = (Rectangle) pillWrap.getChildren().get(0);
-        Rectangle iconBg   = (Rectangle) iconBox.getChildren().get(0);
-
-        // Glass out
-        FadeTransition glassFade = new FadeTransition(Duration.millis(150), glass);
-        glassFade.setToValue(0); glassFade.play();
-
-        // Pill out
-        FadeTransition pillFade = new FadeTransition(Duration.millis(150), pill);
-        pillFade.setToValue(0); pillFade.play();
-
-        // Icon box back to subtle tint
-        iconBg.setFill(Color.web("#ffffff", 0.06));
-
-        // Text back to subtle
-        textLbl.setStyle(
-                "-fx-font-size:13px;-fx-font-weight:normal;" +
-                        "-fx-text-fill:#94a3b8;"
-        );
-
-        // Restore hover handlers
-        wrapper.setOnMouseEntered(e -> {
-            if (glass.getOpacity() < 0.5) {
-                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
-                ft.setToValue(0.45); ft.play();
-                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#cbd5e1;");
-            }
-        });
-        wrapper.setOnMouseExited(e -> {
-            if (glass.getOpacity() < 0.8) {
-                FadeTransition ft = new FadeTransition(Duration.millis(150), glass);
-                ft.setToValue(0); ft.play();
-                textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:normal;-fx-text-fill:#94a3b8;");
-            }
-        });
-    }
-
-    // ── Divider ───────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  DIVIDER
+    // ══════════════════════════════════════════════════════════════
     public static Separator divider() {
         Separator s = new Separator();
-        s.setStyle("-fx-background-color:" + border() + ";-fx-opacity:0.7;");
+        s.setStyle("-fx-background-color:" + border() + ";-fx-opacity:0.75;");
         return s;
     }
 
-    // ── Slide + fade ──────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  ANIMATIONS
+    // ══════════════════════════════════════════════════════════════
     public static void slideIn(Node node, boolean fromRight) {
-        double from = fromRight ? 40 : -40;
+        double from = fromRight ? 28 : -28;
         node.setTranslateX(from); node.setOpacity(0);
-        TranslateTransition tt = new TranslateTransition(Duration.millis(300), node);
+        TranslateTransition tt = new TranslateTransition(Duration.millis(260), node);
         tt.setFromX(from); tt.setToX(0); tt.setInterpolator(Interpolator.EASE_OUT);
-        FadeTransition ft = new FadeTransition(Duration.millis(300), node);
+        FadeTransition ft = new FadeTransition(Duration.millis(260), node);
         ft.setFromValue(0); ft.setToValue(1);
         new ParallelTransition(tt, ft).play();
     }
 
     public static void playTransition(Pane root, boolean fwd) { slideIn(root, fwd); }
 
-    // ── Legacy helpers ────────────────────────────────────────
-    public static void applyButtonEffects(Button btn, String hoverColor) {
-        String base  = "-fx-background-color:" + bgSurface() + ";-fx-text-fill:" + textDark() + ";-fx-font-weight:bold;-fx-font-size:13px;-fx-background-radius:8;";
-        String hover = "-fx-background-color:" + hoverColor + ";-fx-text-fill:white;-fx-font-weight:bold;-fx-font-size:13px;-fx-background-radius:8;";
-        btn.setStyle(base);
-        btn.setOnMouseEntered(e -> btn.setStyle(hover));
-        btn.setOnMouseExited(e  -> btn.setStyle(base));
-    }
-
+    // ══════════════════════════════════════════════════════════════
+    //  HYPERLINK
+    // ══════════════════════════════════════════════════════════════
     public static void applyLinkEffects(Hyperlink link) {
-        link.setStyle("-fx-text-fill:" + ACCENT_BLUE + ";-fx-font-size:13px;-fx-underline:false;-fx-font-weight:bold;");
-        link.setOnMouseEntered(e -> link.setStyle("-fx-text-fill:" + ACCENT_BLUE + ";-fx-underline:true;-fx-font-size:13px;-fx-font-weight:bold;"));
-        link.setOnMouseExited(e  -> link.setStyle("-fx-text-fill:" + ACCENT_BLUE + ";-fx-underline:false;-fx-font-size:13px;-fx-font-weight:bold;"));
+        link.setStyle("-fx-text-fill:#0f7d74;-fx-font-size:13px;-fx-underline:false;-fx-font-weight:500;-fx-border-color:transparent;");
+        link.setOnMouseEntered(e -> link.setStyle("-fx-text-fill:#0a5f58;-fx-underline:true;-fx-font-size:13px;-fx-font-weight:500;-fx-border-color:transparent;"));
+        link.setOnMouseExited(e  -> link.setStyle("-fx-text-fill:#0f7d74;-fx-underline:false;-fx-font-size:13px;-fx-font-weight:500;-fx-border-color:transparent;"));
     }
 
-    // ── CSS ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  CSS APPLICATION
+    // ══════════════════════════════════════════════════════════════
     private static final String CSS = "/org/example/demo/style.css";
     public static void applyStyle(Scene scene) {
         if (UIUtils.class.getResource(CSS) != null)
             scene.getStylesheets().add(UIUtils.class.getResource(CSS).toExternalForm());
     }
 
-    // ── Toast ─────────────────────────────────────────────────
-    public enum ToastType { SUCCESS, ERROR, INFO }
+    // ══════════════════════════════════════════════════════════════
+    //  TOAST NOTIFICATION SYSTEM — glass pill from top
+    // ══════════════════════════════════════════════════════════════
+    public enum ToastType { SUCCESS, ERROR, INFO, WARN }
 
     public static void toast(Pane parent, String msg, ToastType type) {
-        String bg, icon;
-        switch (type) {
-            case SUCCESS -> { bg = ACCENT_GREEN; icon = "✅"; }
-            case ERROR   -> { bg = ACCENT_RED;   icon = "❌"; }
-            default      -> { bg = ACCENT_BLUE;  icon = "ℹ"; }
-        }
-        Label t = new Label(icon + "  " + msg);
-        t.setStyle(
-                "-fx-background-color:" + bg + ";-fx-text-fill:white;" +
-                        "-fx-font-size:13px;-fx-font-weight:bold;" +
-                        "-fx-padding:10 20;-fx-background-radius:10;"
-        );
-        DropShadow ds = new DropShadow();
-        ds.setColor(Color.color(0,0,0,0.25)); ds.setRadius(12); ds.setOffsetY(4);
-        t.setEffect(ds);
-        t.setLayoutX(20); t.setLayoutY(20); t.setOpacity(0);
-        parent.getChildren().add(t);
-        FadeTransition fi = new FadeTransition(Duration.millis(250), t); fi.setToValue(1); fi.play();
-        new Timeline(new KeyFrame(Duration.seconds(2.5), e -> {
-            FadeTransition fo = new FadeTransition(Duration.millis(350), t);
-            fo.setToValue(0);
-            fo.setOnFinished(ev -> parent.getChildren().remove(t));
-            fo.play();
-        })).play();
+        javafx.application.Platform.runLater(() -> {
+            String chipBg, chipColor, borderCol, svgPath;
+            switch (type) {
+                case SUCCESS -> { chipBg="#d1f0e8"; chipColor="#0e7a56"; borderCol="rgba(14,122,86,0.28)";  svgPath=ICO_CHECK; }
+                case ERROR   -> { chipBg="#fde8e8"; chipColor="#c0392b"; borderCol="rgba(192,57,43,0.28)";  svgPath=ICO_CLOSE; }
+                case WARN    -> { chipBg="#fef3c7"; chipColor="#b45309"; borderCol="rgba(180,83,9,0.28)";   svgPath=ICO_WARN;  }
+                default      -> { chipBg="#d5eeed"; chipColor="#0f7d74"; borderCol="rgba(15,125,116,0.28)"; svgPath=ICO_INFO;  }
+            }
+
+            Region iconR = icon(svgPath, chipColor, 12);
+            StackPane iconChip = new StackPane(iconR);
+            iconChip.setPrefSize(22,22);
+            iconChip.setStyle("-fx-background-color:" + chipBg + ";-fx-background-radius:99;");
+
+            Label msgL = new Label(msg);
+            msgL.setStyle("-fx-font-size:13px;-fx-font-weight:600;-fx-text-fill:#1c2333;-fx-letter-spacing:0.1px;");
+
+            HBox pill = new HBox(9, iconChip, msgL);
+            pill.setAlignment(Pos.CENTER_LEFT);
+            pill.setPadding(new Insets(9,16,9,12));
+            pill.setStyle(
+                "-fx-background-color:rgba(255,255,255,0.97);" +
+                "-fx-background-radius:99;" +
+                "-fx-border-color:" + borderCol + ";" +
+                "-fx-border-radius:99;-fx-border-width:1;"
+            );
+            DropShadow ds = new DropShadow();
+            ds.setColor(Color.rgb(28,35,51,0.13)); ds.setRadius(18); ds.setOffsetY(5);
+            pill.setEffect(ds);
+            pill.setId("toast"); pill.setOpacity(0); pill.setTranslateY(-32);
+
+            long existing = parent.getChildren().stream()
+                .filter(n -> n instanceof HBox && "toast".equals(n.getId())).count();
+            parent.getChildren().add(pill);
+
+            Runnable center = () -> {
+                double pw = pill.getWidth() > 0 ? pill.getWidth() : 280;
+                pill.setLayoutX((parent.getWidth() - pw) / 2.0);
+                pill.setLayoutY(14 + existing * 50);
+            };
+            javafx.application.Platform.runLater(center);
+            parent.widthProperty().addListener((ob,ov,nv)->center.run());
+            pill.widthProperty().addListener((ob,ov,nv)->center.run());
+
+            FadeTransition fi = new FadeTransition(Duration.millis(190), pill); fi.setToValue(1);
+            TranslateTransition ti = new TranslateTransition(Duration.millis(190), pill);
+            ti.setToY(0); ti.setInterpolator(Interpolator.EASE_OUT);
+            new ParallelTransition(fi,ti).play();
+
+            PauseTransition pause = new PauseTransition(Duration.seconds(3));
+            pause.setOnFinished(ev -> {
+                FadeTransition fo = new FadeTransition(Duration.millis(200), pill); fo.setToValue(0);
+                TranslateTransition to2 = new TranslateTransition(Duration.millis(200), pill);
+                to2.setToY(-24); to2.setInterpolator(Interpolator.EASE_IN);
+                ParallelTransition out = new ParallelTransition(fo,to2);
+                out.setOnFinished(e2 -> parent.getChildren().remove(pill));
+                out.play();
+            });
+            pause.play();
+        });
     }
 
     public static class Toast {
         public static void success(Pane p, String msg) { toast(p, msg, ToastType.SUCCESS); }
         public static void error(Pane p, String msg)   { toast(p, msg, ToastType.ERROR);   }
         public static void info(Pane p, String msg)    { toast(p, msg, ToastType.INFO);    }
+        public static void warn(Pane p, String msg)    { toast(p, msg, ToastType.WARN);    }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  BOTTOM TOAST — rises from bottom center, used for per-answer
+    //  submission confirmations inside the exam window.
+    //  Shorter duration (2s), smaller pill, teal accent only.
+    // ══════════════════════════════════════════════════════════════
+    public static void bottomToast(Pane parent, String msg) {
+        javafx.application.Platform.runLater(() -> {
+            Region iconR = icon(ICO_CHECK, "#0e7a56", 11);
+            StackPane iconChip = new StackPane(iconR);
+            iconChip.setPrefSize(20, 20);
+            iconChip.setStyle("-fx-background-color:#d1f0e8;-fx-background-radius:99;");
+
+            Label msgL = new Label(msg);
+            msgL.setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:#1c2333;-fx-letter-spacing:0.1px;");
+
+            HBox pill = new HBox(8, iconChip, msgL);
+            pill.setAlignment(Pos.CENTER_LEFT);
+            pill.setPadding(new Insets(7, 14, 7, 10));
+            pill.setStyle(
+                "-fx-background-color:rgba(255,255,255,0.97);" +
+                "-fx-background-radius:99;" +
+                "-fx-border-color:rgba(14,122,86,0.30);" +
+                "-fx-border-radius:99;-fx-border-width:1;"
+            );
+            DropShadow ds = new DropShadow();
+            ds.setColor(Color.rgb(14, 122, 86, 0.18)); ds.setRadius(14); ds.setOffsetY(-3);
+            pill.setEffect(ds);
+            pill.setId("bottom-toast");
+            pill.setOpacity(0);
+
+            // Remove any existing bottom toasts to avoid stacking
+            parent.getChildren().removeIf(n -> n instanceof HBox && "bottom-toast".equals(n.getId()));
+            parent.getChildren().add(pill);
+
+            // Position: horizontally centered, 24px above bottom
+            Runnable position = () -> {
+                double pw = pill.getWidth() > 0 ? pill.getWidth() : 240;
+                double ph = pill.getHeight() > 0 ? pill.getHeight() : 36;
+                pill.setLayoutX((parent.getWidth() - pw) / 2.0);
+                pill.setLayoutY(parent.getHeight() - ph - 24);
+                pill.setTranslateY(20); // start below, animate up
+            };
+            javafx.application.Platform.runLater(position);
+            parent.widthProperty().addListener((ob,ov,nv) -> position.run());
+            parent.heightProperty().addListener((ob,ov,nv) -> position.run());
+            pill.widthProperty().addListener((ob,ov,nv) -> position.run());
+
+            // Animate in: fade + slide up
+            FadeTransition fi = new FadeTransition(Duration.millis(180), pill); fi.setToValue(1);
+            TranslateTransition ti = new TranslateTransition(Duration.millis(180), pill);
+            ti.setToY(0); ti.setInterpolator(Interpolator.EASE_OUT);
+            new ParallelTransition(fi, ti).play();
+
+            // Auto dismiss after 2s
+            PauseTransition pause = new PauseTransition(Duration.seconds(2));
+            pause.setOnFinished(ev -> {
+                FadeTransition fo = new FadeTransition(Duration.millis(180), pill); fo.setToValue(0);
+                TranslateTransition to2 = new TranslateTransition(Duration.millis(180), pill);
+                to2.setToY(16); to2.setInterpolator(Interpolator.EASE_IN);
+                ParallelTransition out = new ParallelTransition(fo, to2);
+                out.setOnFinished(e2 -> parent.getChildren().remove(pill));
+                out.play();
+            });
+            pause.play();
+        });
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  LEGACY COMPAT
+    // ══════════════════════════════════════════════════════════════
+    public static void applyButtonEffects(Button btn, String hoverColor) {
+        String base  = "-fx-background-color:" + bgSurface() + ";-fx-text-fill:" + textDark() + ";-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;";
+        String hover = "-fx-background-color:" + hoverColor + ";-fx-text-fill:white;-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;";
+        btn.setStyle(base);
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e  -> btn.setStyle(base));
     }
 }

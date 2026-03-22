@@ -5,11 +5,8 @@ import java.util.HashMap;
 
 // ═══════════════════════════════════════════════════════════
 //  MODELS.java  –  All data-model classes in one place
-//  Contains: Question (MCQ, TextQuestion, RangeQuestion),
-//            Exam, Teacher, Student, QuestionBank, ExamBank
 // ═══════════════════════════════════════════════════════════
 
-// ─── Abstract base question ───────────────────────────────
 abstract class Question {
     protected int dbId = -1;
     protected String subject;
@@ -29,11 +26,9 @@ abstract class Question {
     public void setDbId(int id) { this.dbId = id; }
 }
 
-// ─── MCQ ─────────────────────────────────────────────────
 class MCQ extends Question {
     private String[] options;
     private int correctIndex;
-
     public MCQ(String subject, int grade, String text, String[] options, int correctIndex) {
         super(subject, grade, text);
         this.options = options;
@@ -45,10 +40,8 @@ class MCQ extends Question {
     public void     setCorrectIndex(int i)  { this.correctIndex = i; }
 }
 
-// ─── Text / Exact-answer question ────────────────────────
 class TextQuestion extends Question {
     private double answer;
-
     public TextQuestion(String subject, int grade, String text, double answer) {
         super(subject, grade, text);
         this.answer = answer;
@@ -57,10 +50,8 @@ class TextQuestion extends Question {
     public void   setAnswer(double a){ this.answer = a; }
 }
 
-// ─── Range-answer question ────────────────────────────────
 class RangeQuestion extends Question {
     private double min, max;
-
     public RangeQuestion(String subject, int grade, String text, double min, double max) {
         super(subject, grade, text);
         this.min = min;
@@ -81,21 +72,16 @@ class Exam {
     private String  duration;
     private HashMap<Question, Double> questions;
 
-    // Meta
     private String  title           = "";
     private String  description     = "";
-    private String  questionsText   = "";   // raw text from uploaded .txt file
+    private String  questionsText   = "";
 
-    // State
     private String  examCode        = "";
     private boolean isLive          = false;
     private String  liveWindow      = "";
     private String  scheduleDetails = "";
 
-    // Live countdown – absolute epoch millis when exam window ends
-    private long    liveEndMillis      = 0;
-
-    // Auto-schedule: epoch millis for when exam should auto-start and auto-end
+    private long    liveEndMillis        = 0;
     private long    scheduledStartMillis = 0;
     private long    scheduledEndMillis   = 0;
 
@@ -108,7 +94,6 @@ class Exam {
         this.questions  = questions;
     }
 
-    // ── Core getters/setters ─────────────────────────────
     public String  getSubject()                { return subject; }
     public int     getGrade()                  { return grade; }
     public double  getTotalMarks()             { return totalMarks; }
@@ -126,7 +111,6 @@ class Exam {
     public int  getDbId()       { return dbId; }
     public void setDbId(int id) { this.dbId = id; }
 
-    // ── New meta getters/setters ─────────────────────────
     public String  getTitle()                  { return title; }
     public void    setTitle(String t)          { this.title = t; }
     public String  getDescription()            { return description; }
@@ -134,22 +118,28 @@ class Exam {
     public String  getQuestionsText()          { return questionsText; }
     public void    setQuestionsText(String q)  { this.questionsText = q; }
 
-    // ── Live countdown ───────────────────────────────────
     public long    getLiveEndMillis()           { return liveEndMillis; }
     public void    setLiveEndMillis(long ms)    { this.liveEndMillis = ms; }
 
-    // ── Auto-schedule ────────────────────────────────────
-    public long    getScheduledStartMillis()              { return scheduledStartMillis; }
-    public void    setScheduledStartMillis(long ms)       { this.scheduledStartMillis = ms; }
-    public long    getScheduledEndMillis()                { return scheduledEndMillis; }
-    public void    setScheduledEndMillis(long ms)         { this.scheduledEndMillis = ms; }
+    public long    getScheduledStartMillis()        { return scheduledStartMillis; }
+    public void    setScheduledStartMillis(long ms) { this.scheduledStartMillis = ms; }
+    public long    getScheduledEndMillis()          { return scheduledEndMillis; }
+    public void    setScheduledEndMillis(long ms)   { this.scheduledEndMillis = ms; }
 
-    /** True if this exam has a future auto-start scheduled. */
+    /** Exam has a future scheduled start and is not yet live */
+    public boolean isScheduled() {
+        return !isLive && scheduledStartMillis > 0;
+    }
+
+    /** Exam is in draft/all-exams state: not live, no schedule, no code */
+    public boolean isDraft() {
+        return !isLive && scheduledStartMillis == 0;
+    }
+
     public boolean hasAutoSchedule() {
         return scheduledStartMillis > 0 && scheduledStartMillis > System.currentTimeMillis();
     }
 
-    /** Formatted countdown to scheduled start HH:MM:SS, or "" if not scheduled. */
     public String getStartCountdownFormatted() {
         if (scheduledStartMillis <= 0) return "";
         long rem = scheduledStartMillis - System.currentTimeMillis();
@@ -159,10 +149,6 @@ class Exam {
         return String.format("%02d:%02d:%02d", h, m, s);
     }
 
-    /** Remaining millis in live window.
-     *  Returns 0 if not live.
-     *  Returns Long.MAX_VALUE if live but liveEndMillis is 0 (no end time set — never auto-expire).
-     *  Returns actual remaining millis (≥ 0) when a real end time exists. */
     public long getRemainingMillis() {
         if (!isLive) return 0;
         if (liveEndMillis == 0) return Long.MAX_VALUE;
@@ -170,13 +156,10 @@ class Exam {
         return Math.max(rem, 0);
     }
 
-    /** True only when the exam is live AND a real end time was set AND that time has passed.
-     *  Safe to use in the countdown ticker — never fires on an unset liveEndMillis. */
     public boolean isExpired() {
         return isLive && liveEndMillis > 0 && System.currentTimeMillis() >= liveEndMillis;
     }
 
-    /** Formatted remaining time string HH:MM:SS, or "--:--:--" if no end time set. */
     public String getRemainingFormatted() {
         long ms = getRemainingMillis();
         if (ms == Long.MAX_VALUE) return "--:--:--";
@@ -187,18 +170,27 @@ class Exam {
         return String.format("%02d:%02d:%02d", h, m, s);
     }
 
+    /** Always generates a brand new random code — every launch/schedule gets a fresh code */
     public void generateCode() {
-        if (examCode == null || examCode.isEmpty()) {
-            String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            StringBuilder sb = new StringBuilder();
-            java.util.Random rnd = new java.util.Random();
-            for (int i = 0; i < 6; i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
-            examCode = sb.toString();
-        }
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder();
+        java.util.Random rnd = new java.util.Random();
+        for (int i = 0; i < 6; i++) sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        examCode = sb.toString();
+    }
+
+    /** Reset exam to draft state after it ends — clears code and schedule */
+    public void resetToDraft() {
+        isLive = false;
+        liveWindow = "";
+        scheduleDetails = "";
+        liveEndMillis = 0;
+        scheduledStartMillis = 0;
+        scheduledEndMillis = 0;
+        examCode = "";
     }
 }
 
-// ─── Teacher ──────────────────────────────────────────────
 class Teacher {
     private String fullName, email, password;
     public Teacher(String fullName, String email, String password) {
@@ -209,7 +201,6 @@ class Teacher {
     public String getPassword(){ return password; }
 }
 
-// ─── Student ──────────────────────────────────────────────
 class Student {
     private String studentID, name, email, password;
     public Student(String studentID, String name, String email, String password) {
@@ -222,7 +213,6 @@ class Student {
     public String getPassword(){ return password; }
 }
 
-// ─── Shared static banks ─────────────────────────────────
 class QuestionBank {
     public static ArrayList<Question> allQuestions = new ArrayList<>();
 }
@@ -235,13 +225,25 @@ class ExamBank {
         for (Exam e : allExams) if (e.isLive()) live.add(e);
         return live;
     }
+
+    public static ArrayList<Exam> getScheduledExams() {
+        ArrayList<Exam> scheduled = new ArrayList<>();
+        for (Exam e : allExams) if (e.isScheduled()) scheduled.add(e);
+        return scheduled;
+    }
+
+    public static ArrayList<Exam> getDraftExams() {
+        ArrayList<Exam> drafts = new ArrayList<>();
+        for (Exam e : allExams) if (e.isDraft()) drafts.add(e);
+        return drafts;
+    }
 }
 
-// ─── ExamResult ───────────────────────────────────────────
 class ExamResult {
     public int    id;
     public String studentId;
     public int    examId;
+    public String examCode;   // which code version was used — retake allowed with new code
     public String examTitle;
     public String examSubject;
     public int    examGrade;
@@ -249,20 +251,17 @@ class ExamResult {
     public double totalMarks;
     public int    correct;
     public int    totalQ;
-    public long   takenAt; // epoch millis
+    public long   takenAt;
 
-    /** Percentage 0‑100 */
     public double pct() {
         return totalMarks > 0 ? (score / totalMarks) * 100 : 0;
     }
 
-    /** Letter grade */
     public String grade() {
         double p = pct();
         return p >= 80 ? "A" : p >= 65 ? "B" : p >= 50 ? "C" : p >= 35 ? "D" : "F";
     }
 
-    /** Human-readable date */
     public String dateStr() {
         java.time.LocalDate d = java.time.Instant.ofEpochMilli(takenAt)
                 .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
@@ -270,14 +269,13 @@ class ExamResult {
     }
 }
 
-// ─── Announcement ─────────────────────────────────────────
 class Announcement {
     public int    id;
     public String title;
     public String body;
     public String color = "#2563eb";
     public long   createdAt;
-    public long   expireAt = 0; // 0 = never expires
+    public long   expireAt = 0;
 
     public Announcement() {}
     public Announcement(String title, String body, String color) {
