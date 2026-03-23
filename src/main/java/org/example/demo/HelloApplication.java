@@ -144,6 +144,17 @@ public class HelloApplication extends Application {
         Scene scene = new Scene(root, 1000, 580);
         UIUtils.applyStyle(scene);
 
+        // ── Restore stage size when returning from a portal login ─
+        // Portal logins resize the Stage to 820×560 via Platform.runLater.
+        // Calling stage.setScene() alone does NOT resize the Stage to match
+        // the new Scene's preferred size — we must do it explicitly here,
+        // using the same pattern the login scenes already use.
+        javafx.application.Platform.runLater(() -> {
+            stage.setWidth(1000);
+            stage.setHeight(580);
+            stage.centerOnScreen();
+        });
+
         right.setOpacity(0); right.setTranslateX(20);
         PauseTransition pause = new PauseTransition(Duration.millis(60));
         pause.setOnFinished(e -> {
@@ -207,47 +218,38 @@ public class HelloApplication extends Application {
         shoulders.setStroke(Color.web("#0e7a56")); shoulders.setStrokeWidth(1);
 
         // Open book (two pages, spread open)
-        // Left page
         Polygon leftPage = new Polygon(
             10.0, 42.0,  10.0, 33.0,  26.0, 35.0,  26.0, 44.0
         );
         leftPage.setFill(Color.web("#d1f0e8", 0.9));
         leftPage.setStroke(Color.web("#0e7a56", 0.7)); leftPage.setStrokeWidth(1);
 
-        // Right page
         Polygon rightPage = new Polygon(
             26.0, 44.0,  26.0, 35.0,  42.0, 33.0,  42.0, 42.0
         );
         rightPage.setFill(Color.web("#b8e8d8", 0.9));
         rightPage.setStroke(Color.web("#0e7a56", 0.7)); rightPage.setStrokeWidth(1);
 
-        // Book spine (center crease)
         Line spine = new Line(26, 35, 26, 44);
         spine.setStroke(Color.web("#0e7a56")); spine.setStrokeWidth(1.5);
 
-        // Lines on left page (text representation)
         for (int i = 0; i < 3; i++) {
             Line line = new Line(13, 36 + i*2.5, 23, 36.5 + i*2.5);
             line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
             art.getChildren().add(line);
         }
-        // Lines on right page
         for (int i = 0; i < 3; i++) {
             Line line = new Line(29, 36 + i*2.5, 39, 36.5 + i*2.5);
             line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
             art.getChildren().add(line);
         }
 
-        // Graduation cap (mortarboard)
-        // Board top (horizontal ellipse)
         Ellipse capBoard = new Ellipse(26, 5, 10, 3);
         capBoard.setFill(Color.web("#0e7a56"));
 
-        // Cap base
         Rectangle capBase = new Rectangle(21, 5, 10, 4);
         capBase.setFill(Color.web("#0e7a56", 0.8));
 
-        // Cap tassel
         Line tassel = new Line(36, 5, 38, 10);
         tassel.setStroke(Color.web("#0f7d74")); tassel.setStrokeWidth(1.5);
         Circle tasselEnd = new Circle(38, 11, 2, Color.web("#0f7d74"));
@@ -261,68 +263,57 @@ public class HelloApplication extends Application {
         Pane art = new Pane();
         art.setPrefSize(52, 52);
 
-        // Whiteboard / blackboard (background rectangle)
         Rectangle board = new Rectangle(2, 4, 36, 26);
         board.setFill(Color.web("#0f7d74", 0.12));
         board.setStroke(Color.web("#0f7d74", 0.6)); board.setStrokeWidth(1.5);
         board.setArcWidth(3); board.setArcHeight(3);
 
-        // Board stand legs
         Line legLeft  = new Line(8, 30, 6, 36);
         Line legRight = new Line(30, 30, 32, 36);
         legLeft.setStroke(Color.web("#0f7d74", 0.5)); legLeft.setStrokeWidth(1.5);
         legRight.setStroke(Color.web("#0f7d74", 0.5)); legRight.setStrokeWidth(1.5);
 
-        // Writing on board — formula lines
         Line writeLine1 = new Line(7, 12, 22, 12);
         writeLine1.setStroke(Color.web("#0f7d74", 0.7)); writeLine1.setStrokeWidth(1.5);
-        // Small equation marks
+
         Line eqLeft  = new Line(7, 17, 12, 17);
         Line eqRight = new Line(7, 19.5, 12, 19.5);
         eqLeft.setStroke(Color.web("#0f7d74", 0.5)); eqLeft.setStrokeWidth(1);
         eqRight.setStroke(Color.web("#0f7d74", 0.5)); eqRight.setStrokeWidth(1);
-        // Equals sign
+
         Line eq1 = new Line(14, 16.5, 18, 16.5);
         Line eq2 = new Line(14, 19.0, 18, 19.0);
         eq1.setStroke(Color.web("#0f7d74", 0.5)); eq1.setStrokeWidth(1);
         eq2.setStroke(Color.web("#0f7d74", 0.5)); eq2.setStrokeWidth(1);
-        // Result
+
         Line result = new Line(20, 17, 28, 17);
         result.setStroke(Color.web("#0f7d74", 0.6)); result.setStrokeWidth(1.2);
 
-        // Instructor person (standing to the right of board)
-        // Head
         Circle head = new Circle(43, 14, 6);
         head.setFill(Color.web("#0f7d74", 0.85));
         head.setStroke(Color.web("#0f7d74")); head.setStrokeWidth(1);
 
-        // Body (rectangle)
         Rectangle body = new Rectangle(38, 21, 10, 14);
         body.setFill(Color.web("#0f7d74", 0.65));
         body.setArcWidth(3); body.setArcHeight(3);
 
-        // Arm pointing at board with pointer
         Line arm = new Line(38, 24, 32, 20);
         arm.setStroke(Color.web("#0f7d74", 0.8)); arm.setStrokeWidth(2);
 
-        // Pointer stick
         Line pointer = new Line(32, 20, 26, 16);
         pointer.setStroke(Color.web("#0f7d74")); pointer.setStrokeWidth(1.5);
         Circle pointerTip = new Circle(26, 16, 1.5, Color.web("#0f7d74"));
 
-        // Legs
         Line legL = new Line(40, 35, 38, 46);
         Line legR = new Line(44, 35, 46, 46);
         legL.setStroke(Color.web("#0f7d74", 0.7)); legL.setStrokeWidth(2);
         legR.setStroke(Color.web("#0f7d74", 0.7)); legR.setStrokeWidth(2);
 
-        // Shoes
         Line shoeL = new Line(38, 46, 35, 47);
         Line shoeR = new Line(46, 46, 49, 47);
         shoeL.setStroke(Color.web("#0f7d74")); shoeL.setStrokeWidth(2);
         shoeR.setStroke(Color.web("#0f7d74")); shoeR.setStrokeWidth(2);
 
-        // Tie (small triangle on body)
         Polygon tie = new Polygon(43.0, 22.0, 41.5, 30.0, 44.5, 30.0);
         tie.setFill(Color.web("#0e7a56", 0.5));
 
@@ -351,7 +342,6 @@ public class HelloApplication extends Application {
         ds.setColor(Color.color(0,0,0,0.04)); ds.setRadius(8); ds.setOffsetY(2);
         card.setEffect(ds);
 
-        // Art container
         StackPane artBox = new StackPane(artPane);
         artBox.setPrefSize(52, 52);
         artBox.setStyle("-fx-background-color:" + accent + "10;-fx-background-radius:10;");
