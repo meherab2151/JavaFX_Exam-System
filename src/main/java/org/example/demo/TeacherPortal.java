@@ -1454,86 +1454,8 @@ public class TeacherPortal {
             ca.getChildren().clear();
             returnToExam = (initSub!=null);
 
-            BorderPane splitPane = new BorderPane();
-            splitPane.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
-
-            // Left art panel
-            StackPane artPanel = new StackPane();
-            artPanel.setPrefWidth(240);
-            artPanel.setStyle("-fx-background-color:#111722;");
-
-            javafx.scene.layout.Pane gridLayer = new javafx.scene.layout.Pane();
-            gridLayer.setMouseTransparent(true);
-            for (double x = 0; x < 240; x += 40) {
-                Line lv = new Line(x, 0, x, 660);
-                lv.setStroke(Color.web("#ffffff", 0.025)); lv.setStrokeWidth(0.5);
-                gridLayer.getChildren().add(lv);
-            }
-            for (double y = 0; y < 660; y += 40) {
-                Line lh = new Line(0, y, 240, y);
-                lh.setStroke(Color.web("#ffffff", 0.025)); lh.setStrokeWidth(0.5);
-                gridLayer.getChildren().add(lh);
-            }
-
-            Line bh = new Line(22, 22, 50, 22); bh.setStroke(Color.web("#0f7d74", 0.6)); bh.setStrokeWidth(1.5);
-            Line bv = new Line(22, 22, 22, 50); bv.setStroke(Color.web("#0f7d74", 0.6)); bv.setStrokeWidth(1.5);
-            gridLayer.getChildren().addAll(bh, bv);
-
-            VBox artContent = new VBox(24); artContent.setAlignment(Pos.CENTER);
-            artContent.setPadding(new Insets(0, 20, 0, 20));
-
-            StackPane heroCircle = new StackPane();
-            Circle heroRing = new Circle(52, Color.web("#0f7d74", 0.08));
-            heroRing.setStroke(Color.web("#0f7d74", 0.22)); heroRing.setStrokeWidth(1.5);
-            Circle heroFill = new Circle(38, Color.web("#0f7d74", 0.14));
-            Region heroIcon = UIUtils.icon(UIUtils.ICO_QUESTION, "#0f7d74", 26);
-            heroCircle.getChildren().addAll(heroRing, heroFill, heroIcon);
-
-            Circle dot1 = new Circle(5, Color.web("#0f7d74", 0.35));
-            Circle dot2 = new Circle(3, Color.web("#5046a0", 0.4));
-            Circle dot3 = new Circle(4, Color.web("#0e7a56", 0.3));
-            dot1.setTranslateX(-48); dot1.setTranslateY(-18);
-            dot2.setTranslateX(44); dot2.setTranslateY(14);
-            dot3.setTranslateX(-20); dot3.setTranslateY(36);
-
-            TranslateTransition float1 = new TranslateTransition(Duration.seconds(3), dot1);
-            float1.setByY(-8); float1.setAutoReverse(true); float1.setCycleCount(Animation.INDEFINITE);
-            float1.setInterpolator(Interpolator.EASE_BOTH); float1.play();
-            TranslateTransition float2 = new TranslateTransition(Duration.seconds(4), dot2);
-            float2.setByY(6); float2.setAutoReverse(true); float2.setCycleCount(Animation.INDEFINITE);
-            float2.setInterpolator(Interpolator.EASE_BOTH); float2.play();
-            dot1.sceneProperty().addListener((obs,o,n)->{ if(n==null){float1.stop();float2.stop();} });
-
-            StackPane heroStack = new StackPane(heroCircle, dot1, dot2, dot3);
-            heroStack.setPrefSize(120, 120);
-
-            VBox legend = new VBox(12); legend.setAlignment(Pos.CENTER_LEFT);
-            String[][] types = {
-                {UIUtils.ACCENT_TEAL, "MCQ",   "Multiple choice, one correct"},
-                {UIUtils.ACCENT_PURP, "Text",  "Exact numeric answer"},
-                {UIUtils.ACCENT_GREEN,"Range", "Answer within a range"}
-            };
-            for (String[] t : types) {
-                HBox rowL = new HBox(10); rowL.setAlignment(Pos.CENTER_LEFT);
-                StackPane typeIcon = new StackPane(UIUtils.icon(UIUtils.ICO_QUESTION, t[0], 11));
-                typeIcon.setPrefSize(26, 26);
-                typeIcon.setStyle("-fx-background-color:rgba(255,255,255,0.06);-fx-background-radius:5;");
-                VBox typeText = new VBox(2);
-                Label typeName = new Label(t[1]); typeName.setStyle("-fx-font-size:12px;-fx-font-weight:700;-fx-text-fill:#bdc6d6;");
-                Label typeDesc = new Label(t[2]); typeDesc.setStyle("-fx-font-size:10px;-fx-text-fill:#4a566e;"); typeDesc.setWrapText(true); typeDesc.setMaxWidth(160);
-                typeText.getChildren().addAll(typeName, typeDesc);
-                rowL.getChildren().addAll(typeIcon, typeText);
-                legend.getChildren().add(rowL);
-            }
-
-            Region rule = new Region(); rule.setPrefSize(28, 3);
-            rule.setStyle("-fx-background-color:#0f7d74;-fx-background-radius:99;");
-            artContent.getChildren().addAll(rule, heroStack, legend);
-            artPanel.getChildren().addAll(gridLayer, artContent);
-            splitPane.setLeft(artPanel);
-
             ScrollPane sp = new ScrollPane();
-            sp.prefWidthProperty().bind(ca.widthProperty().subtract(240));
+            sp.prefWidthProperty().bind(ca.widthProperty());
             sp.prefHeightProperty().bind(ca.heightProperty());
             sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
             sp.setFitToWidth(true);
@@ -1603,11 +1525,10 @@ public class TeacherPortal {
 
             page.getChildren().addAll(titleRow2, subHead, UIUtils.divider(), cfg, typeRow, dynForm, btnSave);
             sp.setContent(page);
-            splitPane.setCenter(sp);
-            ca.getChildren().add(splitPane);
+            ca.getChildren().add(sp);
             if (ca instanceof javafx.scene.layout.AnchorPane ap) {
-                javafx.scene.layout.AnchorPane.setTopAnchor(splitPane,0.0); javafx.scene.layout.AnchorPane.setBottomAnchor(splitPane,0.0);
-                javafx.scene.layout.AnchorPane.setLeftAnchor(splitPane,0.0); javafx.scene.layout.AnchorPane.setRightAnchor(splitPane,0.0);
+                javafx.scene.layout.AnchorPane.setTopAnchor(sp,0.0); javafx.scene.layout.AnchorPane.setBottomAnchor(sp,0.0);
+                javafx.scene.layout.AnchorPane.setLeftAnchor(sp,0.0); javafx.scene.layout.AnchorPane.setRightAnchor(sp,0.0);
             }
             UIUtils.slideIn(page, true);
         }
