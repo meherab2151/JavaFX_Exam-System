@@ -95,7 +95,12 @@ public class StudentPortal {
             } else { app.showError("Login Failed", "Invalid credentials. Please try again."); }
         });
         linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
-        btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
+        btnBack.setOnAction(e -> {
+            stage.setScene(app.createMainScene(stage));
+            stage.setWidth(1000);
+            stage.setHeight(580);
+            stage.centerOnScreen();
+        });
         txtPw.setOnAction(e -> btnLogin.fire());
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
@@ -347,26 +352,48 @@ public class StudentPortal {
         Label dateL  = new Label(dateStr);
         dateL.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
-        List<ExamResult> myResults = ResultDAO.loadForStudent(student.getID());
-        List<int[]> myCodes = ResultDAO.loadStudentExamCodes(student.getID());
-        long liveCount  = myCodes.stream().filter(row -> {
-            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
-            return ex != null && ex.isLive();
-        }).count();
-        long upcomingCount = myCodes.stream().filter(row -> {
-            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
-            return ex != null && !ex.isLive();
-        }).count();
-        long completedCount = myResults.size();
-        double avgPct = myResults.isEmpty() ? 0 : myResults.stream().mapToDouble(ExamResult::pct).average().orElse(0);
+        // Build KPI cards — keep references to the value labels so the
+        // dashboard refresh runnable can update them without rebuilding the UI.
+        VBox kpiLive      = UIUtils.statCard(UIUtils.ICO_LIVE,      "0",  "Live Now",  UIUtils.ACCENT_GREEN);
+        VBox kpiUpcoming  = UIUtils.statCard(UIUtils.ICO_SCHEDULE,  "0",  "Upcoming",  UIUtils.ACCENT_PURP);
+        VBox kpiCompleted = UIUtils.statCard(UIUtils.ICO_CHECK,     "0",  "Completed", UIUtils.ACCENT_TEAL);
+        VBox kpiAvg       = UIUtils.statCard(UIUtils.ICO_ANALYTICS, "0%", "Avg Score", UIUtils.ACCENT_ORG);
+
+        // statCard structure: VBox[ strip(Region), body(VBox[ icon, valueLbl, captionLbl ]) ]
+        // The value label is always the second child of the inner body VBox.
+        java.util.function.Function<VBox, Label> kpiValLabel = card -> {
+            VBox body = (VBox) card.getChildren().get(1);
+            return (Label) body.getChildren().get(1);
+        };
+        Label kpiLiveVal      = kpiValLabel.apply(kpiLive);
+        Label kpiUpcomingVal  = kpiValLabel.apply(kpiUpcoming);
+        Label kpiCompletedVal = kpiValLabel.apply(kpiCompleted);
+        Label kpiAvgVal       = kpiValLabel.apply(kpiAvg);
+
+        // Populates / refreshes the 4 KPI numbers — called every 2 s by the ticker.
+        Runnable refreshKpi = () -> {
+            List<ExamResult> freshResults = ResultDAO.loadForStudent(student.getID());
+            List<int[]> freshCodes = ResultDAO.loadStudentExamCodes(student.getID());
+            long lc = freshCodes.stream().filter(row -> {
+                Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+                return ex != null && ex.isLive();
+            }).count();
+            long uc = freshCodes.stream().filter(row -> {
+                Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+                return ex != null && !ex.isLive();
+            }).count();
+            long cc = freshResults.size();
+            double ap = freshResults.isEmpty() ? 0 :
+                freshResults.stream().mapToDouble(ExamResult::pct).average().orElse(0);
+            kpiLiveVal.setText(String.valueOf(lc));
+            kpiUpcomingVal.setText(String.valueOf(uc));
+            kpiCompletedVal.setText(String.valueOf(cc));
+            kpiAvgVal.setText(String.format("%.1f%%", ap));
+        };
+        refreshKpi.run(); // initial population
 
         HBox stats = new HBox(10);
-        stats.getChildren().addAll(
-            UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),     "Live Now",    UIUtils.ACCENT_GREEN),
-            UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(upcomingCount), "Upcoming",    UIUtils.ACCENT_PURP),
-            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(completedCount),"Completed",   UIUtils.ACCENT_TEAL),
-            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avgPct),"Avg Score",   UIUtils.ACCENT_ORG)
-        );
+        stats.getChildren().addAll(kpiLive, kpiUpcoming, kpiCompleted, kpiAvg);
 
         row1.getChildren().addAll(new VBox(2, greetL, dateL), stats);
 
@@ -430,9 +457,9 @@ public class StudentPortal {
             }
 
             btnSearch.setText("Searching..."); btnSearch.setDisable(true);
-            PauseTransition delay = new PauseTransition(Duration.millis(380));
+            PauseTransition delay = new PauseTransition(Duration.millis(80));
             delay.setOnFinished(ev -> {
-                btnSearch.setText("Search"); btnSearch.setDisable(false);
+                btnSearch.setText("Search Examination"); btnSearch.setDisable(false);
 
                 // Find exam by code — only if live or scheduled
                 Exam found = ExamBank.allExams.stream()
@@ -501,7 +528,10 @@ public class StudentPortal {
         refreshSections.run();
 
         // ── Auto-refresh ticker ──────────────────────────────────
-        Timeline ticker = new Timeline(new KeyFrame(Duration.seconds(2), ev -> refreshSections.run()));
+        Timeline ticker = new Timeline(new KeyFrame(Duration.seconds(2), ev -> {
+            refreshSections.run();
+            refreshKpi.run(); // keep KPI cards in sync on every tick
+        }));
         ticker.setCycleCount(Animation.INDEFINITE); ticker.play();
         page.sceneProperty().addListener((obs, o, n) -> { if (n == null) ticker.stop(); });
 
@@ -1038,6 +1068,9 @@ public class StudentPortal {
         String navBg   = UIUtils.darkMode ? "#171d2b" : "#f7f8fb";
 
         BorderPane root = new BorderPane();
+        // Wrap in StackPane so the submit overlay can be layered on top
+        StackPane sceneRoot = new StackPane(root);
+        sceneRoot.setStyle("-fx-background-color:" + bg + ";");
         root.setStyle("-fx-background-color:" + bg + ";");
 
         // ── TOP BAR ──────────────────────────────────────────────
@@ -1358,7 +1391,52 @@ public class StudentPortal {
             ResultDAO.save(result); // also clears in-progress
             ResultDAO.removeStudentExamCode(student.getID(), exam.getDbId());
 
-            Platform.runLater(() -> showResultScene(stage, exam, student, app, fc, totalQ, fs, questions, ansSnap, flagSnap));
+            // Show a brief "Submitting" overlay before transitioning to results —
+            // gives the audience a clear visual beat so the transition feels intentional.
+            Platform.runLater(() -> {
+                btnSubmit.setText("Submitting...");
+                btnSubmit.setDisable(true);
+
+                // Overlay — semi-transparent dark wash over the exam scene
+                StackPane overlay = new StackPane();
+                overlay.setStyle("-fx-background-color:rgba(17,23,34,0.72);");
+                // Make overlay fill the entire StackPane
+                overlay.setMaxWidth(Double.MAX_VALUE);
+                overlay.setMaxHeight(Double.MAX_VALUE);
+                StackPane.setAlignment(overlay, Pos.CENTER);
+
+                VBox overlayContent = new VBox(14);
+                overlayContent.setAlignment(Pos.CENTER);
+                overlayContent.setMaxWidth(320);
+
+                // Spinning progress indicator
+                javafx.scene.control.ProgressIndicator spinner = new javafx.scene.control.ProgressIndicator(-1);
+                spinner.setPrefSize(48, 48);
+                spinner.setStyle("-fx-progress-color:#0f7d74;");
+
+                Label overlayTitle = new Label("Submitting Examination");
+                overlayTitle.setStyle("-fx-font-size:17px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;-fx-letter-spacing:-0.2px;");
+                Label overlaySub = new Label("Calculating your results...");
+                overlaySub.setStyle("-fx-font-size:12px;-fx-text-fill:#4a566e;");
+
+                overlayContent.getChildren().addAll(spinner, overlayTitle, overlaySub);
+                overlay.getChildren().add(overlayContent);
+
+                // Fade the overlay in
+                overlay.setOpacity(0);
+                sceneRoot.getChildren().add(overlay);
+                FadeTransition fadeIn = new FadeTransition(Duration.millis(220), overlay);
+                fadeIn.setToValue(1);
+                fadeIn.setOnFinished(fev -> {
+                    // After 900ms show the result scene
+                    PauseTransition hold = new PauseTransition(Duration.millis(900));
+                    hold.setOnFinished(pev ->
+                        showResultScene(stage, exam, student, app, fc, totalQ, fs, questions, ansSnap, flagSnap)
+                    );
+                    hold.play();
+                });
+                fadeIn.play();
+            });
         };
 
         btnSubmit.setOnAction(e -> {
@@ -1399,7 +1477,7 @@ public class StudentPortal {
         }));
         timer.setCycleCount(Animation.INDEFINITE); timer.play();
 
-        Scene scene = new Scene(root, 1100, 700);
+        Scene scene = new Scene(sceneRoot, 1100, 700);
         UIUtils.applyStyle(scene);
         return scene;
     }

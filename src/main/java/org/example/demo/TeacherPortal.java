@@ -100,7 +100,12 @@ public class TeacherPortal {
         });
         txtPass.setOnAction(e -> btnLogin.fire());
         linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
-        btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
+        btnBack.setOnAction(e -> {
+            stage.setScene(app.createMainScene(stage));
+            stage.setWidth(1000);
+            stage.setHeight(580);
+            stage.centerOnScreen();
+        });
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
@@ -577,9 +582,19 @@ public class TeacherPortal {
         tlRef[0] = tl; tl.setCycleCount(Timeline.INDEFINITE); tl.play();
         row.sceneProperty().addListener((obs,o,n) -> { if (n==null) { tl.stop(); sonar.stop(); }});
 
-        // Code label
+        // Code label — large and legible for demo visibility
         Label codeLbl = new Label(e.getExamCode());
-        codeLbl.setStyle("-fx-font-family:Monospaced;-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:#5046a0;-fx-letter-spacing:3px;-fx-background-color:rgba(80,70,160,0.10);-fx-background-radius:5;-fx-padding:3 10;-fx-cursor:hand;");
+        codeLbl.setStyle(
+            "-fx-font-family:Monospaced;" +
+            "-fx-font-size:22px;" +
+            "-fx-font-weight:700;" +
+            "-fx-text-fill:#5046a0;" +
+            "-fx-letter-spacing:8px;" +
+            "-fx-background-color:rgba(80,70,160,0.12);" +
+            "-fx-background-radius:8;" +
+            "-fx-padding:6 18;" +
+            "-fx-cursor:hand;"
+        );
         Tooltip.install(codeLbl, new Tooltip("Click to copy"));
         codeLbl.setOnMouseClicked(ev -> {
             javafx.scene.input.Clipboard cb2 = javafx.scene.input.Clipboard.getSystemClipboard();
@@ -592,7 +607,11 @@ public class TeacherPortal {
             UIUtils.Toast.success(ca, "Code " + e.getExamCode() + " copied");
         });
 
-        VBox info = new VBox(5, subL, metaL, new HBox(8, countdown, codeLbl) {{ setAlignment(Pos.CENTER_LEFT); }});
+        Label codeCaption = new Label("EXAM CODE");
+        codeCaption.setStyle("-fx-font-size:9px;-fx-font-weight:700;-fx-text-fill:#9aa1b0;-fx-letter-spacing:1.4px;");
+        VBox codeBlock = new VBox(2, codeCaption, codeLbl);
+        codeBlock.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        VBox info = new VBox(5, subL, metaL, new HBox(16, countdown, codeBlock) {{ setAlignment(javafx.geometry.Pos.CENTER_LEFT); }});
 
         Region sp1 = new Region(); HBox.setHgrow(sp1, Priority.ALWAYS);
 
