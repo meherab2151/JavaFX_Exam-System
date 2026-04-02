@@ -1,13 +1,10 @@
-/* ═══════════════════════════════════════════════════════════
    EduExam — Global Stylesheet
    Aesthetic: Clean institutional · Charcoal + Teal
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Font smoothing ─────────────────────────────────────── */
 .root { -fx-font-smoothing-type: gray; }
 .label { -fx-font-smoothing-type: gray; }
 
-/* ── Scroll bars — restrained ───────────────────────────── */
 .scroll-bar:vertical,
 .scroll-bar:horizontal {
     -fx-background-color: transparent;
@@ -32,11 +29,9 @@
     -fx-pref-height: 0;
 }
 
-/* ── ScrollPane — transparent ───────────────────────────── */
 .scroll-pane { -fx-background-color: transparent; -fx-border-color: transparent; }
 .scroll-pane > .viewport { -fx-background-color: transparent; }
 
-/* ── Text fields — teal focus ring ──────────────────────── */
 .text-field, .password-field, .text-area {
     -fx-effect: none;
     -fx-background-color: white;
@@ -56,11 +51,9 @@
     -fx-border-color: #b8c2d0;
 }
 
-/* ── Buttons — clean focus ───────────────────────────────── */
 .button:focused { -fx-background-insets: 0; -fx-border-color: transparent; }
 .button { -fx-focus-color: transparent; -fx-faint-focus-color: transparent; }
 
-/* ── ComboBox ───────────────────────────────────────────── */
 .combo-box { -fx-effect: none; -fx-cursor: hand; }
 .combo-box:focused { -fx-effect: none; }
 .combo-box .arrow-button { -fx-background-color: transparent; -fx-padding: 0 10 0 0; }
@@ -100,7 +93,6 @@
     -fx-cursor: hand;
 }
 
-/* ── Alert / Dialog ─────────────────────────────────────── */
 .dialog-pane {
     -fx-background-color: white;
     -fx-background-radius: 10;
@@ -126,7 +118,6 @@
     -fx-cursor: hand;
 }
 
-/* ── DatePicker ─────────────────────────────────────────── */
 .date-picker {
     -fx-background-color: white;
     -fx-border-color: #e6e8ec;
@@ -168,7 +159,6 @@
     -fx-border-width: 1.5;
 }
 
-/* ── ListView ───────────────────────────────────────────── */
 .list-view {
     -fx-background-color: white;
     -fx-border-color: #e6e8ec;
@@ -190,10 +180,8 @@
     -fx-font-weight: bold;
 }
 
-/* ── Separator ──────────────────────────────────────────── */
 .separator .line { -fx-border-color: #e6e8ec; -fx-border-width: 0.8; }
 
-/* ── CheckBox ───────────────────────────────────────────── */
 .check-box { -fx-font-size: 13px; -fx-text-fill: #1c2333; }
 .check-box .box {
     -fx-background-color: white;
@@ -206,18 +194,15 @@
 .check-box:selected .box { -fx-background-color: #0f7d74; -fx-border-color: #0f7d74; }
 .check-box:selected .mark { -fx-background-color: white; }
 
-/* ── RadioButton ────────────────────────────────────────── */
 .radio-button { -fx-font-size: 13px; -fx-text-fill: #1c2333; }
 .radio-button .radio { -fx-border-color: #c4ccd8; -fx-border-width: 1.5; -fx-background-color: white; }
 .radio-button:hover .radio { -fx-border-color: #0f7d74; }
 .radio-button:selected .radio { -fx-border-color: #0f7d74; }
 .radio-button:selected .dot { -fx-background-color: #0f7d74; -fx-background-radius: 99; }
 
-/* ── ToggleButton ───────────────────────────────────────── */
 .toggle-button { -fx-background-radius: 6; -fx-cursor: hand; -fx-font-size: 13px; }
 .toggle-button:focused { -fx-border-color: transparent; -fx-background-insets: 0; }
 
-/* ── ContextMenu / MenuButton ───────────────────────────── */
 .context-menu {
     -fx-background-color: rgba(250,251,252,0.97);
     -fx-border-color: rgba(230,232,236,0.7);
@@ -243,7 +228,6 @@
 .menu-item.danger:hover   { -fx-background-color: transparent; -fx-text-fill: #c0392b; }
 .separator-menu-item .line { -fx-border-color: rgba(230,232,236,0.6); -fx-border-width: 0.8; }
 
-/* ── MenuButton ─────────────────────────────────────────── */
 .menu-button {
     -fx-background-radius: 8;
     -fx-border-radius: 8;
@@ -259,7 +243,6 @@
     -fx-pref-height: 5px;
 }
 
-/* ── Hyperlink ──────────────────────────────────────────── */
 .hyperlink {
     -fx-text-fill: #0f7d74;
     -fx-font-size: 13px;
@@ -269,7 +252,6 @@
 .hyperlink:hover { -fx-underline: true; -fx-text-fill: #0a5f58; }
 .hyperlink:visited { -fx-text-fill: #0f7d74; }
 
-/* ── Tooltip ────────────────────────────────────────────── */
 .tooltip {
     -fx-background-color: #1c2333;
     -fx-text-fill: #f0f2f5;
@@ -279,7 +261,6 @@
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 9, 0, 0, 2);
 }
 
-/* ── TextArea ───────────────────────────────────────────── */
 .text-area { -fx-background-radius: 6; -fx-border-radius: 6; }
 .text-area .content {
     -fx-background-color: white;
@@ -287,7 +268,6 @@
     -fx-padding: 4 2;
 }
 
-/* ── ProgressBar — teal fill ────────────────────────────── */
 .progress-bar {
     -fx-background-color: #e6e8ec;
     -fx-background-radius: 99;
@@ -299,5 +279,4 @@
     -fx-background-insets: 0;
 }
 
-/* ── Spinner (inside DatePicker) ────────────────────────── */
 .spinner { -fx-background-color: transparent; -fx-border-color: transparent; }

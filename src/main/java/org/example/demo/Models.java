@@ -3,9 +3,6 @@ package org.example.demo;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-// ═══════════════════════════════════════════════════════════
-//  MODELS.java  –  All data-model classes in one place
-// ═══════════════════════════════════════════════════════════
 
 abstract class Question {
     protected int dbId = -1;
@@ -63,7 +60,6 @@ class RangeQuestion extends Question {
     public void   setMax(double m){ this.max = m; }
 }
 
-// ─── Exam ─────────────────────────────────────────────────
 class Exam {
     private int dbId = -1;
     private String  subject;
@@ -126,12 +122,10 @@ class Exam {
     public long    getScheduledEndMillis()          { return scheduledEndMillis; }
     public void    setScheduledEndMillis(long ms)   { this.scheduledEndMillis = ms; }
 
-    /** Exam has a future scheduled start and is not yet live */
     public boolean isScheduled() {
         return !isLive && scheduledStartMillis > 0;
     }
 
-    /** Exam is in draft/all-exams state: not live, no schedule, no code */
     public boolean isDraft() {
         return !isLive && scheduledStartMillis == 0;
     }
@@ -170,7 +164,6 @@ class Exam {
         return String.format("%02d:%02d:%02d", h, m, s);
     }
 
-    /** Always generates a brand new random code — every launch/schedule gets a fresh code */
     public void generateCode() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         StringBuilder sb = new StringBuilder();
@@ -179,7 +172,6 @@ class Exam {
         examCode = sb.toString();
     }
 
-    /** Reset exam to draft state after it ends — clears code and schedule */
     public void resetToDraft() {
         isLive = false;
         liveWindow = "";
@@ -213,37 +205,11 @@ class Student {
     public String getPassword(){ return password; }
 }
 
-class QuestionBank {
-    public static ArrayList<Question> allQuestions = new ArrayList<>();
-}
-
-class ExamBank {
-    public static ArrayList<Exam> allExams = new ArrayList<>();
-
-    public static ArrayList<Exam> getLiveExams() {
-        ArrayList<Exam> live = new ArrayList<>();
-        for (Exam e : allExams) if (e.isLive()) live.add(e);
-        return live;
-    }
-
-    public static ArrayList<Exam> getScheduledExams() {
-        ArrayList<Exam> scheduled = new ArrayList<>();
-        for (Exam e : allExams) if (e.isScheduled()) scheduled.add(e);
-        return scheduled;
-    }
-
-    public static ArrayList<Exam> getDraftExams() {
-        ArrayList<Exam> drafts = new ArrayList<>();
-        for (Exam e : allExams) if (e.isDraft()) drafts.add(e);
-        return drafts;
-    }
-}
-
 class ExamResult {
     public int    id;
     public String studentId;
     public int    examId;
-    public String examCode;   // which code version was used — retake allowed with new code
+    public String examCode;  
     public String examTitle;
     public String examSubject;
     public int    examGrade;

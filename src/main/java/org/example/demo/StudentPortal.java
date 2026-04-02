@@ -16,19 +16,10 @@ import java.util.*;
 import java.util.List;
 import java.util.Map;
 
-// ═══════════════════════════════════════════════════════════════════
-//  StudentPortal.java — EduExam Student Experience
-//  Dashboard: Greeting + KPIs / Join Exam / Live / Upcoming
-//  One-attempt rule. Auto-save answers for resume on re-login.
-//  Custom popups for Live and Scheduled exams.
-// ═══════════════════════════════════════════════════════════════════
 public class StudentPortal {
 
     static int activeNavIndex = 0;
 
-    // ══════════════════════════════════════════════════════════════
-    //  Auth panel
-    // ══════════════════════════════════════════════════════════════
     private static VBox buildAuthPanel(String title, String sub) {
         VBox v = new VBox(0);
         v.setPrefWidth(320);
@@ -57,10 +48,7 @@ public class StudentPortal {
         return v;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  1. LOGIN
-    // ══════════════════════════════════════════════════════════════
-    public static Scene createLoginScene(Stage stage, ArrayList<Student> list, HelloApplication app) {
+    public static Scene createLoginScene(Stage stage, HelloApplication app) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
         root.setLeft(buildAuthPanel("Student Portal", "Sign in to access live examinations and your academic record."));
@@ -88,13 +76,12 @@ public class StudentPortal {
         btnLogin.setOnAction(e -> {
             String in = txtID.getText().trim(), pw = txtPw.getText();
             if (in.isEmpty() || pw.isEmpty()) { app.showError("Missing Fields", "Please enter your ID/email and password."); return; }
-            Student found = UserDAO.loginStudent(in, pw);
+            Student found = ServerClient.get().studentLogin(in, pw);
             if (found != null) {
-                if (list.stream().noneMatch(s -> s.getID().equals(found.getID()))) list.add(found);
                 stage.setScene(createDashboardScene(stage, found, app));
             } else { app.showError("Login Failed", "Invalid credentials. Please try again."); }
         });
-        linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, list, app)));
+        linkSignup.setOnAction(e -> stage.setScene(createSignupScene(stage, app)));
         btnBack.setOnAction(e -> stage.setScene(app.createMainScene(stage)));
         txtPw.setOnAction(e -> btnLogin.fire());
 
@@ -117,10 +104,7 @@ public class StudentPortal {
         return scene;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  2. SIGN-UP
-    // ══════════════════════════════════════════════════════════════
-    public static Scene createSignupScene(Stage stage, ArrayList<Student> list, HelloApplication app) {
+    public static Scene createSignupScene(Stage stage, HelloApplication app) {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
         root.setLeft(buildAuthPanel("Create Account", "Register to join EduExam and sit your first examination."));
@@ -153,14 +137,13 @@ public class StudentPortal {
             if (id.isEmpty() || name.isEmpty() || email.isEmpty() || pass.isEmpty()) { app.showError("Missing Info", "Please fill in all fields."); return; }
             if (!id.matches("\\d+")) { app.showError("Invalid ID", "Student ID must contain digits only."); return; }
             if (!pass.equals(confirm)) { app.showError("Mismatch", "Passwords do not match."); return; }
-            if (UserDAO.studentIdExists(id)) { app.showError("ID Taken", "A student with ID " + id + " already exists."); return; }
-            if (UserDAO.registerStudent(id, name, email, pass)) {
-                list.add(new Student(id, name, email, pass));
+            if (ServerClient.get().studentIdExists(id)) { app.showError("ID Taken", "A student with ID " + id + " already exists."); return; }
+            if (ServerClient.get().studentRegister(id, name, email, pass)) {
                 app.showInfo("Account Created", "You may now sign in with your credentials.");
-                stage.setScene(createLoginScene(stage, list, app));
+                stage.setScene(createLoginScene(stage, app));
             } else { app.showError("Error", "Registration failed. Please try again."); }
         });
-        btnBack.setOnAction(e -> stage.setScene(createLoginScene(stage, list, app)));
+        btnBack.setOnAction(e -> stage.setScene(createLoginScene(stage, app)));
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
@@ -184,10 +167,6 @@ public class StudentPortal {
         return scene;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  3. DASHBOARD SHELL
-    //  Nav: Dashboard | My Results | Analytics | Leaderboard
-    // ══════════════════════════════════════════════════════════════
     public static Scene createDashboardScene(Stage stage, Student student, HelloApplication app) {
         return createDashboardScene(stage, student, app, activeNavIndex);
     }
@@ -231,7 +210,6 @@ public class StudentPortal {
         topSep.setStyle("-fx-background-color:#1e2a3a;");
         VBox.setMargin(topSep, new Insets(0, 14, 8, 14));
 
-        // Nav: Dashboard | My Results | Analytics | Leaderboard
         String[][] navDefs = {
             {UIUtils.ICO_DASHBOARD, "Dashboard",   UIUtils.ACCENT_TEAL},
             {UIUtils.ICO_HISTORY,   "My Results",  UIUtils.ACCENT_BLUE},
@@ -276,7 +254,12 @@ public class StudentPortal {
             c.setTitle("Sign Out"); c.setHeaderText(null);
             c.setContentText("Sign out and return to the home screen?");
             c.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
-            c.showAndWait().ifPresent(r -> { if (r == ButtonType.YES) stage.setScene(app.createMainScene(stage)); });
+            c.showAndWait().ifPresent(r -> {
+                if (r == ButtonType.YES) {
+                    ServerClient.get().setExamEventListener(null); // clear push listener
+                    stage.setScene(app.createMainScene(stage));
+                }
+            });
         });
         logoutBox.getChildren().add(btnLogout);
 
@@ -284,6 +267,13 @@ public class StudentPortal {
         sidebar.setPrefHeight(Double.MAX_VALUE);
         root.setLeft(sidebar);
         root.setCenter(contentArea);
+
+        ServerClient.get().setExamEventListener(updatedExam ->
+            javafx.application.Platform.runLater(() -> {
+                if (activeNavIndex == 0)
+                    renderDashboardPage(contentArea, stage, student, app);
+            })
+        );
 
         UIUtils.modernSidebarSetActive(navBtns[startPage]);
         dispatchPage(startPage, contentArea, stage, student, app);
@@ -304,7 +294,6 @@ public class StudentPortal {
         }
     }
 
-    // ── Back button helper ─────────────────────────────────────────
     private static Button backBtn(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
         Button btn = new Button();
         HBox inner = new HBox(6, UIUtils.icon(UIUtils.ICO_BACK, UIUtils.ACCENT_TEAL, 13), new Label("Back") {{ setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.ACCENT_TEAL + ";"); }});
@@ -318,13 +307,6 @@ public class StudentPortal {
         return btn;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  4. DASHBOARD PAGE
-    //  Row 1: Greeting + KPI stats
-    //  Row 2: Join an Examination (code entry, no dot indicator)
-    //  Row 3: Live Examinations
-    //  Row 4: Upcoming Examinations
-    // ══════════════════════════════════════════════════════════════
     private static void renderDashboardPage(javafx.scene.layout.AnchorPane area,
                                             Stage stage, Student student, HelloApplication app) {
         area.getChildren().clear();
@@ -335,7 +317,6 @@ public class StudentPortal {
         VBox page = new VBox(0);
         page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
-        // ── ROW 1: Greeting + KPI ─────────────────────────────────
         VBox row1 = new VBox(14);
         row1.setPadding(new Insets(28, 36, 20, 36));
 
@@ -347,15 +328,15 @@ public class StudentPortal {
         Label dateL  = new Label(dateStr);
         dateL.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
-        List<ExamResult> myResults = ResultDAO.loadForStudent(student.getID());
-        List<int[]> myCodes = ResultDAO.loadStudentExamCodes(student.getID());
+        List<ExamResult> myResults = ServerClient.get().loadResultsForStudent(student.getID());
+        List<int[]> myCodes = ServerClient.get().loadStudentExamCodes(student.getID());
         long liveCount  = myCodes.stream().filter(row -> {
-            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+            Exam ex = ServerClient.get().loadAllExams().stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
             return ex != null && ex.isLive();
         }).count();
         long upcomingCount = myCodes.stream().filter(row -> {
-            Exam ex = ExamBank.allExams.stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
-            return ex != null && !ex.isLive();
+            Exam ex = ServerClient.get().loadAllExams().stream().filter(e -> e.getDbId()==row[0]).findFirst().orElse(null);
+            return ex != null && ex.isScheduled();
         }).count();
         long completedCount = myResults.size();
         double avgPct = myResults.isEmpty() ? 0 : myResults.stream().mapToDouble(ExamResult::pct).average().orElse(0);
@@ -370,7 +351,6 @@ public class StudentPortal {
 
         row1.getChildren().addAll(new VBox(2, greetL, dateL), stats);
 
-        // ── ROW 2: JOIN AN EXAMINATION ────────────────────────────
         VBox row2 = new VBox(14);
         row2.setPadding(new Insets(20, 36, 20, 36));
         row2.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
@@ -379,7 +359,6 @@ public class StudentPortal {
         Label joinSub = new Label("Enter the 6-character code given by your instructor");
         joinSub.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
-        // Code field centred, Search button directly below it
         TextField codeField = new TextField();
         codeField.setPromptText("A B C 1 2 3");
         codeField.setPrefWidth(280);
@@ -395,7 +374,6 @@ public class StudentPortal {
             "-fx-letter-spacing:8px;"
         );
 
-        // Auto-uppercase + strip non-alphanumeric + max 6
         codeField.textProperty().addListener((obs, o, n) -> {
             String up = n.toUpperCase().replaceAll("[^A-Z0-9]", "");
             if (up.length() > 6) up = up.substring(0, 6);
@@ -413,13 +391,11 @@ public class StudentPortal {
         HBox codeRow = new HBox(codeStack);
         codeRow.setAlignment(Pos.CENTER_LEFT);
 
-        // ── Live and Upcoming sections (updated from search) ──────
         VBox liveSection = new VBox(8);
         VBox upcomingSection = new VBox(8);
 
         Runnable[] refreshRef = { null };
 
-        // ── SEARCH ACTION ─────────────────────────────────────────
         Runnable doSearch = () -> {
             String code = codeField.getText().trim();
             if (code.length() != 6) {
@@ -434,8 +410,7 @@ public class StudentPortal {
             delay.setOnFinished(ev -> {
                 btnSearch.setText("Search"); btnSearch.setDisable(false);
 
-                // Find exam by code — only if live or scheduled
-                Exam found = ExamBank.allExams.stream()
+                Exam found = ServerClient.get().loadAllExams().stream()
                     .filter(ex -> ex.getExamCode() != null
                         && ex.getExamCode().equalsIgnoreCase(code)
                         && (ex.isLive() || ex.isScheduled()))
@@ -446,27 +421,24 @@ public class StudentPortal {
                     return;
                 }
 
-                // Check if already submitted with THIS specific code (same launch)
-                if (ResultDAO.hasResult(student.getID(), found.getDbId(), found.getExamCode())) {
-                    ExamResult prev = ResultDAO.loadSingleResult(student.getID(), found.getDbId());
+                if (ServerClient.get().hasResult(student.getID(), found.getDbId(), found.getExamCode())) {
+                    ExamResult prev = ServerClient.get().loadSingleResult(student.getID(), found.getDbId());
                     showAlreadySubmittedPopup(stage, prev);
                     return;
                 }
 
-                // Clear any old in-progress from a different launch
-                ResultDAO.clearInProgress(student.getID(), found.getDbId());
+                ServerClient.get().clearInProgress(student.getID(), found.getDbId());
 
-                List<int[]> existing = ResultDAO.loadStudentExamCodes(student.getID());
+                List<int[]> existing = ServerClient.get().loadStudentExamCodes(student.getID());
                 boolean alreadyUnlocked = existing.stream().anyMatch(row -> row[0] == found.getDbId());
 
                 if (found.isLive()) {
-                    ResultDAO.saveStudentExamCode(student.getID(), found.getDbId(), "live");
+                    ServerClient.get().saveStudentExamCode(student.getID(), found.getDbId(), "live");
                     codeField.clear();
                     showLiveExamPopup(found, student, stage, app, area);
                 } else {
-                    // Scheduled
                     if (!alreadyUnlocked) {
-                        ResultDAO.saveStudentExamCode(student.getID(), found.getDbId(), "scheduled");
+                        ServerClient.get().saveStudentExamCode(student.getID(), found.getDbId(), "scheduled");
                         UIUtils.Toast.success(area, "Examination added to your upcoming list");
                     } else {
                         UIUtils.Toast.info(area, "This examination is already in your upcoming list");
@@ -483,25 +455,21 @@ public class StudentPortal {
 
         row2.getChildren().addAll(joinCaption, joinSub, codeRow);
 
-        // ── ROW 3: LIVE EXAMINATIONS ──────────────────────────────
         VBox row3 = new VBox(10);
         row3.setPadding(new Insets(18, 36, 18, 36));
         row3.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
         row3.getChildren().addAll(buildSectionHeaderWithDot("Live Examinations", "#0e7a56", true), liveSection);
 
-        // ── ROW 4: UPCOMING EXAMINATIONS ─────────────────────────
         VBox row4 = new VBox(10);
         row4.setPadding(new Insets(18, 36, 28, 36));
         row4.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
         row4.getChildren().addAll(buildSectionHeaderWithDot("Upcoming Examinations", UIUtils.ACCENT_PURP, false), upcomingSection);
 
-        // ── Refresh sections ─────────────────────────────────────
         Runnable refreshSections = buildDashboardRefresh(liveSection, upcomingSection, student, stage, app, area);
         refreshRef[0] = refreshSections;
         refreshSections.run();
 
-        // ── Auto-refresh ticker ──────────────────────────────────
-        Timeline ticker = new Timeline(new KeyFrame(Duration.seconds(2), ev -> refreshSections.run()));
+        Timeline ticker = new Timeline(new KeyFrame(Duration.seconds(30), ev -> refreshSections.run()));
         ticker.setCycleCount(Animation.INDEFINITE); ticker.play();
         page.sceneProperty().addListener((obs, o, n) -> { if (n == null) ticker.stop(); });
 
@@ -516,8 +484,6 @@ public class StudentPortal {
         UIUtils.slideIn(page, true);
     }
 
-    // ── Section header: animated dot + label ─────────────────────
-    /** Animated sonar dot (live) or static dot (upcoming) + bold label */
     private static HBox buildSectionHeaderWithDot(String text, String color, boolean animated) {
         HBox hdr = new HBox(8); hdr.setAlignment(Pos.CENTER_LEFT);
         if (animated) {
@@ -551,7 +517,6 @@ public class StudentPortal {
         return hdr;
     }
 
-    /** Simple label-only header — used for Join section (no dot) */
     private static HBox buildSectionHeader(String text, String color) {
         HBox hdr = new HBox(8); hdr.setAlignment(Pos.CENTER_LEFT);
         Circle dot = new Circle(4, Color.web(color));
@@ -562,7 +527,6 @@ public class StudentPortal {
         return hdr;
     }
 
-    // ── Build dashboard refresh runnable ─────────────────────────
     private static Runnable buildDashboardRefresh(VBox liveSection, VBox upcomingSection,
                                                    Student student, Stage stage,
                                                    HelloApplication app,
@@ -571,27 +535,31 @@ public class StudentPortal {
             liveSection.getChildren().clear();
             upcomingSection.getChildren().clear();
 
-            List<int[]> codes = ResultDAO.loadStudentExamCodes(student.getID());
+            List<int[]> codes = ServerClient.get().loadStudentExamCodes(student.getID());
             boolean hasLive = false, hasSched = false;
 
             for (int[] row : codes) {
                 int examId = row[0];
-                Exam ex = ExamBank.allExams.stream()
+                Exam ex = ServerClient.get().loadAllExams().stream()
                     .filter(e -> e.getDbId() == examId).findFirst().orElse(null);
                 if (ex == null) {
-                    ResultDAO.removeStudentExamCode(student.getID(), examId);
+                    ServerClient.get().removeStudentExamCode(student.getID(), examId);
                     continue;
                 }
 
-                // Skip if already submitted with THIS specific exam code (same launch)
+                if (!ex.isLive() && !ex.isScheduled()) {
+                    ServerClient.get().removeStudentExamCode(student.getID(), examId);
+                    continue;
+                }
+
                 if (ex.getExamCode() != null && !ex.getExamCode().isEmpty()
-                        && ResultDAO.hasResult(student.getID(), examId, ex.getExamCode())) {
-                    ResultDAO.removeStudentExamCode(student.getID(), examId);
+                        && ServerClient.get().hasResult(student.getID(), examId, ex.getExamCode())) {
+                    ServerClient.get().removeStudentExamCode(student.getID(), examId);
                     continue;
                 }
 
                 if (ex.isLive()) {
-                    ResultDAO.saveStudentExamCode(student.getID(), examId, "live");
+                    ServerClient.get().saveStudentExamCode(student.getID(), examId, "live");
                     liveSection.getChildren().add(buildStudentLiveRow(ex, student, stage, app, area));
                     hasLive = true;
                 } else if (ex.isScheduled()) {
@@ -602,14 +570,13 @@ public class StudentPortal {
                 }
             }
 
-            // Check for in-progress exams (resume case)
-            for (Exam ex : ExamBank.getLiveExams()) {
+            for (Exam ex : ServerClient.get().loadAllExams().stream().filter(Exam::isLive).collect(java.util.stream.Collectors.toList())) {
                 boolean alreadySubmitted = ex.getExamCode() != null && !ex.getExamCode().isEmpty()
-                    && ResultDAO.hasResult(student.getID(), ex.getDbId(), ex.getExamCode());
-                if (ResultDAO.hasInProgress(student.getID(), ex.getDbId()) && !alreadySubmitted) {
+                    && ServerClient.get().hasResult(student.getID(), ex.getDbId(), ex.getExamCode());
+                if (ServerClient.get().hasInProgress(student.getID(), ex.getDbId()) && !alreadySubmitted) {
                     boolean alreadyShown = codes.stream().anyMatch(row -> row[0] == ex.getDbId());
                     if (!alreadyShown) {
-                        ResultDAO.saveStudentExamCode(student.getID(), ex.getDbId(), "live");
+                        ServerClient.get().saveStudentExamCode(student.getID(), ex.getDbId(), "live");
                         liveSection.getChildren().add(buildStudentLiveRow(ex, student, stage, app, area));
                         hasLive = true;
                     }
@@ -629,7 +596,6 @@ public class StudentPortal {
         };
     }
 
-    // ── Student live exam row ─────────────────────────────────────
     private static HBox buildStudentLiveRow(Exam ex, Student student, Stage stage, HelloApplication app,
                                              javafx.scene.layout.AnchorPane area) {
         HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
@@ -667,9 +633,8 @@ public class StudentPortal {
             + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
         metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
-        // Show resume indicator if in-progress
-        if (ResultDAO.hasInProgress(student.getID(), ex.getDbId())) {
-            Map<Integer, String> saved = ResultDAO.loadInProgressAnswers(student.getID(), ex.getDbId());
+        if (ServerClient.get().hasInProgress(student.getID(), ex.getDbId())) {
+            Map<Integer, String> saved = ServerClient.get().loadInProgressAnswers(student.getID(), ex.getDbId());
             int answeredCount = saved == null ? 0 : saved.size();
             Label resumeLbl = new Label("Resume: " + answeredCount + " answer" + (answeredCount == 1 ? "" : "s") + " saved");
             resumeLbl.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-text-fill:#5046a0;-fx-background-color:rgba(80,70,160,0.10);-fx-padding:2 8;-fx-background-radius:4;");
@@ -686,7 +651,7 @@ public class StudentPortal {
         remTl.setCycleCount(Animation.INDEFINITE); remTl.play();
         row.sceneProperty().addListener((o, ov, nv) -> { if (nv == null) { remTl.stop(); sonar.stop(); }});
 
-        Button btnEnter = UIUtils.primaryBtn("", ResultDAO.hasInProgress(student.getID(), ex.getDbId()) ? "Resume" : "Enter", UIUtils.ACCENT_TEAL);
+        Button btnEnter = UIUtils.primaryBtn("", ServerClient.get().hasInProgress(student.getID(), ex.getDbId()) ? "Resume" : "Enter", UIUtils.ACCENT_TEAL);
         btnEnter.setPrefHeight(36);
         btnEnter.setOnAction(e -> showLiveExamPopup(ex, student, stage, app, area));
 
@@ -695,12 +660,56 @@ public class StudentPortal {
         return row;
     }
 
-    // ── Student scheduled exam row ────────────────────────────────
+    private static HBox buildStudentLiveLockedRow(Exam ex, javafx.scene.layout.AnchorPane area) {
+        HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(13, 18, 13, 18));
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setStyle(
+            "-fx-background-color:" + UIUtils.bgCard() + ";" +
+            "-fx-background-radius:9;" +
+            "-fx-border-color:rgba(14,122,86,0.35);" +
+            "-fx-border-radius:9;-fx-border-width:1.5;"
+        );
+        DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05)); ds.setRadius(8); ds.setOffsetY(2); row.setEffect(ds);
+
+        Circle dot = new Circle(4, Color.web("#0e7a56"));
+        Label liveBadge = new Label("LIVE");
+        liveBadge.setStyle("-fx-font-size:9px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:#d1f0e8;-fx-padding:2 8;-fx-background-radius:4;-fx-letter-spacing:1px;");
+
+        String et = (ex.getTitle() != null && !ex.getTitle().isBlank()) ? ex.getTitle() : ex.getSubject();
+        VBox info = new VBox(4);
+        Label titleLbl = new Label(et);
+        titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
+            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+        metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        Label lockLbl = new Label("Code Required");
+        lockLbl.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-text-fill:#b45309;-fx-background-color:#fef3c7;-fx-padding:2 8;-fx-background-radius:4;");
+        info.getChildren().addAll(titleLbl, metaLbl, lockLbl);
+
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label remLbl = new Label(ex.getRemainingFormatted());
+        remLbl.setStyle("-fx-font-family:Monospaced;-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:rgba(14,122,86,0.10);-fx-background-radius:5;-fx-padding:4 10;");
+        Timeline remTl = new Timeline(new KeyFrame(Duration.seconds(1), e -> remLbl.setText(ex.getRemainingFormatted())));
+        remTl.setCycleCount(Animation.INDEFINITE); remTl.play();
+        row.sceneProperty().addListener((o, ov, nv) -> { if (nv == null) remTl.stop(); });
+
+        Button btnCode = UIUtils.ghostBtn("", "Enter Code", UIUtils.ACCENT_ORG);
+        btnCode.setPrefHeight(36);
+        btnCode.setOnAction(e -> UIUtils.Toast.info(area, "Enter the exam code above to unlock this live examination."));
+
+        row.getChildren().addAll(new HBox(6, dot, liveBadge) {{ setAlignment(Pos.CENTER_LEFT); }},
+            info, sp, remLbl, btnCode);
+        return row;
+    }
+
     private static VBox buildStudentSchedRow(Exam ex, Student student, Stage stage,
                                               HelloApplication app,
                                               javafx.scene.layout.AnchorPane area,
                                               Runnable onGoLive) {
         VBox wrapper = new VBox();
+        wrapper.setUserData(ex.getDbId());
         HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(13, 18, 13, 18));
         row.setMaxWidth(Double.MAX_VALUE);
@@ -716,7 +725,6 @@ public class StudentPortal {
             + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
         metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
         info.getChildren().addAll(titleLbl, metaLbl);
-
         if (ex.getScheduledStartMillis() > 0 && ex.getScheduledStartMillis() > System.currentTimeMillis()) {
             java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(ex.getScheduledStartMillis())
                 .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
@@ -732,8 +740,8 @@ public class StudentPortal {
 
         Timeline tl = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
             if (ex.isLive()) {
-                ResultDAO.saveStudentExamCode(student.getID(), ex.getDbId(), "live");
-                UIUtils.Toast.success(area, et + " is now live — tap Enter to join");
+                ServerClient.get().saveStudentExamCode(student.getID(), ex.getDbId(), "live");
+                UIUtils.Toast.success(area, et + " is now live - tap Enter to join");
                 onGoLive.run();
             } else if (ex.getScheduledStartMillis() > 0) {
                 countdown.setText("Starts in  " + ex.getStartCountdownFormatted());
@@ -747,10 +755,6 @@ public class StudentPortal {
         return wrapper;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  LIVE EXAM POPUP — custom, not JavaFX Alert
-    //  Shows exam details + countdown + Join / Cancel buttons
-    // ══════════════════════════════════════════════════════════════
     private static void showLiveExamPopup(Exam exam, Student student, Stage stage,
                                            HelloApplication app, javafx.scene.layout.AnchorPane area) {
         Stage popup = new Stage();
@@ -768,10 +772,8 @@ public class StudentPortal {
         );
         box.setEffect(new DropShadow(36, Color.color(0,0,0,0.18)));
 
-        // Header
         HBox hdr = new HBox(12); hdr.setAlignment(Pos.CENTER_LEFT);
 
-        // Sonar dot — fixed-size, clipped so it never shifts layout
         Circle dot = new Circle(5, Color.web("#0e7a56"));
         Circle ripple2 = new Circle(5, Color.web("#0e7a56")); ripple2.setOpacity(0);
         ripple2.setMouseTransparent(true);
@@ -794,7 +796,6 @@ public class StudentPortal {
         hdrText.getChildren().addAll(hdrTitle, livePill);
         hdr.getChildren().addAll(dotStack2, hdrText);
 
-        // Timer
         Label timerLabel = new Label(exam.getRemainingFormatted());
         timerLabel.setStyle("-fx-font-family:Monospaced;-fx-font-size:28px;-fx-font-weight:700;-fx-text-fill:#0e7a56;-fx-background-color:rgba(14,122,86,0.10);-fx-background-radius:8;-fx-padding:8 20;");
         Label timerCaption = new Label("Time remaining");
@@ -803,7 +804,6 @@ public class StudentPortal {
         timerTl.setCycleCount(Animation.INDEFINITE); timerTl.play();
         VBox timerBox = new VBox(5, timerCaption, timerLabel); timerBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Details grid
         GridPane grid = new GridPane(); grid.setHgap(20); grid.setVgap(9);
         grid.setPadding(new Insets(12)); grid.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;");
         addDetailRow(grid, 0, "Subject",    exam.getSubject());
@@ -812,10 +812,9 @@ public class StudentPortal {
         addDetailRow(grid, 3, "Questions",  exam.getQuestionsMap().size() + " items");
         addDetailRow(grid, 4, "Total",      String.valueOf((int) exam.getTotalMarks()) + " marks");
 
-        // Resume notice if applicable
-        boolean hasProgress = ResultDAO.hasInProgress(student.getID(), exam.getDbId());
+        boolean hasProgress = ServerClient.get().hasInProgress(student.getID(), exam.getDbId());
         if (hasProgress) {
-            Map<Integer, String> saved = ResultDAO.loadInProgressAnswers(student.getID(), exam.getDbId());
+            Map<Integer, String> saved = ServerClient.get().loadInProgressAnswers(student.getID(), exam.getDbId());
             int savedCount = saved == null ? 0 : saved.size();
             HBox resumeNotice = new HBox(8); resumeNotice.setAlignment(Pos.CENTER_LEFT);
             resumeNotice.setPadding(new Insets(9, 12, 9, 12));
@@ -830,7 +829,6 @@ public class StudentPortal {
             box.getChildren().add(resumeNotice);
         }
 
-        // Buttons
         HBox btnRow = new HBox(12); btnRow.setAlignment(Pos.CENTER_LEFT);
         String btnLabel = hasProgress ? "Resume Examination" : "Begin Examination";
         Button btnJoin   = UIUtils.primaryBtn("", btnLabel, UIUtils.ACCENT_TEAL);
@@ -841,7 +839,11 @@ public class StudentPortal {
         btnJoin.setOnAction(e -> {
             timerTl.stop(); sonar2.stop();
             popup.close();
-            stage.setScene(buildExamScene(exam, student, stage, app));
+            Exam latestExam = ServerClient.get().loadAllExams().stream()
+                .filter(ex -> ex.getDbId() == exam.getDbId())
+                .findFirst()
+                .orElse(exam);
+            stage.setScene(buildExamScene(latestExam, student, stage, app));
         });
         btnCancel.setOnAction(e -> { timerTl.stop(); sonar2.stop(); popup.close(); });
         btnRow.getChildren().addAll(btnJoin, btnCancel);
@@ -861,10 +863,6 @@ public class StudentPortal {
         popup.show();
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  SCHEDULED EXAM POPUP — custom popup, not Alert
-    //  Shows when student enters a scheduled exam code
-    // ══════════════════════════════════════════════════════════════
     private static void showScheduledExamPopup(Stage stage, Exam exam) {
         Stage popup = new Stage();
         popup.initModality(Modality.APPLICATION_MODAL);
@@ -930,9 +928,6 @@ public class StudentPortal {
         popup.show();
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  ALREADY SUBMITTED POPUP
-    // ══════════════════════════════════════════════════════════════
     private static void showAlreadySubmittedPopup(Stage stage, ExamResult prev) {
         Stage popup = new Stage();
         popup.initModality(Modality.APPLICATION_MODAL);
@@ -996,32 +991,24 @@ public class StudentPortal {
         grid.add(k, 0, row); grid.add(v, 1, row);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  5. EXAM SCENE — with auto-save on every answer change
-    //     Loads saved answers on entry (resume support)
-    // ══════════════════════════════════════════════════════════════
     private static Scene buildExamScene(Exam exam, Student student, Stage stage, HelloApplication app) {
         List<Question> questions = new ArrayList<>(exam.getQuestionsMap().keySet());
         int totalQ = questions.size();
         if (totalQ == 0) { app.showError("No Questions", "This examination has no questions loaded."); return createDashboardScene(stage, student, app); }
 
-        // Load saved answers (resume) or start fresh
-        Map<Integer, String> savedAnswers = ResultDAO.loadInProgressAnswers(student.getID(), exam.getDbId());
+        Map<Integer, String> savedAnswers = ServerClient.get().loadInProgressAnswers(student.getID(), exam.getDbId());
         Map<Integer, String> answers = savedAnswers != null ? new java.util.HashMap<>(savedAnswers) : new java.util.HashMap<>();
-        Set<Integer> flagged = ResultDAO.loadInProgressFlagged(student.getID(), exam.getDbId());
+        Set<Integer> flagged = ServerClient.get().loadInProgressFlagged(student.getID(), exam.getDbId());
         boolean[] submitted = { false };
 
-        // Timer: calculate remaining based on when they started (if resuming)
         int durationSecs;
         try { durationSecs = Integer.parseInt(exam.getDuration().replaceAll("[^0-9]", "")) * 60; }
         catch (Exception ex2) { durationSecs = 30 * 60; }
 
-        // Use exam's actual remaining time if set
         long examRemaining = exam.getRemainingMillis();
         final int TOTAL_SECS = durationSecs;
         long[] remaining = { examRemaining == Long.MAX_VALUE ? TOTAL_SECS : Math.min(examRemaining / 1000, TOTAL_SECS) };
 
-        // Color tokens
         String bg      = UIUtils.bgContent();
         String card    = UIUtils.bgCard();
         String bdr     = UIUtils.border();
@@ -1040,7 +1027,6 @@ public class StudentPortal {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color:" + bg + ";");
 
-        // ── TOP BAR ──────────────────────────────────────────────
         HBox topBar = new HBox(20); topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(new Insets(0, 24, 0, 24)); topBar.setPrefHeight(58);
         topBar.setStyle("-fx-background-color:" + barBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:0 0 1 0;");
@@ -1071,7 +1057,6 @@ public class StudentPortal {
         topBar.getChildren().addAll(examIdBox, topSpacer, timerBox, studentLbl);
         root.setTop(topBar);
 
-        // ── RIGHT NAV PANEL ───────────────────────────────────────
         VBox navPanel = new VBox(10); navPanel.setPrefWidth(172);
         navPanel.setPadding(new Insets(18, 12, 18, 12));
         navPanel.setStyle("-fx-background-color:" + navBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:0 0 0 1;");
@@ -1095,7 +1080,6 @@ public class StudentPortal {
         navPanel.getChildren().addAll(navCaption, navGrid, UIUtils.divider(), answeredCount, answeredLabel, UIUtils.divider(), legend);
         root.setRight(navPanel);
 
-        // ── CENTER — all questions ────────────────────────────────
         ScrollPane centerScroll = new ScrollPane();
         centerScroll.setFitToWidth(true);
         centerScroll.setStyle("-fx-background:" + bg + ";-fx-background-color:" + bg + ";");
@@ -1122,15 +1106,12 @@ public class StudentPortal {
             });
             navBtns2[fi] = nb;
             navGrid.getChildren().add(nb);
-            // Pre-color saved answers
             if (answers.containsKey(i)) nb.setStyle(qNavStyleActive("#0f7d74", UIUtils.darkMode));
             if (flagged.contains(i))    nb.setStyle(qNavStyleActive("#b45309", UIUtils.darkMode));
         }
 
-        // Auto-save runnable
-        Runnable autoSave = () -> ResultDAO.saveInProgress(student.getID(), exam.getDbId(), answers, flagged);
+        Runnable autoSave = () -> ServerClient.get().saveInProgress(student.getID(), exam.getDbId(), answers, flagged);
 
-        // Build question cards
         for (int qi = 0; qi < totalQ; qi++) {
             final int idx = qi;
             Question q = questions.get(qi);
@@ -1230,7 +1211,6 @@ public class StudentPortal {
                 qCard.getChildren().add(optionsBox);
 
             } else {
-                // Text/Range question
                 TextField ansField = new TextField(answers.getOrDefault(idx, ""));
                 ansField.setPromptText("Enter your answer...");
                 ansField.setStyle(
@@ -1239,7 +1219,6 @@ public class StudentPortal {
                     "-fx-font-size:14px;-fx-text-fill:" + txtD + ";-fx-padding:11;" +
                     "-fx-prompt-text-fill:" + txtS + ";"
                 );
-                // Auto-save on every keystroke
                 ansField.textProperty().addListener((obs, o, n) -> {
                     if (n.isBlank()) answers.remove(idx); else answers.put(idx, n);
                     if (navBtns2[idx]!=null) navBtns2[idx].setStyle(flagged.contains(idx) ? qNavStyleActive("#b45309",UIUtils.darkMode) : !n.isBlank() ? qNavStyleActive("#0f7d74",UIUtils.darkMode) : qNavStyle(barBdr,UIUtils.darkMode));
@@ -1272,7 +1251,6 @@ public class StudentPortal {
                                               : qNavStyleActive("#0f7d74", UIUtils.darkMode));
                     answeredCount.setText(answers.size() + " / " + totalQ);
                     autoSave.run();
-                    // Show inline confirmation on the button itself
                     btnSaveAns.setText("Answer Saved");
                     btnSaveAns.setStyle(
                         "-fx-background-color:#0e7a56;-fx-text-fill:white;-fx-font-weight:700;" +
@@ -1309,7 +1287,6 @@ public class StudentPortal {
         centerScroll.setContent(allQuestionsPage);
         root.setCenter(centerScroll);
 
-        // ── BOTTOM BAR ────────────────────────────────────────────
         HBox bottomBar = new HBox(16); bottomBar.setAlignment(Pos.CENTER);
         bottomBar.setPadding(new Insets(11, 28, 11, 28));
         bottomBar.setStyle("-fx-background-color:" + barBg + ";-fx-border-color:" + barBdr + ";-fx-border-width:1 0 0 0;");
@@ -1322,7 +1299,6 @@ public class StudentPortal {
         bottomBar.getChildren().addAll(qMeta, botSpacer, btnSubmit);
         root.setBottom(bottomBar);
 
-        // ── SUBMIT LOGIC ──────────────────────────────────────────
         Runnable doSubmit = () -> {
             if (submitted[0]) return;
             submitted[0] = true;
@@ -1355,8 +1331,8 @@ public class StudentPortal {
             result.correct     = fc;
             result.totalQ      = totalQ;
             result.takenAt     = System.currentTimeMillis();
-            ResultDAO.save(result); // also clears in-progress
-            ResultDAO.removeStudentExamCode(student.getID(), exam.getDbId());
+            ServerClient.get().resultSave(result); // also clears in-progress
+            ServerClient.get().removeStudentExamCode(student.getID(), exam.getDbId());
 
             Platform.runLater(() -> showResultScene(stage, exam, student, app, fc, totalQ, fs, questions, ansSnap, flagSnap));
         };
@@ -1373,12 +1349,10 @@ public class StudentPortal {
             } else doSubmit.run();
         });
 
-        // ── TIMER ─────────────────────────────────────────────────
         ScaleTransition pulse = new ScaleTransition(Duration.millis(500), timerLbl);
         pulse.setFromX(1); pulse.setToX(1.08); pulse.setFromY(1); pulse.setToY(1.08);
         pulse.setAutoReverse(true); pulse.setCycleCount(Animation.INDEFINITE);
 
-        // Auto-save every 15 seconds
         Timeline autoSaveTicker = new Timeline(new KeyFrame(Duration.seconds(15), e -> autoSave.run()));
         autoSaveTicker.setCycleCount(Animation.INDEFINITE); autoSaveTicker.play();
 
@@ -1404,9 +1378,6 @@ public class StudentPortal {
         return scene;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  6. RESULT SCENE
-    // ══════════════════════════════════════════════════════════════
     private static void showResultScene(Stage stage, Exam exam, Student student,
                                         HelloApplication app, int correct, int total,
                                         double score, List<Question> questions,
@@ -1433,7 +1404,6 @@ public class StudentPortal {
         center.setPadding(new Insets(32, 48, 36, 48));
         center.setStyle("-fx-background-color:" + bg + ";");
 
-        // Result header
         HBox resultHeader = new HBox(16); resultHeader.setAlignment(Pos.CENTER_LEFT);
 
         StackPane scoreBadge = new StackPane();
@@ -1466,7 +1436,6 @@ public class StudentPortal {
         headerText.getChildren().addAll(submitTitle, examSub2, statChips);
         resultHeader.getChildren().addAll(scoreBadge, headerText);
 
-        // Question review
         Label reviewHdr = new Label("Question Review");
         reviewHdr.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:" + txtD + ";");
 
@@ -1608,9 +1577,6 @@ public class StudentPortal {
         new ParallelTransition(ft2, tt2).play();
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  DASHBOARD PAGES
-    // ══════════════════════════════════════════════════════════════
 
     private static void renderMyResultsPage(javafx.scene.layout.AnchorPane area, Stage stage, Student student, HelloApplication app) {
         area.getChildren().clear();
@@ -1621,7 +1587,7 @@ public class StudentPortal {
         titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Academic Record"));
         page.getChildren().addAll(titleRow, UIUtils.subheading("Your examination results"), UIUtils.divider());
 
-        List<ExamResult> results = ResultDAO.loadForStudent(student.getID());
+        List<ExamResult> results = ServerClient.get().loadResultsForStudent(student.getID());
         if (results.isEmpty()) {
             page.getChildren().add(emptyState(UIUtils.ICO_HISTORY, "No Results Yet", "Complete an examination to see your record here."));
         } else {
@@ -1678,7 +1644,7 @@ public class StudentPortal {
         titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Performance Analytics"));
         page.getChildren().addAll(titleRow, UIUtils.subheading("Score history and subject breakdown"), UIUtils.divider());
 
-        List<ExamResult> results = ResultDAO.loadForStudent(student.getID());
+        List<ExamResult> results = ServerClient.get().loadResultsForStudent(student.getID());
         if (results.isEmpty()) {
             page.getChildren().add(emptyState(UIUtils.ICO_ANALYTICS, "No Data Yet", "Complete some examinations to view your analytics."));
             wrapInScroll(area, page);
@@ -1759,7 +1725,7 @@ public class StudentPortal {
         titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Leaderboard"));
         page.getChildren().addAll(titleRow, UIUtils.subheading("Top performances per examination"), UIUtils.divider());
 
-        List<ExamResult> all = ResultDAO.loadAll();
+        List<ExamResult> all = ServerClient.get().loadAllResults();
         if (all.isEmpty()) {
             page.getChildren().add(emptyState(UIUtils.ICO_TROPHY, "No Results Yet", "Be the first to complete an examination."));
             wrapInScroll(area, page);
@@ -1821,9 +1787,6 @@ public class StudentPortal {
         wrapInScroll(area, page);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  UTILITIES
-    // ══════════════════════════════════════════════════════════════
     private static void wrapInScroll(javafx.scene.layout.AnchorPane area, VBox page) {
         ScrollPane sp = new ScrollPane(page);
         sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
@@ -1864,3 +1827,5 @@ public class StudentPortal {
         return h>0 ? String.format("%02d:%02d:%02d",h,m,sec) : String.format("%02d:%02d",m,sec);
     }
 }
+
+

@@ -12,36 +12,25 @@ import javafx.scene.shape.*;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-import java.util.ArrayList;
+import java.io.IOException;
 
-// ═══════════════════════════════════════════════════════════════════
-//  HelloApplication.java — EduExam Entry Point
-//  Brand panel: EduExam wordmark only, no pillar descriptions
-//  Portal cards: rich SVG vector art for Student and Instructor
-// ═══════════════════════════════════════════════════════════════════
 public class HelloApplication extends Application {
-
-    private static final ArrayList<Teacher> teachers = new ArrayList<>();
-    private static final ArrayList<Student> students = new ArrayList<>();
 
     @Override
     public void start(Stage stage) {
-        DatabaseManager.init();
-        teachers.addAll(UserDAO.loadAllTeachers());
-        students.addAll(UserDAO.loadAllStudents());
-        QuestionBank.allQuestions.addAll(QuestionDAO.loadAll());
-        ExamBank.allExams.addAll(ExamDAO.loadAll());
 
-        // Expire stale live exams
-        long now = System.currentTimeMillis();
-        for (Exam e : ExamBank.allExams) {
-            if (e.isLive() && e.getLiveEndMillis() > 0 && now >= e.getLiveEndMillis()) {
-                e.resetToDraft();
-                ExamDAO.save(e);
-            }
+        try {
+            ServerClient.get().connect();
+        } catch (IOException e) {
+            showStartupError(stage,
+                "Cannot connect to EduExam Server at "
+                + Protocol.HOST + ":" + Protocol.PORT + "\n\n"
+                + "Make sure EduExamServer is running before launching the client.\n\n"
+                + e.getMessage());
+            return;
         }
 
-        stage.setOnCloseRequest(e -> DatabaseManager.close());
+        stage.setOnCloseRequest(e -> ServerClient.get().disconnect());
         stage.setTitle("EduExam — Online Assessment Platform");
         stage.setScene(createMainScene(stage));
         stage.setResizable(true);
@@ -49,15 +38,20 @@ public class HelloApplication extends Application {
     }
 
     @Override
-    public void stop() { DatabaseManager.close(); }
+    public void stop() { ServerClient.get().disconnect(); }
 
-    // ══════════════════════════════════════════════════════════════
-    //  MAIN SCENE
-    // ══════════════════════════════════════════════════════════════
+    private void showStartupError(Stage stage, String message) {
+        Alert a = new Alert(Alert.AlertType.ERROR);
+        a.setTitle("Server Unavailable");
+        a.setHeaderText("EduExam Server Not Found");
+        a.setContentText(message);
+        a.showAndWait();
+        stage.close();
+    }
+
     public Scene createMainScene(Stage stage) {
         BorderPane root = new BorderPane();
 
-        // ── LEFT: Brand panel — wordmark only ────────────────────
         StackPane left = new StackPane();
         left.setPrefWidth(400);
         left.setStyle("-fx-background-color:#111722;");
@@ -69,36 +63,26 @@ public class HelloApplication extends Application {
         brandBox.setPadding(new Insets(0, 0, 0, 52));
         StackPane.setAlignment(brandBox, Pos.CENTER_LEFT);
 
-        // Teal rule
         Region tealRule = new Region();
         tealRule.setPrefSize(36, 3);
         tealRule.setStyle("-fx-background-color:#0f7d74;-fx-background-radius:99;");
         VBox.setMargin(tealRule, new Insets(0, 0, 24, 0));
 
-        // Wordmark
         HBox wordmark = new HBox(0);
         wordmark.setAlignment(Pos.CENTER_LEFT);
-        Label wordLeft = new Label("Edu");
-        wordLeft.setStyle(
-            "-fx-font-size:44px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;-fx-letter-spacing:-1.5px;"
-        );
+        Label wordLeft  = new Label("Edu");
+        wordLeft.setStyle("-fx-font-size:44px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;-fx-letter-spacing:-1.5px;");
         Label wordRight = new Label("Exam");
-        wordRight.setStyle(
-            "-fx-font-size:44px;-fx-font-weight:300;-fx-text-fill:#0f7d74;-fx-letter-spacing:-1.5px;"
-        );
+        wordRight.setStyle("-fx-font-size:44px;-fx-font-weight:300;-fx-text-fill:#0f7d74;-fx-letter-spacing:-1.5px;");
         wordmark.getChildren().addAll(wordLeft, wordRight);
         VBox.setMargin(wordmark, new Insets(0, 0, 12, 0));
 
         Label tagline = new Label("Online Assessment Platform");
-        tagline.setStyle(
-            "-fx-font-size:13px;-fx-text-fill:#4a566e;" +
-            "-fx-font-weight:500;-fx-letter-spacing:1.4px;"
-        );
+        tagline.setStyle("-fx-font-size:13px;-fx-text-fill:#4a566e;-fx-font-weight:500;-fx-letter-spacing:1.4px;");
 
         brandBox.getChildren().addAll(tealRule, wordmark, tagline);
         left.getChildren().addAll(gridLines, brandBox);
 
-        // ── RIGHT: Portal selector ───────────────────────────────
         VBox right = new VBox(22);
         right.setAlignment(Pos.CENTER);
         right.setPadding(new Insets(60, 60, 60, 60));
@@ -106,9 +90,7 @@ public class HelloApplication extends Application {
 
         VBox rightHeader = new VBox(6);
         Label selectTitle = new Label("Select Your Portal");
-        selectTitle.setStyle(
-            "-fx-font-size:22px;-fx-font-weight:700;-fx-text-fill:#1c2333;-fx-letter-spacing:-0.3px;"
-        );
+        selectTitle.setStyle("-fx-font-size:22px;-fx-font-weight:700;-fx-text-fill:#1c2333;-fx-letter-spacing:-0.3px;");
         Label selectSub = new Label("Identify your role to access your workspace");
         selectSub.setStyle("-fx-font-size:13px;-fx-text-fill:#6b7585;");
         rightHeader.getChildren().addAll(selectTitle, selectSub);
@@ -118,7 +100,7 @@ public class HelloApplication extends Application {
             "Student",
             "Sit live examinations, review results and monitor academic progress",
             UIUtils.ACCENT_GREEN,
-            () -> stage.setScene(StudentPortal.createLoginScene(stage, students, this))
+            () -> stage.setScene(StudentPortal.createLoginScene(stage, this))
         );
 
         VBox teacherCard = buildPortalCard(
@@ -126,13 +108,13 @@ public class HelloApplication extends Application {
             "Instructor",
             "Author examinations, manage the question bank and analyse outcomes",
             UIUtils.ACCENT_BLUE,
-            () -> stage.setScene(TeacherPortal.createLoginScene(stage, teachers, this))
+            () -> stage.setScene(TeacherPortal.createLoginScene(stage, this))
         );
 
         HBox footer = new HBox(8);
         footer.setAlignment(Pos.CENTER_LEFT);
         Region lockIco = UIUtils.icon(UIUtils.ICO_LOCK, "#9aa1b0", 11);
-        Label footerLbl = new Label("Secured · All examination data encrypted at rest");
+        Label footerLbl = new Label("Secured · Connected to EduExam Server");
         footerLbl.setStyle("-fx-font-size:11px;-fx-text-fill:#9aa1b0;");
         footer.getChildren().addAll(lockIco, footerLbl);
 
@@ -157,201 +139,93 @@ public class HelloApplication extends Application {
         return scene;
     }
 
-    // ── Faint architectural grid lines ────────────────────────────
     private Pane buildGridLines(double w, double h) {
-        Pane p = new Pane();
-        p.setPrefSize(w, h);
-        p.setMouseTransparent(true);
-
+        Pane p = new Pane(); p.setPrefSize(w, h); p.setMouseTransparent(true);
         for (double x = 40; x < w; x += 80) {
             Line l = new Line(x, 0, x, h);
-            l.setStroke(Color.web("#ffffff", 0.025));
-            l.setStrokeWidth(0.5);
-            p.getChildren().add(l);
+            l.setStroke(Color.web("#ffffff", 0.025)); l.setStrokeWidth(0.5); p.getChildren().add(l);
         }
         for (double y = 40; y < h; y += 80) {
             Line l = new Line(0, y, w, y);
-            l.setStroke(Color.web("#ffffff", 0.025));
-            l.setStrokeWidth(0.5);
-            p.getChildren().add(l);
+            l.setStroke(Color.web("#ffffff", 0.025)); l.setStrokeWidth(0.5); p.getChildren().add(l);
         }
-
-        Line br1h = new Line(32, 32, 64, 32);
-        Line br1v = new Line(32, 32, 32, 64);
+        Line br1h = new Line(32, 32, 64, 32); Line br1v = new Line(32, 32, 32, 64);
         br1h.setStroke(Color.web("#0f7d74", 0.55)); br1h.setStrokeWidth(1.5);
         br1v.setStroke(Color.web("#0f7d74", 0.55)); br1v.setStrokeWidth(1.5);
-
-        Line br2h = new Line(w-32, h-32, w-64, h-32);
-        Line br2v = new Line(w-32, h-32, w-32, h-64);
+        Line br2h = new Line(w-32, h-32, w-64, h-32); Line br2v = new Line(w-32, h-32, w-32, h-64);
         br2h.setStroke(Color.web("#0f7d74", 0.35)); br2h.setStrokeWidth(1);
         br2v.setStroke(Color.web("#0f7d74", 0.35)); br2v.setStrokeWidth(1);
-
         p.getChildren().addAll(br1h, br1v, br2h, br2v);
         return p;
     }
 
-    // ── Student vector art — person with open book ────────────────
     private Pane buildStudentArt() {
-        Pane art = new Pane();
-        art.setPrefSize(52, 52);
-
-        // Head
+        Pane art = new Pane(); art.setPrefSize(52, 52);
         Circle head = new Circle(26, 12, 8);
-        head.setFill(Color.web("#0e7a56", 0.85));
-        head.setStroke(Color.web("#0e7a56")); head.setStrokeWidth(1);
-
-        // Shoulders/body (arc suggesting torso)
+        head.setFill(Color.web("#0e7a56", 0.85)); head.setStroke(Color.web("#0e7a56")); head.setStrokeWidth(1);
         Arc shoulders = new Arc(26, 27, 12, 7, 0, 180);
         shoulders.setType(javafx.scene.shape.ArcType.CHORD);
-        shoulders.setFill(Color.web("#0e7a56", 0.70));
-        shoulders.setStroke(Color.web("#0e7a56")); shoulders.setStrokeWidth(1);
-
-        // Open book (two pages, spread open)
-        // Left page
-        Polygon leftPage = new Polygon(
-            10.0, 42.0,  10.0, 33.0,  26.0, 35.0,  26.0, 44.0
-        );
-        leftPage.setFill(Color.web("#d1f0e8", 0.9));
-        leftPage.setStroke(Color.web("#0e7a56", 0.7)); leftPage.setStrokeWidth(1);
-
-        // Right page
-        Polygon rightPage = new Polygon(
-            26.0, 44.0,  26.0, 35.0,  42.0, 33.0,  42.0, 42.0
-        );
-        rightPage.setFill(Color.web("#b8e8d8", 0.9));
-        rightPage.setStroke(Color.web("#0e7a56", 0.7)); rightPage.setStrokeWidth(1);
-
-        // Book spine (center crease)
-        Line spine = new Line(26, 35, 26, 44);
-        spine.setStroke(Color.web("#0e7a56")); spine.setStrokeWidth(1.5);
-
-        // Lines on left page (text representation)
-        for (int i = 0; i < 3; i++) {
-            Line line = new Line(13, 36 + i*2.5, 23, 36.5 + i*2.5);
-            line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
-            art.getChildren().add(line);
-        }
-        // Lines on right page
-        for (int i = 0; i < 3; i++) {
-            Line line = new Line(29, 36 + i*2.5, 39, 36.5 + i*2.5);
-            line.setStroke(Color.web("#0e7a56", 0.5)); line.setStrokeWidth(0.8);
-            art.getChildren().add(line);
-        }
-
-        // Graduation cap (mortarboard)
-        // Board top (horizontal ellipse)
-        Ellipse capBoard = new Ellipse(26, 5, 10, 3);
-        capBoard.setFill(Color.web("#0e7a56"));
-
-        // Cap base
-        Rectangle capBase = new Rectangle(21, 5, 10, 4);
-        capBase.setFill(Color.web("#0e7a56", 0.8));
-
-        // Cap tassel
-        Line tassel = new Line(36, 5, 38, 10);
-        tassel.setStroke(Color.web("#0f7d74")); tassel.setStrokeWidth(1.5);
-        Circle tasselEnd = new Circle(38, 11, 2, Color.web("#0f7d74"));
-
-        art.getChildren().addAll(leftPage, rightPage, spine, shoulders, head, capBase, capBoard, tassel, tasselEnd);
+        shoulders.setFill(Color.web("#0e7a56", 0.70)); shoulders.setStroke(Color.web("#0e7a56")); shoulders.setStrokeWidth(1);
+        Polygon leftPage  = new Polygon(10.0,42.0, 10.0,33.0, 26.0,35.0, 26.0,44.0);
+        leftPage.setFill(Color.web("#d1f0e8",0.9)); leftPage.setStroke(Color.web("#0e7a56",0.7)); leftPage.setStrokeWidth(1);
+        Polygon rightPage = new Polygon(26.0,44.0, 26.0,35.0, 42.0,33.0, 42.0,42.0);
+        rightPage.setFill(Color.web("#b8e8d8",0.9)); rightPage.setStroke(Color.web("#0e7a56",0.7)); rightPage.setStrokeWidth(1);
+        Line spine = new Line(26,35,26,44); spine.setStroke(Color.web("#0e7a56")); spine.setStrokeWidth(1.5);
+        for (int i=0;i<3;i++) { Line l=new Line(13,36+i*2.5,23,36.5+i*2.5); l.setStroke(Color.web("#0e7a56",0.5)); l.setStrokeWidth(0.8); art.getChildren().add(l); }
+        for (int i=0;i<3;i++) { Line l=new Line(29,36+i*2.5,39,36.5+i*2.5); l.setStroke(Color.web("#0e7a56",0.5)); l.setStrokeWidth(0.8); art.getChildren().add(l); }
+        Ellipse capBoard = new Ellipse(26,5,10,3); capBoard.setFill(Color.web("#0e7a56"));
+        Rectangle capBase = new Rectangle(21,5,10,4); capBase.setFill(Color.web("#0e7a56",0.8));
+        Line tassel = new Line(36,5,38,10); tassel.setStroke(Color.web("#0f7d74")); tassel.setStrokeWidth(1.5);
+        Circle tasselEnd = new Circle(38,11,2,Color.web("#0f7d74"));
+        art.getChildren().addAll(leftPage,rightPage,spine,shoulders,head,capBase,capBoard,tassel,tasselEnd);
         return art;
     }
 
-    // ── Instructor vector art — person at board with pointer ──────
     private Pane buildInstructorArt() {
-        Pane art = new Pane();
-        art.setPrefSize(52, 52);
-
-        // Whiteboard / blackboard (background rectangle)
-        Rectangle board = new Rectangle(2, 4, 36, 26);
-        board.setFill(Color.web("#0f7d74", 0.12));
-        board.setStroke(Color.web("#0f7d74", 0.6)); board.setStrokeWidth(1.5);
+        Pane art = new Pane(); art.setPrefSize(52, 52);
+        Rectangle board = new Rectangle(2,4,36,26);
+        board.setFill(Color.web("#0f7d74",0.12)); board.setStroke(Color.web("#0f7d74",0.6)); board.setStrokeWidth(1.5);
         board.setArcWidth(3); board.setArcHeight(3);
-
-        // Board stand legs
-        Line legLeft  = new Line(8, 30, 6, 36);
-        Line legRight = new Line(30, 30, 32, 36);
-        legLeft.setStroke(Color.web("#0f7d74", 0.5)); legLeft.setStrokeWidth(1.5);
-        legRight.setStroke(Color.web("#0f7d74", 0.5)); legRight.setStrokeWidth(1.5);
-
-        // Writing on board — formula lines
-        Line writeLine1 = new Line(7, 12, 22, 12);
-        writeLine1.setStroke(Color.web("#0f7d74", 0.7)); writeLine1.setStrokeWidth(1.5);
-        // Small equation marks
-        Line eqLeft  = new Line(7, 17, 12, 17);
-        Line eqRight = new Line(7, 19.5, 12, 19.5);
-        eqLeft.setStroke(Color.web("#0f7d74", 0.5)); eqLeft.setStrokeWidth(1);
-        eqRight.setStroke(Color.web("#0f7d74", 0.5)); eqRight.setStrokeWidth(1);
-        // Equals sign
-        Line eq1 = new Line(14, 16.5, 18, 16.5);
-        Line eq2 = new Line(14, 19.0, 18, 19.0);
-        eq1.setStroke(Color.web("#0f7d74", 0.5)); eq1.setStrokeWidth(1);
-        eq2.setStroke(Color.web("#0f7d74", 0.5)); eq2.setStrokeWidth(1);
-        // Result
-        Line result = new Line(20, 17, 28, 17);
-        result.setStroke(Color.web("#0f7d74", 0.6)); result.setStrokeWidth(1.2);
-
-        // Instructor person (standing to the right of board)
-        // Head
-        Circle head = new Circle(43, 14, 6);
-        head.setFill(Color.web("#0f7d74", 0.85));
-        head.setStroke(Color.web("#0f7d74")); head.setStrokeWidth(1);
-
-        // Body (rectangle)
-        Rectangle body = new Rectangle(38, 21, 10, 14);
-        body.setFill(Color.web("#0f7d74", 0.65));
-        body.setArcWidth(3); body.setArcHeight(3);
-
-        // Arm pointing at board with pointer
-        Line arm = new Line(38, 24, 32, 20);
-        arm.setStroke(Color.web("#0f7d74", 0.8)); arm.setStrokeWidth(2);
-
-        // Pointer stick
-        Line pointer = new Line(32, 20, 26, 16);
-        pointer.setStroke(Color.web("#0f7d74")); pointer.setStrokeWidth(1.5);
-        Circle pointerTip = new Circle(26, 16, 1.5, Color.web("#0f7d74"));
-
-        // Legs
-        Line legL = new Line(40, 35, 38, 46);
-        Line legR = new Line(44, 35, 46, 46);
-        legL.setStroke(Color.web("#0f7d74", 0.7)); legL.setStrokeWidth(2);
-        legR.setStroke(Color.web("#0f7d74", 0.7)); legR.setStrokeWidth(2);
-
-        // Shoes
-        Line shoeL = new Line(38, 46, 35, 47);
-        Line shoeR = new Line(46, 46, 49, 47);
+        Line legLeft=new Line(8,30,6,36); Line legRight=new Line(30,30,32,36);
+        legLeft.setStroke(Color.web("#0f7d74",0.5)); legLeft.setStrokeWidth(1.5);
+        legRight.setStroke(Color.web("#0f7d74",0.5)); legRight.setStrokeWidth(1.5);
+        Line writeLine1=new Line(7,12,22,12); writeLine1.setStroke(Color.web("#0f7d74",0.7)); writeLine1.setStrokeWidth(1.5);
+        Line eqLeft=new Line(7,17,12,17); Line eqRight=new Line(7,19.5,12,19.5);
+        eqLeft.setStroke(Color.web("#0f7d74",0.5)); eqLeft.setStrokeWidth(1);
+        eqRight.setStroke(Color.web("#0f7d74",0.5)); eqRight.setStrokeWidth(1);
+        Line eq1=new Line(14,16.5,18,16.5); Line eq2=new Line(14,19.0,18,19.0);
+        eq1.setStroke(Color.web("#0f7d74",0.5)); eq1.setStrokeWidth(1);
+        eq2.setStroke(Color.web("#0f7d74",0.5)); eq2.setStrokeWidth(1);
+        Line result=new Line(20,17,28,17); result.setStroke(Color.web("#0f7d74",0.6)); result.setStrokeWidth(1.2);
+        Circle head=new Circle(43,14,6);
+        head.setFill(Color.web("#0f7d74",0.85)); head.setStroke(Color.web("#0f7d74")); head.setStrokeWidth(1);
+        Rectangle body=new Rectangle(38,21,10,14);
+        body.setFill(Color.web("#0f7d74",0.65)); body.setArcWidth(3); body.setArcHeight(3);
+        Line arm=new Line(38,24,32,20); arm.setStroke(Color.web("#0f7d74",0.8)); arm.setStrokeWidth(2);
+        Line pointer=new Line(32,20,26,16); pointer.setStroke(Color.web("#0f7d74")); pointer.setStrokeWidth(1.5);
+        Circle pointerTip=new Circle(26,16,1.5,Color.web("#0f7d74"));
+        Line legL=new Line(40,35,38,46); Line legR=new Line(44,35,46,46);
+        legL.setStroke(Color.web("#0f7d74",0.7)); legL.setStrokeWidth(2);
+        legR.setStroke(Color.web("#0f7d74",0.7)); legR.setStrokeWidth(2);
+        Line shoeL=new Line(38,46,35,47); Line shoeR=new Line(46,46,49,47);
         shoeL.setStroke(Color.web("#0f7d74")); shoeL.setStrokeWidth(2);
         shoeR.setStroke(Color.web("#0f7d74")); shoeR.setStrokeWidth(2);
-
-        // Tie (small triangle on body)
-        Polygon tie = new Polygon(43.0, 22.0, 41.5, 30.0, 44.5, 30.0);
-        tie.setFill(Color.web("#0e7a56", 0.5));
-
-        art.getChildren().addAll(
-            board, legLeft, legRight,
-            writeLine1, eqLeft, eqRight, eq1, eq2, result,
-            body, arm, pointer, pointerTip, head, tie, legL, legR, shoeL, shoeR
-        );
+        Polygon tie=new Polygon(43.0,22.0,41.5,30.0,44.5,30.0); tie.setFill(Color.web("#0e7a56",0.5));
+        art.getChildren().addAll(board,legLeft,legRight,writeLine1,eqLeft,eqRight,eq1,eq2,result,
+            body,arm,pointer,pointerTip,head,tie,legL,legR,shoeL,shoeR);
         return art;
     }
 
-    // ── Portal selection card with custom art pane ────────────────
     private VBox buildPortalCard(Pane artPane, String title, String desc,
                                   String accent, Runnable action) {
         VBox card = new VBox(14);
         card.setPrefWidth(360);
         card.setPadding(new Insets(20, 22, 20, 22));
-        card.setStyle(
-            "-fx-background-color:#ffffff;" +
-            "-fx-background-radius:9;" +
-            "-fx-border-color:#e6e8ec;" +
-            "-fx-border-radius:9;-fx-border-width:1;" +
-            "-fx-cursor:hand;"
-        );
+        card.setStyle("-fx-background-color:#ffffff;-fx-background-radius:9;-fx-border-color:#e6e8ec;-fx-border-radius:9;-fx-border-width:1;-fx-cursor:hand;");
         DropShadow ds = new DropShadow();
         ds.setColor(Color.color(0,0,0,0.04)); ds.setRadius(8); ds.setOffsetY(2);
         card.setEffect(ds);
 
-        // Art container
         StackPane artBox = new StackPane(artPane);
         artBox.setPrefSize(52, 52);
         artBox.setStyle("-fx-background-color:" + accent + "10;-fx-background-radius:10;");
@@ -379,24 +253,12 @@ public class HelloApplication extends Application {
 
         card.setOnMouseEntered(e -> {
             ds.setOffsetY(6); ds.setRadius(18); ds.setColor(Color.web(accent, 0.11));
-            card.setStyle(
-                "-fx-background-color:#ffffff;" +
-                "-fx-background-radius:9;" +
-                "-fx-border-color:" + accent + "55;" +
-                "-fx-border-radius:9;-fx-border-width:1.5;" +
-                "-fx-cursor:hand;"
-            );
+            card.setStyle("-fx-background-color:#ffffff;-fx-background-radius:9;-fx-border-color:"+accent+"55;-fx-border-radius:9;-fx-border-width:1.5;-fx-cursor:hand;");
             card.setTranslateY(-2);
         });
         card.setOnMouseExited(e -> {
             ds.setOffsetY(2); ds.setRadius(8); ds.setColor(Color.color(0,0,0,0.04));
-            card.setStyle(
-                "-fx-background-color:#ffffff;" +
-                "-fx-background-radius:9;" +
-                "-fx-border-color:#e6e8ec;" +
-                "-fx-border-radius:9;-fx-border-width:1;" +
-                "-fx-cursor:hand;"
-            );
+            card.setStyle("-fx-background-color:#ffffff;-fx-background-radius:9;-fx-border-color:#e6e8ec;-fx-border-radius:9;-fx-border-width:1;-fx-cursor:hand;");
             card.setTranslateY(0);
         });
         return card;

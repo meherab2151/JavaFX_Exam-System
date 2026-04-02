@@ -13,24 +13,10 @@ import javafx.scene.paint.*;
 import javafx.scene.shape.*;
 import javafx.util.Duration;
 
-// ═══════════════════════════════════════════════════════════════════
-//  UIUtils.java — EduExam Production Design System
-//
-//  Aesthetic: Clean institutional — authoritative, precise, scholarly
-//  Palette:   Charcoal (#1c2333) primary · Teal (#0f7d74) accent
-//  Icons:     SVG path geometry — zero emojis
-//  Typography: Tight tracked letterforms, controlled hierarchy
-//  Motion:    Functional, measured — 160–280ms
-//
-//  Institutional DNA: MIT + Oxford register. White space earns trust.
-//  Light mode: warm white #fafaf8. Dark: deep slate #111722.
-// ═══════════════════════════════════════════════════════════════════
 public class UIUtils {
 
-    // ── Theme state ───────────────────────────────────────────────
     public static boolean darkMode = false;
 
-    // ── Dynamic palette — charcoal + teal ────────────────────────
     public static String bgContent()  { return darkMode ? "#111722" : "#fafaf8"; }
     public static String bgSurface()  { return darkMode ? "#171d2b" : "#ffffff"; }
     public static String bgCard()     { return darkMode ? "#1c2333" : "#ffffff"; }
@@ -44,7 +30,6 @@ public class UIUtils {
     public static String textMid()    { return darkMode ? "#7e8aa0" : "#4a5568"; }
     public static String textSubtle() { return darkMode ? "#505869" : "#9aa1b0"; }
 
-    // ── Fixed palette constants (backward compat aliases) ─────────
     public static final String BG_DARK      = "#111722";
     public static final String BG_DARK2     = "#1c2333";
     public static final String BG_LIGHT     = "#fafaf8";
@@ -55,7 +40,6 @@ public class UIUtils {
     public static final String TEXT_LIGHT   = "#fafaf8";
     public static final String BG_SURFACE   = "#ffffff";
 
-    // ── Semantic accent palette — teal-anchored ───────────────────
     public static final String ACCENT_BLUE  = "#0f7d74";   // teal — primary
     public static final String ACCENT_GREEN = "#0e7a56";   // forest green — success
     public static final String ACCENT_PURP  = "#5046a0";   // slate indigo — secondary
@@ -64,17 +48,11 @@ public class UIUtils {
     public static final String ACCENT_YELL  = "#8a6504";   // warm ochre
     public static final String ACCENT_TEAL  = "#0f7d74";   // teal — info (same as primary)
 
-    // ── Internal helpers ──────────────────────────────────────────
     private static String hex(Color c) {
         return String.format("#%02x%02x%02x",
                 (int)(c.getRed()*255),(int)(c.getGreen()*255),(int)(c.getBlue()*255));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  SVG ICON LIBRARY  —  16×16 viewBox paths
-    //  Rendered as -fx-shape on a Region. Zero emojis.
-    //  Usage: UIUtils.icon(UIUtils.ICO_CHECK, "#0f7d74", 16)
-    // ══════════════════════════════════════════════════════════════
 
     public static final String ICO_DASHBOARD = "M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z";
     public static final String ICO_EXAM      = "M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1zm1 3h6M5 8h4M5 11h3";
@@ -123,9 +101,6 @@ public class UIUtils {
     public static final String ICO_GRID      = "M2 2h4v4H2zM9 2h5v4H9zM2 8h5v6H2zM9 8h5v2H9zm0 4h5v2H9z";
     public static final String ICO_CODE      = "M5 7l-3 1 3 1M11 7l3 1-3 1M9 5l-2 6";
 
-    /**
-     * Creates a vector icon as a Region with -fx-shape.
-     */
     public static Region icon(String svgPath, String colorHex, double size) {
         Region r = new Region();
         r.setPrefSize(size, size);
@@ -140,9 +115,6 @@ public class UIUtils {
         return r;
     }
 
-    /**
-     * Icon + label in a row.
-     */
     public static HBox iconLabel(String svgPath, String colorHex, double iconSize,
                                   String text, String textStyle) {
         Region ic = icon(svgPath, colorHex, iconSize);
@@ -153,10 +125,6 @@ public class UIUtils {
         return row;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  THEME TOGGLE — minimal pill switch
-    //  Left half = Light  |  Right half = Dark
-    // ══════════════════════════════════════════════════════════════
     public static StackPane themeToggleSwitch(Runnable onToggle) {
         final double TW = 48, TH = 24, TR = 9;
         final double OFF = 3.5;
@@ -172,7 +140,6 @@ public class UIUtils {
         DropShadow ts = new DropShadow(4, Color.color(0,0,0,0.20));
         thumb.setEffect(ts);
 
-        // Sun/moon geometry inside thumb
         Region modeIcon = icon(
             darkMode ? "M8 2a6 6 0 000 12 5 5 0 010-12z" : "M8 4a4 4 0 100 8 4 4 0 000-8z",
             darkMode ? "#ffffff" : "#b45309",
@@ -208,9 +175,6 @@ public class UIUtils {
         return sw;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  TYPOGRAPHY
-    // ══════════════════════════════════════════════════════════════
     public static Label heading(String text) {
         Label l = new Label(text);
         l.setStyle(
@@ -243,7 +207,6 @@ public class UIUtils {
         return l;
     }
 
-    /** Pill badge — tinted background, tight tracking */
     public static Label badge(String text, String color) {
         Label l = new Label(text);
         l.setStyle(
@@ -258,7 +221,6 @@ public class UIUtils {
         return l;
     }
 
-    /** Status dot + label */
     public static HBox statusDot(String label, String color) {
         Circle dot = new Circle(4, Color.web(color));
         DropShadow glow = new DropShadow(5, Color.web(color, 0.4));
@@ -270,9 +232,6 @@ public class UIUtils {
         return row;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  CARDS
-    // ══════════════════════════════════════════════════════════════
     public static VBox card(double width) {
         VBox c = new VBox(12);
         c.setPadding(new Insets(20));
@@ -300,7 +259,6 @@ public class UIUtils {
         return c;
     }
 
-    /** KPI stat card — accent top strip */
     public static VBox statCard(String svgIcon, String value, String label, String accent) {
         VBox c = new VBox(0);
         c.setPrefWidth(158);
@@ -315,7 +273,6 @@ public class UIUtils {
         ds.setOffsetY(1); ds.setRadius(6);
         c.setEffect(ds);
 
-        // Top strip — 3px rule, teal-family
         Region strip = new Region();
         strip.setPrefHeight(3);
         strip.setStyle("-fx-background-color:" + accent + ";-fx-background-radius:8 8 0 0;");
@@ -337,9 +294,6 @@ public class UIUtils {
         return c;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  FORM FIELDS
-    // ══════════════════════════════════════════════════════════════
     public static TextField styledField(String prompt) {
         TextField tf = new TextField();
         tf.setPromptText(prompt);
@@ -387,10 +341,6 @@ public class UIUtils {
         return ta;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  COMBO BOX — material-style underline with floating label
-    //  Glass popup, animated row accent bar
-    // ══════════════════════════════════════════════════════════════
 
     private static final Color TEAL_600  = Color.web("#0f7d74");
     private static final Color TEAL_400  = Color.web("#4aada5");
@@ -583,14 +533,10 @@ public class UIUtils {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  MODERN MENU ITEM — vector icon chip, accent bar
-    // ══════════════════════════════════════════════════════════════
     public static MenuItem modernMenuItem(String svgPath, String label, String chipColor, boolean isDanger) {
         Color accent = Color.web(chipColor);
         int cr=(int)(accent.getRed()*255), cg=(int)(accent.getGreen()*255), cb2=(int)(accent.getBlue()*255);
 
-        // Handle legacy emoji input
         if (svgPath.length() <= 2 || svgPath.codePointCount(0, svgPath.length()) <= 2)
             svgPath = emojiToSvg(svgPath);
 
@@ -671,11 +617,7 @@ public class UIUtils {
         };
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  BUTTONS
-    // ══════════════════════════════════════════════════════════════
 
-    /** Primary filled button — teal family */
     public static Button primaryBtn(String icon, String text, String color) {
         Button b = new Button(text);
         final String NORMAL =
@@ -702,7 +644,6 @@ public class UIUtils {
         return b;
     }
 
-    /** Ghost outline button */
     public static Button ghostBtn(String icon, String text, String color) {
         Button b = new Button(text);
         final String NORMAL =
@@ -727,11 +668,7 @@ public class UIUtils {
         return b;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  SIDEBAR NAV ITEMS — charcoal dark, teal active accent
-    // ══════════════════════════════════════════════════════════════
     public static StackPane modernSidebarBtn(String svgOrEmoji, String text, String accentColor) {
-        // Map emoji to SVG if needed
         String svgPath = (svgOrEmoji.length() <= 2 || svgOrEmoji.codePointCount(0, svgOrEmoji.length()) <= 2)
             ? emojiToSvgNav(svgOrEmoji) : svgOrEmoji;
 
@@ -818,7 +755,6 @@ public class UIUtils {
         ScaleTransition pillScaleIn = new ScaleTransition(Duration.millis(180), pill);
         pillScaleIn.setToY(1); pillScaleIn.setInterpolator(Interpolator.EASE_OUT); pillScaleIn.play();
         iconBg.setFill(Color.web(color, 0.16));
-        // Reset icon to accent color
         String cur = iconN.getStyle();
         iconN.setStyle(cur.replaceAll("-fx-background-color:[^;]+;", "-fx-background-color:" + color + ";"));
         textLbl.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + color + ";-fx-letter-spacing:0.1px;");
@@ -858,7 +794,6 @@ public class UIUtils {
         });
     }
 
-    // ── Legacy sidebar helpers ────────────────────────────────────
     public static void sidebarBtn(Button b, String icon, String label, String color) {
         b.setText(label);
         String inactive = "-fx-background-color:transparent;-fx-text-fill:#6b7b96;-fx-font-size:13px;-fx-font-weight:500;-fx-background-radius:6;-fx-padding:9 12 9 14;-fx-cursor:hand;-fx-alignment:center-left;";
@@ -876,18 +811,12 @@ public class UIUtils {
         return b;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  DIVIDER
-    // ══════════════════════════════════════════════════════════════
     public static Separator divider() {
         Separator s = new Separator();
         s.setStyle("-fx-background-color:" + border() + ";-fx-opacity:0.75;");
         return s;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  ANIMATIONS
-    // ══════════════════════════════════════════════════════════════
     public static void slideIn(Node node, boolean fromRight) {
         double from = fromRight ? 28 : -28;
         node.setTranslateX(from); node.setOpacity(0);
@@ -900,27 +829,18 @@ public class UIUtils {
 
     public static void playTransition(Pane root, boolean fwd) { slideIn(root, fwd); }
 
-    // ══════════════════════════════════════════════════════════════
-    //  HYPERLINK
-    // ══════════════════════════════════════════════════════════════
     public static void applyLinkEffects(Hyperlink link) {
         link.setStyle("-fx-text-fill:#0f7d74;-fx-font-size:13px;-fx-underline:false;-fx-font-weight:500;-fx-border-color:transparent;");
         link.setOnMouseEntered(e -> link.setStyle("-fx-text-fill:#0a5f58;-fx-underline:true;-fx-font-size:13px;-fx-font-weight:500;-fx-border-color:transparent;"));
         link.setOnMouseExited(e  -> link.setStyle("-fx-text-fill:#0f7d74;-fx-underline:false;-fx-font-size:13px;-fx-font-weight:500;-fx-border-color:transparent;"));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  CSS APPLICATION
-    // ══════════════════════════════════════════════════════════════
     private static final String CSS = "/org/example/demo/style.css";
     public static void applyStyle(Scene scene) {
         if (UIUtils.class.getResource(CSS) != null)
             scene.getStylesheets().add(UIUtils.class.getResource(CSS).toExternalForm());
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  TOAST NOTIFICATION SYSTEM — glass pill from top
-    // ══════════════════════════════════════════════════════════════
     public enum ToastType { SUCCESS, ERROR, INFO, WARN }
 
     public static void toast(Pane parent, String msg, ToastType type) {
@@ -993,11 +913,6 @@ public class UIUtils {
         public static void warn(Pane p, String msg)    { toast(p, msg, ToastType.WARN);    }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  BOTTOM TOAST — rises from bottom center, used for per-answer
-    //  submission confirmations inside the exam window.
-    //  Shorter duration (2s), smaller pill, teal accent only.
-    // ══════════════════════════════════════════════════════════════
     public static void bottomToast(Pane parent, String msg) {
         javafx.application.Platform.runLater(() -> {
             Region iconR = icon(ICO_CHECK, "#0e7a56", 11);
@@ -1023,30 +938,26 @@ public class UIUtils {
             pill.setId("bottom-toast");
             pill.setOpacity(0);
 
-            // Remove any existing bottom toasts to avoid stacking
             parent.getChildren().removeIf(n -> n instanceof HBox && "bottom-toast".equals(n.getId()));
             parent.getChildren().add(pill);
 
-            // Position: horizontally centered, 24px above bottom
             Runnable position = () -> {
                 double pw = pill.getWidth() > 0 ? pill.getWidth() : 240;
                 double ph = pill.getHeight() > 0 ? pill.getHeight() : 36;
                 pill.setLayoutX((parent.getWidth() - pw) / 2.0);
                 pill.setLayoutY(parent.getHeight() - ph - 24);
-                pill.setTranslateY(20); // start below, animate up
+                pill.setTranslateY(20);
             };
             javafx.application.Platform.runLater(position);
             parent.widthProperty().addListener((ob,ov,nv) -> position.run());
             parent.heightProperty().addListener((ob,ov,nv) -> position.run());
             pill.widthProperty().addListener((ob,ov,nv) -> position.run());
 
-            // Animate in: fade + slide up
             FadeTransition fi = new FadeTransition(Duration.millis(180), pill); fi.setToValue(1);
             TranslateTransition ti = new TranslateTransition(Duration.millis(180), pill);
             ti.setToY(0); ti.setInterpolator(Interpolator.EASE_OUT);
             new ParallelTransition(fi, ti).play();
 
-            // Auto dismiss after 2s
             PauseTransition pause = new PauseTransition(Duration.seconds(2));
             pause.setOnFinished(ev -> {
                 FadeTransition fo = new FadeTransition(Duration.millis(180), pill); fo.setToValue(0);
@@ -1060,9 +971,6 @@ public class UIUtils {
         });
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  LEGACY COMPAT
-    // ══════════════════════════════════════════════════════════════
     public static void applyButtonEffects(Button btn, String hoverColor) {
         String base  = "-fx-background-color:" + bgSurface() + ";-fx-text-fill:" + textDark() + ";-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;";
         String hover = "-fx-background-color:" + hoverColor + ";-fx-text-fill:white;-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;";
