@@ -266,3 +266,55 @@ class Announcement {
         return ldt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy  HH:mm"));
     }
 }
+
+class AnnouncementQuestion {
+    public int id;
+    public int announcementId;
+    public String studentId;
+    public String studentName;
+    public String question;
+    public String teacherAnswer = "";
+    public String answerTeacherName = "";
+    public long createdAt;
+    public long answeredAt;
+
+    public boolean isAnswered() {
+        return teacherAnswer != null && !teacherAnswer.isBlank();
+    }
+
+    public String createdStr() {
+        java.time.LocalDateTime dt = java.time.Instant.ofEpochMilli(createdAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        return dt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy  HH:mm"));
+    }
+
+    public String answeredStr() {
+        if (answeredAt <= 0) return "";
+        java.time.LocalDateTime dt = java.time.Instant.ofEpochMilli(answeredAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        return dt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy  HH:mm"));
+    }
+}
+
+class DirectMessage {
+    public int id;
+    public String teacherEmail;
+    public String teacherName;
+    public String studentId;
+    public String studentName;
+    public String senderRole;
+    public String senderName;
+    public String body;
+    public long createdAt;
+    public boolean readByRecipient;
+
+    public boolean sentByTeacher() {
+        return "teacher".equalsIgnoreCase(senderRole);
+    }
+
+    public String dateTimeStr() {
+        java.time.LocalDateTime dt = java.time.Instant.ofEpochMilli(createdAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        return dt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy  HH:mm"));
+    }
+}

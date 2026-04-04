@@ -137,6 +137,45 @@ public final class Database {
             );""");
 
         st.execute("""
+            CREATE TABLE IF NOT EXISTS announcement_questions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                announcement_id INTEGER NOT NULL,
+                student_id      TEXT    NOT NULL,
+                student_name    TEXT    NOT NULL,
+                question        TEXT    NOT NULL,
+                teacher_answer  TEXT    NOT NULL DEFAULT '',
+                answer_teacher_name TEXT NOT NULL DEFAULT '',
+                created_at      INTEGER NOT NULL,
+                answered_at     INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE
+            );""");
+        try { st.execute("ALTER TABLE announcement_questions ADD COLUMN answer_teacher_name TEXT NOT NULL DEFAULT '';"); }
+        catch (SQLException ignored) {}
+
+        st.execute("""
+            CREATE TABLE IF NOT EXISTS direct_messages (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_email     TEXT    NOT NULL,
+                teacher_name      TEXT    NOT NULL,
+                student_id        TEXT    NOT NULL,
+                student_name      TEXT    NOT NULL,
+                sender_role       TEXT    NOT NULL,
+                sender_name       TEXT    NOT NULL,
+                body              TEXT    NOT NULL,
+                created_at        INTEGER NOT NULL,
+                read_by_recipient INTEGER NOT NULL DEFAULT 0
+            );""");
+
+        st.execute("""
+            CREATE TABLE IF NOT EXISTS announcement_reads (
+                student_id      TEXT    NOT NULL,
+                announcement_id INTEGER NOT NULL,
+                read_at         INTEGER NOT NULL,
+                PRIMARY KEY (student_id, announcement_id),
+                FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE
+            );""");
+
+        st.execute("""
             CREATE TABLE IF NOT EXISTS exam_in_progress (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 student_id   TEXT    NOT NULL,
@@ -758,6 +797,240 @@ public final class Database {
             }
         } catch (SQLException e) { System.err.println("[DB] loadAnnouncements: " + e.getMessage()); }
         return list;
+    }
+
+    public static void saveAnnouncementQuestion(AnnouncementQuestion q) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO announcement_questions
+                  (announcement_id,student_id,student_name,question,teacher_answer,answer_teacher_name,created_at,answered_at)
+                VALUES (?,?,?,?,?,?,?,?)""", Statement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, q.announcementId);
+            ps.setString(2, q.studentId);
+            ps.setString(3, q.studentName);
+            ps.setString(4, q.question);
+            ps.setString(5, nvl(q.teacherAnswer));
+            ps.setString(6, nvl(q.answerTeacherName));
+            ps.setLong(7, q.createdAt);
+            ps.setLong(8, q.answeredAt);
+            ps.executeUpdate();
+            ResultSet k = ps.getGeneratedKeys();
+            if (k.next()) q.id = k.getInt(1);
+        } catch (SQLException e) { System.err.println("[DB] saveAnnouncementQuestion: " + e.getMessage()); }
+    }
+
+    public static void answerAnnouncementQuestion(int id, String answer, String teacherName) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                UPDATE announcement_questions
+                SET teacher_answer=?, answer_teacher_name=?, answered_at=?
+                WHERE id=?""")) {
+            ps.setString(1, answer);
+            ps.setString(2, teacherName);
+            ps.setLong(3, System.currentTimeMillis());
+            ps.setInt(4, id);
+            ps.executeUpdate();
+        } catch (SQLException e) { System.err.println("[DB] answerAnnouncementQuestion: " + e.getMessage()); }
+    }
+
+    public static List<AnnouncementQuestion> loadQuestionsForAnnouncement(int announcementId) {
+        List<AnnouncementQuestion> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT * FROM announcement_questions
+                WHERE announcement_id=?
+                ORDER BY created_at DESC""")) {
+            ps.setInt(1, announcementId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                AnnouncementQuestion q = new AnnouncementQuestion();
+                q.id = rs.getInt("id");
+                q.announcementId = rs.getInt("announcement_id");
+                q.studentId = rs.getString("student_id");
+                q.studentName = rs.getString("student_name");
+                q.question = rs.getString("question");
+                q.teacherAnswer = rs.getString("teacher_answer");
+                q.answerTeacherName = rs.getString("answer_teacher_name");
+                q.createdAt = rs.getLong("created_at");
+                q.answeredAt = rs.getLong("answered_at");
+                list.add(q);
+            }
+        } catch (SQLException e) { System.err.println("[DB] loadQuestionsForAnnouncement: " + e.getMessage()); }
+        return list;
+    }
+
+    public static void saveDirectMessage(DirectMessage m) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO direct_messages
+                  (teacher_email,teacher_name,student_id,student_name,sender_role,sender_name,body,created_at,read_by_recipient)
+                VALUES (?,?,?,?,?,?,?,?,?)""", Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, m.teacherEmail);
+            ps.setString(2, m.teacherName);
+            ps.setString(3, m.studentId);
+            ps.setString(4, m.studentName);
+            ps.setString(5, m.senderRole);
+            ps.setString(6, m.senderName);
+            ps.setString(7, m.body);
+            ps.setLong(8, m.createdAt);
+            ps.setInt(9, m.readByRecipient ? 1 : 0);
+            ps.executeUpdate();
+            ResultSet k = ps.getGeneratedKeys();
+            if (k.next()) m.id = k.getInt(1);
+        } catch (SQLException e) { System.err.println("[DB] saveDirectMessage: " + e.getMessage()); }
+    }
+
+    public static List<DirectMessage> loadConversation(String teacherEmail, String studentId) {
+        List<DirectMessage> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT * FROM direct_messages
+                WHERE teacher_email=? AND student_id=?
+                ORDER BY created_at ASC, id ASC""")) {
+            ps.setString(1, teacherEmail);
+            ps.setString(2, studentId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(rowToDirectMessage(rs));
+        } catch (SQLException e) { System.err.println("[DB] loadConversation: " + e.getMessage()); }
+        return list;
+    }
+
+    public static List<DirectMessage> loadConversationPreviewsForStudent(String studentId) {
+        return loadConversationPreviews("""
+                SELECT dm.*
+                FROM direct_messages dm
+                JOIN (
+                    SELECT teacher_email, student_id, MAX(created_at) AS latest_at
+                    FROM direct_messages
+                    WHERE student_id=?
+                    GROUP BY teacher_email, student_id
+                ) latest
+                  ON latest.teacher_email = dm.teacher_email
+                 AND latest.student_id = dm.student_id
+                 AND latest.latest_at = dm.created_at
+                WHERE dm.student_id=?
+                ORDER BY dm.created_at DESC""",
+                ps -> { ps.setString(1, studentId); ps.setString(2, studentId); });
+    }
+
+    public static List<DirectMessage> loadConversationPreviewsForTeacher(String teacherEmail) {
+        return loadConversationPreviews("""
+                SELECT dm.*
+                FROM direct_messages dm
+                JOIN (
+                    SELECT teacher_email, student_id, MAX(created_at) AS latest_at
+                    FROM direct_messages
+                    WHERE teacher_email=?
+                    GROUP BY teacher_email, student_id
+                ) latest
+                  ON latest.teacher_email = dm.teacher_email
+                 AND latest.student_id = dm.student_id
+                 AND latest.latest_at = dm.created_at
+                WHERE dm.teacher_email=?
+                ORDER BY dm.created_at DESC""",
+                ps -> { ps.setString(1, teacherEmail); ps.setString(2, teacherEmail); });
+    }
+
+    private static List<DirectMessage> loadConversationPreviews(String sql, PsBinder binder) {
+        List<DirectMessage> list = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            binder.bind(ps);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(rowToDirectMessage(rs));
+        } catch (SQLException e) { System.err.println("[DB] loadConversationPreviews: " + e.getMessage()); }
+        return list;
+    }
+
+    private static DirectMessage rowToDirectMessage(ResultSet rs) throws SQLException {
+        DirectMessage m = new DirectMessage();
+        m.id = rs.getInt("id");
+        m.teacherEmail = rs.getString("teacher_email");
+        m.teacherName = rs.getString("teacher_name");
+        m.studentId = rs.getString("student_id");
+        m.studentName = rs.getString("student_name");
+        m.senderRole = rs.getString("sender_role");
+        m.senderName = rs.getString("sender_name");
+        m.body = rs.getString("body");
+        m.createdAt = rs.getLong("created_at");
+        m.readByRecipient = rs.getInt("read_by_recipient") == 1;
+        return m;
+    }
+
+    public static void markConversationReadForStudent(String teacherEmail, String studentId) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                UPDATE direct_messages
+                SET read_by_recipient=1
+                WHERE teacher_email=? AND student_id=? AND sender_role='teacher' AND read_by_recipient=0""")) {
+            ps.setString(1, teacherEmail);
+            ps.setString(2, studentId);
+            ps.executeUpdate();
+        } catch (SQLException e) { System.err.println("[DB] markConversationReadForStudent: " + e.getMessage()); }
+    }
+
+    public static void markConversationReadForTeacher(String teacherEmail, String studentId) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                UPDATE direct_messages
+                SET read_by_recipient=1
+                WHERE teacher_email=? AND student_id=? AND sender_role='student' AND read_by_recipient=0""")) {
+            ps.setString(1, teacherEmail);
+            ps.setString(2, studentId);
+            ps.executeUpdate();
+        } catch (SQLException e) { System.err.println("[DB] markConversationReadForTeacher: " + e.getMessage()); }
+    }
+
+    public static int countUnreadDirectMessagesForStudent(String studentId) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT COUNT(*)
+                FROM direct_messages
+                WHERE student_id=? AND sender_role='teacher' AND read_by_recipient=0""")) {
+            ps.setString(1, studentId);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) { System.err.println("[DB] countUnreadDirectMessagesForStudent: " + e.getMessage()); }
+        return 0;
+    }
+
+    public static int countUnreadDirectMessagesForTeacher(String teacherEmail) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT COUNT(*)
+                FROM direct_messages
+                WHERE teacher_email=? AND sender_role='student' AND read_by_recipient=0""")) {
+            ps.setString(1, teacherEmail);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) { System.err.println("[DB] countUnreadDirectMessagesForTeacher: " + e.getMessage()); }
+        return 0;
+    }
+
+    public static void deleteDirectMessage(int id) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM direct_messages WHERE id=?")) {
+            ps.setInt(1, id);
+            ps.executeUpdate();
+        } catch (SQLException e) { System.err.println("[DB] deleteDirectMessage: " + e.getMessage()); }
+    }
+
+    public static void markAnnouncementRead(String studentId, int announcementId) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO announcement_reads (student_id,announcement_id,read_at)
+                VALUES (?,?,?)
+                ON CONFLICT(student_id,announcement_id) DO UPDATE SET read_at=excluded.read_at""")) {
+            ps.setString(1, studentId);
+            ps.setInt(2, announcementId);
+            ps.setLong(3, System.currentTimeMillis());
+            ps.executeUpdate();
+        } catch (SQLException e) { System.err.println("[DB] markAnnouncementRead: " + e.getMessage()); }
+    }
+
+    public static int countUnreadAnnouncementsForStudent(String studentId) {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT COUNT(*)
+                FROM announcements a
+                LEFT JOIN announcement_reads ar
+                  ON ar.announcement_id = a.id AND ar.student_id = ?
+                WHERE (a.expire_at = 0 OR a.expire_at > ?)
+                  AND ar.announcement_id IS NULL""")) {
+            long now = System.currentTimeMillis();
+            ps.setString(1, studentId);
+            ps.setLong(2, now);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) { System.err.println("[DB] countUnreadAnnouncementsForStudent: " + e.getMessage()); }
+        return 0;
     }
 
     private static String nvl(String s) { return s != null ? s : ""; }

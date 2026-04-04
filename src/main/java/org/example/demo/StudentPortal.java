@@ -15,10 +15,14 @@ import javafx.util.Duration;
 import java.util.*;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class StudentPortal {
 
     static int activeNavIndex = 0;
+    private static Timeline notificationTimeline;
+    private static int lastUnreadMessageCount = -1;
+    private static int lastUnreadAnnouncementCount = -1;
 
     private static VBox buildAuthPanel(String title, String sub) {
         VBox v = new VBox(0);
@@ -87,10 +91,10 @@ public class StudentPortal {
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
-            title, sub, UIUtils.divider(),
-            new Label("STUDENT ID / EMAIL") {{ setStyle(lblS); }}, txtID,
-            new Label("PASSWORD") {{ setStyle(lblS); }}, txtPw,
-            btnLogin, linkSignup, btnBack
+                title, sub, UIUtils.divider(),
+                new Label("STUDENT ID / EMAIL") {{ setStyle(lblS); }}, txtID,
+                new Label("PASSWORD") {{ setStyle(lblS); }}, txtPw,
+                btnLogin, linkSignup, btnBack
         );
 
         ScrollPane sp = new ScrollPane(form);
@@ -147,13 +151,13 @@ public class StudentPortal {
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
-            title, UIUtils.divider(),
-            new Label("STUDENT ID")  {{ setStyle(lblS); }}, txtID,
-            new Label("FULL NAME")   {{ setStyle(lblS); }}, txtName,
-            new Label("EMAIL")       {{ setStyle(lblS); }}, txtEmail,
-            new Label("PASSWORD")    {{ setStyle(lblS); }}, txtPass,
-            new Label("CONFIRM")     {{ setStyle(lblS); }}, txtConfirm,
-            btnReg, btnBack
+                title, UIUtils.divider(),
+                new Label("STUDENT ID")  {{ setStyle(lblS); }}, txtID,
+                new Label("FULL NAME")   {{ setStyle(lblS); }}, txtName,
+                new Label("EMAIL")       {{ setStyle(lblS); }}, txtEmail,
+                new Label("PASSWORD")    {{ setStyle(lblS); }}, txtPass,
+                new Label("CONFIRM")     {{ setStyle(lblS); }}, txtConfirm,
+                btnReg, btnBack
         );
 
         ScrollPane sp = new ScrollPane(form);
@@ -172,6 +176,7 @@ public class StudentPortal {
     }
 
     public static Scene createDashboardScene(Stage stage, Student student, HelloApplication app, int startPage) {
+        stopNotificationTimeline();
         BorderPane root = new BorderPane();
 
         VBox sidebar = new VBox(0);
@@ -179,7 +184,7 @@ public class StudentPortal {
         sidebar.setStyle("-fx-background-color:#111722;");
 
         StackPane themeSwitch = UIUtils.themeToggleSwitch(() ->
-            stage.setScene(createDashboardScene(stage, student, app, activeNavIndex))
+                stage.setScene(createDashboardScene(stage, student, app, activeNavIndex))
         );
         HBox switchRow = new HBox(themeSwitch);
         switchRow.setAlignment(Pos.CENTER_LEFT);
@@ -210,11 +215,18 @@ public class StudentPortal {
         topSep.setStyle("-fx-background-color:#1e2a3a;");
         VBox.setMargin(topSep, new Insets(0, 14, 8, 14));
 
+        int unreadCount = ServerClient.get().countUnreadConversationMessagesForStudent(student.getID());
+        int unreadAnnouncementCount = ServerClient.get().countUnreadAnnouncementsForStudent(student.getID());
+        String inboxLabel = navLabel("Messages", unreadCount);
+        String announcementLabel = navLabel("Announcements", unreadAnnouncementCount);
+
         String[][] navDefs = {
-            {UIUtils.ICO_DASHBOARD, "Dashboard",   UIUtils.ACCENT_TEAL},
-            {UIUtils.ICO_HISTORY,   "My Results",  UIUtils.ACCENT_BLUE},
-            {UIUtils.ICO_ANALYTICS, "Analytics",   UIUtils.ACCENT_YELL},
-            {UIUtils.ICO_TROPHY,    "Leaderboard", "#b45309"},
+                {UIUtils.ICO_DASHBOARD, "Dashboard",      UIUtils.ACCENT_TEAL},
+                {UIUtils.ICO_HISTORY,   "My Results",     UIUtils.ACCENT_BLUE},
+                {UIUtils.ICO_ANALYTICS, "Analytics",      UIUtils.ACCENT_YELL},
+                {UIUtils.ICO_TROPHY,    "Leaderboard",    "#b45309"},
+                {UIUtils.ICO_SEND,      inboxLabel,       UIUtils.ACCENT_GREEN},
+                {UIUtils.ICO_ANNOUNCE,  announcementLabel, UIUtils.ACCENT_PURP},
         };
 
         StackPane[] navBtns = new StackPane[navDefs.length];
@@ -269,19 +281,61 @@ public class StudentPortal {
         root.setCenter(contentArea);
 
         ServerClient.get().setExamEventListener(updatedExam ->
-            javafx.application.Platform.runLater(() -> {
-                if (activeNavIndex == 0)
-                    renderDashboardPage(contentArea, stage, student, app);
-            })
+                javafx.application.Platform.runLater(() -> {
+                    if (activeNavIndex == 0)
+                        renderDashboardPage(contentArea, stage, student, app);
+                })
         );
 
         UIUtils.modernSidebarSetActive(navBtns[startPage]);
         dispatchPage(startPage, contentArea, stage, student, app);
+        startNotificationPolling(student, contentArea, navBtns);
 
         Scene scene = new Scene(root, 1100, 660);
         UIUtils.applyStyle(scene);
         javafx.application.Platform.runLater(() -> { stage.setWidth(1100); stage.setHeight(660); stage.centerOnScreen(); });
         return scene;
+    }
+
+    private static void startNotificationPolling(Student student, javafx.scene.layout.AnchorPane contentArea, StackPane[] navBtns) {
+        lastUnreadMessageCount = ServerClient.get().countUnreadConversationMessagesForStudent(student.getID());
+        lastUnreadAnnouncementCount = ServerClient.get().countUnreadAnnouncementsForStudent(student.getID());
+        updateSidebarLabel(navBtns[4], navLabel("Messages", lastUnreadMessageCount));
+        updateSidebarLabel(navBtns[5], navLabel("Announcements", lastUnreadAnnouncementCount));
+
+        notificationTimeline = new Timeline(new KeyFrame(Duration.seconds(4), e -> {
+            int msgCount = ServerClient.get().countUnreadConversationMessagesForStudent(student.getID());
+            int annCount = ServerClient.get().countUnreadAnnouncementsForStudent(student.getID());
+            if (msgCount > lastUnreadMessageCount) {
+                UIUtils.Toast.info(contentArea, (msgCount - lastUnreadMessageCount) + " new message" + (msgCount - lastUnreadMessageCount == 1 ? "" : "s"));
+            }
+            if (annCount > lastUnreadAnnouncementCount) {
+                UIUtils.Toast.info(contentArea, (annCount - lastUnreadAnnouncementCount) + " new announcement" + (annCount - lastUnreadAnnouncementCount == 1 ? "" : "s"));
+            }
+            lastUnreadMessageCount = msgCount;
+            lastUnreadAnnouncementCount = annCount;
+            updateSidebarLabel(navBtns[4], navLabel("Messages", msgCount));
+            updateSidebarLabel(navBtns[5], navLabel("Announcements", annCount));
+        }));
+        notificationTimeline.setCycleCount(Animation.INDEFINITE);
+        notificationTimeline.play();
+    }
+
+    private static void stopNotificationTimeline() {
+        if (notificationTimeline != null) {
+            notificationTimeline.stop();
+            notificationTimeline = null;
+        }
+    }
+
+    private static String navLabel(String base, int count) {
+        return count > 0 ? base + " (" + count + ")" : base;
+    }
+
+    private static void updateSidebarLabel(StackPane btn, String text) {
+        HBox row = (HBox) btn.getChildren().get(1);
+        Label label = (Label) row.getChildren().get(2);
+        label.setText(text);
     }
 
     private static void dispatchPage(int idx, javafx.scene.layout.AnchorPane area,
@@ -291,6 +345,8 @@ public class StudentPortal {
             case 1 -> renderMyResultsPage(area, stage, student, app);
             case 2 -> renderAnalyticsPage(area, stage, student, app);
             case 3 -> renderLeaderboardPage(area, stage, student, app);
+            case 4 -> renderInboxPage(area, stage, student, app);
+            case 5 -> renderAnnouncementsPage(area, stage, student, app);
         }
     }
 
@@ -343,13 +399,46 @@ public class StudentPortal {
 
         HBox stats = new HBox(10);
         stats.getChildren().addAll(
-            UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),     "Live Now",    UIUtils.ACCENT_GREEN),
-            UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(upcomingCount), "Upcoming",    UIUtils.ACCENT_PURP),
-            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(completedCount),"Completed",   UIUtils.ACCENT_TEAL),
-            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avgPct),"Avg Score",   UIUtils.ACCENT_ORG)
+                UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),     "Live Now",    UIUtils.ACCENT_GREEN),
+                UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(upcomingCount), "Upcoming",    UIUtils.ACCENT_PURP),
+                UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(completedCount),"Completed",   UIUtils.ACCENT_TEAL),
+                UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avgPct),"Avg Score",   UIUtils.ACCENT_ORG)
         );
 
         row1.getChildren().addAll(new VBox(2, greetL, dateL), stats);
+
+        // ── Announcements banner (shows latest non-expired announcement) ────
+        List<Announcement> activeAnnouncements = ServerClient.get().loadAnnouncements()
+                .stream().filter(a -> !a.isExpired()).collect(java.util.stream.Collectors.toList());
+        VBox announceBanner = new VBox(6);
+        if (!activeAnnouncements.isEmpty()) {
+            announceBanner.setPadding(new Insets(0, 36, 0, 36));
+            for (int ai = 0; ai < Math.min(2, activeAnnouncements.size()); ai++) {
+                Announcement ann = activeAnnouncements.get(ai);
+                String ac = (ann.color != null && !ann.color.isBlank()) ? ann.color : "#2563eb";
+                HBox strip = new HBox(10); strip.setAlignment(Pos.CENTER_LEFT);
+                strip.setPadding(new Insets(10, 14, 10, 14));
+                strip.setMaxWidth(Double.MAX_VALUE);
+                strip.setStyle("-fx-background-color:" + ac + "12;-fx-background-radius:7;" +
+                        "-fx-border-color:" + ac + "45;-fx-border-radius:7;-fx-border-width:1;");
+                StackPane sIco = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, ac, 12));
+                sIco.setPrefSize(26, 26);
+                sIco.setStyle("-fx-background-color:" + ac + "20;-fx-background-radius:6;");
+                Label sTitle = new Label(ann.title + "  —  " + ann.body);
+                sTitle.setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textDark() + ";");
+                sTitle.setMaxWidth(580); sTitle.setEllipsisString("…");
+                Region sSp = new Region(); HBox.setHgrow(sSp, Priority.ALWAYS);
+                Label sDate = new Label(ann.dateStr());
+                sDate.setStyle("-fx-font-size:10px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+                strip.getChildren().addAll(sIco, sTitle, sSp, sDate);
+                strip.setOnMouseClicked(ev -> {
+                    activeNavIndex = 4;
+                    renderAnnouncementsPage(area, stage, student, app);
+                });
+                strip.setCursor(javafx.scene.Cursor.HAND);
+                announceBanner.getChildren().add(strip);
+            }
+        }
 
         VBox row2 = new VBox(14);
         row2.setPadding(new Insets(20, 36, 20, 36));
@@ -364,14 +453,14 @@ public class StudentPortal {
         codeField.setPrefWidth(280);
         codeField.setPrefHeight(52);
         codeField.setStyle(
-            "-fx-font-family:Monospaced;-fx-font-size:22px;-fx-font-weight:700;" +
-            "-fx-alignment:center;" +
-            "-fx-text-fill:" + UIUtils.textDark() + ";" +
-            "-fx-background-color:" + UIUtils.bgInput() + ";" +
-            "-fx-border-color:#0f7d74;" +
-            "-fx-border-radius:8;-fx-background-radius:8;" +
-            "-fx-border-width:2;-fx-padding:10;" +
-            "-fx-letter-spacing:8px;"
+                "-fx-font-family:Monospaced;-fx-font-size:22px;-fx-font-weight:700;" +
+                        "-fx-alignment:center;" +
+                        "-fx-text-fill:" + UIUtils.textDark() + ";" +
+                        "-fx-background-color:" + UIUtils.bgInput() + ";" +
+                        "-fx-border-color:#0f7d74;" +
+                        "-fx-border-radius:8;-fx-background-radius:8;" +
+                        "-fx-border-width:2;-fx-padding:10;" +
+                        "-fx-letter-spacing:8px;"
         );
 
         codeField.textProperty().addListener((obs, o, n) -> {
@@ -411,10 +500,10 @@ public class StudentPortal {
                 btnSearch.setText("Search"); btnSearch.setDisable(false);
 
                 Exam found = ServerClient.get().loadAllExams().stream()
-                    .filter(ex -> ex.getExamCode() != null
-                        && ex.getExamCode().equalsIgnoreCase(code)
-                        && (ex.isLive() || ex.isScheduled()))
-                    .findFirst().orElse(null);
+                        .filter(ex -> ex.getExamCode() != null
+                                && ex.getExamCode().equalsIgnoreCase(code)
+                                && (ex.isLive() || ex.isScheduled()))
+                        .findFirst().orElse(null);
 
                 if (found == null) {
                     UIUtils.Toast.error(area, "No active examination found with that code");
@@ -473,7 +562,7 @@ public class StudentPortal {
         ticker.setCycleCount(Animation.INDEFINITE); ticker.play();
         page.sceneProperty().addListener((obs, o, n) -> { if (n == null) ticker.stop(); });
 
-        page.getChildren().addAll(row1, row2, row3, row4);
+        page.getChildren().addAll(row1, announceBanner, row2, row3, row4);
         scroll.setContent(page);
 
         javafx.scene.layout.AnchorPane.setTopAnchor(scroll, 0.0);
@@ -491,12 +580,12 @@ public class StudentPortal {
             Circle ripple = new Circle(4, Color.web(color)); ripple.setOpacity(0);
             ripple.setMouseTransparent(true);
             Timeline sonar = new Timeline(
-                new KeyFrame(Duration.ZERO,
-                    new KeyValue(ripple.radiusProperty(), 4.0),
-                    new KeyValue(ripple.opacityProperty(), 0.55)),
-                new KeyFrame(Duration.millis(900),
-                    new KeyValue(ripple.radiusProperty(), 10.0),
-                    new KeyValue(ripple.opacityProperty(), 0.0))
+                    new KeyFrame(Duration.ZERO,
+                            new KeyValue(ripple.radiusProperty(), 4.0),
+                            new KeyValue(ripple.opacityProperty(), 0.55)),
+                    new KeyFrame(Duration.millis(900),
+                            new KeyValue(ripple.radiusProperty(), 10.0),
+                            new KeyValue(ripple.opacityProperty(), 0.0))
             );
             sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
             StackPane dotStack = new StackPane(ripple, dot);
@@ -528,9 +617,9 @@ public class StudentPortal {
     }
 
     private static Runnable buildDashboardRefresh(VBox liveSection, VBox upcomingSection,
-                                                   Student student, Stage stage,
-                                                   HelloApplication app,
-                                                   javafx.scene.layout.AnchorPane area) {
+                                                  Student student, Stage stage,
+                                                  HelloApplication app,
+                                                  javafx.scene.layout.AnchorPane area) {
         return () -> {
             liveSection.getChildren().clear();
             upcomingSection.getChildren().clear();
@@ -541,7 +630,7 @@ public class StudentPortal {
             for (int[] row : codes) {
                 int examId = row[0];
                 Exam ex = ServerClient.get().loadAllExams().stream()
-                    .filter(e -> e.getDbId() == examId).findFirst().orElse(null);
+                        .filter(e -> e.getDbId() == examId).findFirst().orElse(null);
                 if (ex == null) {
                     ServerClient.get().removeStudentExamCode(student.getID(), examId);
                     continue;
@@ -564,7 +653,7 @@ public class StudentPortal {
                     hasLive = true;
                 } else if (ex.isScheduled()) {
                     upcomingSection.getChildren().add(buildStudentSchedRow(ex, student, stage, app, area, () ->
-                        buildDashboardRefresh(liveSection, upcomingSection, student, stage, app, area).run()
+                            buildDashboardRefresh(liveSection, upcomingSection, student, stage, app, area).run()
                     ));
                     hasSched = true;
                 }
@@ -572,7 +661,7 @@ public class StudentPortal {
 
             for (Exam ex : ServerClient.get().loadAllExams().stream().filter(Exam::isLive).collect(java.util.stream.Collectors.toList())) {
                 boolean alreadySubmitted = ex.getExamCode() != null && !ex.getExamCode().isEmpty()
-                    && ServerClient.get().hasResult(student.getID(), ex.getDbId(), ex.getExamCode());
+                        && ServerClient.get().hasResult(student.getID(), ex.getDbId(), ex.getExamCode());
                 if (ServerClient.get().hasInProgress(student.getID(), ex.getDbId()) && !alreadySubmitted) {
                     boolean alreadyShown = codes.stream().anyMatch(row -> row[0] == ex.getDbId());
                     if (!alreadyShown) {
@@ -597,15 +686,15 @@ public class StudentPortal {
     }
 
     private static HBox buildStudentLiveRow(Exam ex, Student student, Stage stage, HelloApplication app,
-                                             javafx.scene.layout.AnchorPane area) {
+                                            javafx.scene.layout.AnchorPane area) {
         HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(13, 18, 13, 18));
         row.setMaxWidth(Double.MAX_VALUE);
         row.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:9;" +
-            "-fx-border-color:rgba(14,122,86,0.35);" +
-            "-fx-border-radius:9;-fx-border-width:1.5;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;" +
+                        "-fx-border-color:rgba(14,122,86,0.35);" +
+                        "-fx-border-radius:9;-fx-border-width:1.5;"
         );
         DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05)); ds.setRadius(8); ds.setOffsetY(2); row.setEffect(ds);
 
@@ -613,8 +702,8 @@ public class StudentPortal {
         Circle ripple = new Circle(4, Color.web("#0e7a56")); ripple.setOpacity(0);
         ripple.setMouseTransparent(true);
         Timeline sonar = new Timeline(
-            new KeyFrame(Duration.ZERO,     new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
-            new KeyFrame(Duration.millis(850), new KeyValue(ripple.radiusProperty(), 11.0), new KeyValue(ripple.opacityProperty(), 0.0))
+                new KeyFrame(Duration.ZERO,     new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
+                new KeyFrame(Duration.millis(850), new KeyValue(ripple.radiusProperty(), 11.0), new KeyValue(ripple.opacityProperty(), 0.0))
         );
         sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
         StackPane dotStack = new StackPane(ripple, dot);
@@ -630,7 +719,7 @@ public class StudentPortal {
         Label titleLbl = new Label(et);
         titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
         Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
-            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+                + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
         metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
 
         if (ServerClient.get().hasInProgress(student.getID(), ex.getDbId())) {
@@ -656,7 +745,7 @@ public class StudentPortal {
         btnEnter.setOnAction(e -> showLiveExamPopup(ex, student, stage, app, area));
 
         row.getChildren().addAll(new HBox(6, dotStack, liveBadge) {{ setAlignment(Pos.CENTER_LEFT); }},
-            info, sp, remLbl, btnEnter);
+                info, sp, remLbl, btnEnter);
         return row;
     }
 
@@ -665,10 +754,10 @@ public class StudentPortal {
         row.setPadding(new Insets(13, 18, 13, 18));
         row.setMaxWidth(Double.MAX_VALUE);
         row.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:9;" +
-            "-fx-border-color:rgba(14,122,86,0.35);" +
-            "-fx-border-radius:9;-fx-border-width:1.5;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;" +
+                        "-fx-border-color:rgba(14,122,86,0.35);" +
+                        "-fx-border-radius:9;-fx-border-width:1.5;"
         );
         DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.05)); ds.setRadius(8); ds.setOffsetY(2); row.setEffect(ds);
 
@@ -681,7 +770,7 @@ public class StudentPortal {
         Label titleLbl = new Label(et);
         titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
         Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
-            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+                + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
         metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
         Label lockLbl = new Label("Code Required");
         lockLbl.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;-fx-text-fill:#b45309;-fx-background-color:#fef3c7;-fx-padding:2 8;-fx-background-radius:4;");
@@ -700,21 +789,21 @@ public class StudentPortal {
         btnCode.setOnAction(e -> UIUtils.Toast.info(area, "Enter the exam code above to unlock this live examination."));
 
         row.getChildren().addAll(new HBox(6, dot, liveBadge) {{ setAlignment(Pos.CENTER_LEFT); }},
-            info, sp, remLbl, btnCode);
+                info, sp, remLbl, btnCode);
         return row;
     }
 
     private static VBox buildStudentSchedRow(Exam ex, Student student, Stage stage,
-                                              HelloApplication app,
-                                              javafx.scene.layout.AnchorPane area,
-                                              Runnable onGoLive) {
+                                             HelloApplication app,
+                                             javafx.scene.layout.AnchorPane area,
+                                             Runnable onGoLive) {
         VBox wrapper = new VBox();
         wrapper.setUserData(ex.getDbId());
         HBox row = new HBox(12); row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(13, 18, 13, 18));
         row.setMaxWidth(Double.MAX_VALUE);
         row.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:9;" +
-            "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;");
+                "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;");
         DropShadow ds = new DropShadow(); ds.setColor(Color.color(0,0,0,0.04)); ds.setRadius(6); ds.setOffsetY(1); row.setEffect(ds);
 
         String et = (ex.getTitle() != null && !ex.getTitle().isBlank()) ? ex.getTitle() : ex.getSubject();
@@ -722,12 +811,12 @@ public class StudentPortal {
         Label titleLbl = new Label(et);
         titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
         Label metaLbl = new Label(ex.getSubject() + "  ·  Grade " + ex.getGrade()
-            + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
+                + "  ·  " + ex.getDuration() + " min  ·  " + (int)ex.getTotalMarks() + " marks");
         metaLbl.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
         info.getChildren().addAll(titleLbl, metaLbl);
         if (ex.getScheduledStartMillis() > 0 && ex.getScheduledStartMillis() > System.currentTimeMillis()) {
             java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(ex.getScheduledStartMillis())
-                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
             Label dateLbl = new Label(ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM  ·  HH:mm")));
             dateLbl.setStyle("-fx-font-size:11px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.ACCENT_PURP + ";");
             info.getChildren().add(dateLbl);
@@ -756,7 +845,7 @@ public class StudentPortal {
     }
 
     private static void showLiveExamPopup(Exam exam, Student student, Stage stage,
-                                           HelloApplication app, javafx.scene.layout.AnchorPane area) {
+                                          HelloApplication app, javafx.scene.layout.AnchorPane area) {
         Stage popup = new Stage();
         popup.initModality(Modality.APPLICATION_MODAL);
         popup.initOwner(stage);
@@ -765,10 +854,10 @@ public class StudentPortal {
         VBox box = new VBox(16);
         box.setPadding(new Insets(28, 34, 26, 34));
         box.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:14;" +
-            "-fx-border-color:rgba(14,122,86,0.3);" +
-            "-fx-border-radius:14;-fx-border-width:1.5;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:14;" +
+                        "-fx-border-color:rgba(14,122,86,0.3);" +
+                        "-fx-border-radius:14;-fx-border-width:1.5;"
         );
         box.setEffect(new DropShadow(36, Color.color(0,0,0,0.18)));
 
@@ -778,8 +867,8 @@ public class StudentPortal {
         Circle ripple2 = new Circle(5, Color.web("#0e7a56")); ripple2.setOpacity(0);
         ripple2.setMouseTransparent(true);
         Timeline sonar2 = new Timeline(
-            new KeyFrame(Duration.ZERO,     new KeyValue(ripple2.radiusProperty(), 5.0),  new KeyValue(ripple2.opacityProperty(), 0.55)),
-            new KeyFrame(Duration.millis(900), new KeyValue(ripple2.radiusProperty(), 13.0), new KeyValue(ripple2.opacityProperty(), 0.0))
+                new KeyFrame(Duration.ZERO,     new KeyValue(ripple2.radiusProperty(), 5.0),  new KeyValue(ripple2.opacityProperty(), 0.55)),
+                new KeyFrame(Duration.millis(900), new KeyValue(ripple2.radiusProperty(), 13.0), new KeyValue(ripple2.opacityProperty(), 0.0))
         );
         sonar2.setCycleCount(Timeline.INDEFINITE); sonar2.play();
         StackPane dotStack2 = new StackPane(ripple2, dot);
@@ -820,11 +909,11 @@ public class StudentPortal {
             resumeNotice.setPadding(new Insets(9, 12, 9, 12));
             resumeNotice.setStyle("-fx-background-color:rgba(80,70,160,0.09);-fx-background-radius:7;-fx-border-color:rgba(80,70,160,0.25);-fx-border-radius:7;-fx-border-width:1;");
             resumeNotice.getChildren().addAll(
-                UIUtils.icon(UIUtils.ICO_INFO, UIUtils.ACCENT_PURP, 13),
-                new Label(savedCount + " answer" + (savedCount==1?"":"s") + " saved — you will resume from where you left off.") {{
-                    setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:#5046a0;");
-                    setWrapText(true);
-                }}
+                    UIUtils.icon(UIUtils.ICO_INFO, UIUtils.ACCENT_PURP, 13),
+                    new Label(savedCount + " answer" + (savedCount==1?"":"s") + " saved — you will resume from where you left off.") {{
+                        setStyle("-fx-font-size:12px;-fx-font-weight:600;-fx-text-fill:#5046a0;");
+                        setWrapText(true);
+                    }}
             );
             box.getChildren().add(resumeNotice);
         }
@@ -840,9 +929,9 @@ public class StudentPortal {
             timerTl.stop(); sonar2.stop();
             popup.close();
             Exam latestExam = ServerClient.get().loadAllExams().stream()
-                .filter(ex -> ex.getDbId() == exam.getDbId())
-                .findFirst()
-                .orElse(exam);
+                    .filter(ex -> ex.getDbId() == exam.getDbId())
+                    .findFirst()
+                    .orElse(exam);
             stage.setScene(buildExamScene(latestExam, student, stage, app));
         });
         btnCancel.setOnAction(e -> { timerTl.stop(); sonar2.stop(); popup.close(); });
@@ -872,10 +961,10 @@ public class StudentPortal {
         VBox box = new VBox(16);
         box.setPadding(new Insets(28, 34, 26, 34));
         box.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:14;" +
-            "-fx-border-color:rgba(80,70,160,0.3);" +
-            "-fx-border-radius:14;-fx-border-width:1.5;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:14;" +
+                        "-fx-border-color:rgba(80,70,160,0.3);" +
+                        "-fx-border-radius:14;-fx-border-width:1.5;"
         );
         box.setEffect(new DropShadow(36, Color.color(0,0,0,0.16)));
 
@@ -901,9 +990,9 @@ public class StudentPortal {
 
         if (exam.getScheduledStartMillis() > 0) {
             java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(exam.getScheduledStartMillis())
-                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
             addDetailRow(grid, 5, "Starts",
-                ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy  ·  HH:mm")));
+                    ldt.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy  ·  HH:mm")));
         }
 
         if (exam.getDescription() != null && !exam.getDescription().isBlank()) {
@@ -1118,9 +1207,9 @@ public class StudentPortal {
 
             VBox qCard = new VBox(14); qCard.setPadding(new Insets(20, 24, 20, 24));
             qCard.setStyle(
-                "-fx-background-color:" + card + ";" +
-                "-fx-border-color:" + bdr + ";" +
-                "-fx-border-radius:9;-fx-background-radius:9;-fx-border-width:1;"
+                    "-fx-background-color:" + card + ";" +
+                            "-fx-border-color:" + bdr + ";" +
+                            "-fx-border-radius:9;-fx-background-radius:9;-fx-border-width:1;"
             );
             DropShadow ds2 = new DropShadow();
             ds2.setColor(Color.color(0,0,0, UIUtils.darkMode?0.22:0.04));
@@ -1164,19 +1253,19 @@ public class StudentPortal {
                         optRow.setPadding(new Insets(10, 16, 10, 14));
                         optRow.setCursor(javafx.scene.Cursor.HAND);
                         optRow.setStyle(
-                            "-fx-background-color:" + (sel ? optSelBg : optBg) + ";" +
-                            "-fx-border-color:" + (sel ? optSel : optBdr) + ";" +
-                            "-fx-border-width:" + (sel ? "1.5" : "1") + ";" +
-                            "-fx-border-radius:7;-fx-background-radius:7;"
+                                "-fx-background-color:" + (sel ? optSelBg : optBg) + ";" +
+                                        "-fx-border-color:" + (sel ? optSel : optBdr) + ";" +
+                                        "-fx-border-width:" + (sel ? "1.5" : "1") + ";" +
+                                        "-fx-border-radius:7;-fx-background-radius:7;"
                         );
 
                         Label letter = new Label(optChar);
                         letter.setStyle(
-                            "-fx-font-size:11.5px;-fx-font-weight:700;" +
-                            "-fx-min-width:26;-fx-min-height:26;-fx-alignment:center;" +
-                            "-fx-background-radius:5;" +
-                            "-fx-background-color:" + (sel ? optSel : (UIUtils.darkMode?"#29334a":"#f0f1f4")) + ";" +
-                            "-fx-text-fill:" + (sel ? "white" : txtS) + ";"
+                                "-fx-font-size:11.5px;-fx-font-weight:700;" +
+                                        "-fx-min-width:26;-fx-min-height:26;-fx-alignment:center;" +
+                                        "-fx-background-radius:5;" +
+                                        "-fx-background-color:" + (sel ? optSel : (UIUtils.darkMode?"#29334a":"#f0f1f4")) + ";" +
+                                        "-fx-text-fill:" + (sel ? "white" : txtS) + ";"
                         );
 
                         Label optText = new Label(opts[oi]);
@@ -1214,10 +1303,10 @@ public class StudentPortal {
                 TextField ansField = new TextField(answers.getOrDefault(idx, ""));
                 ansField.setPromptText("Enter your answer...");
                 ansField.setStyle(
-                    "-fx-background-color:" + optBg + ";-fx-border-color:" + optBdr + ";" +
-                    "-fx-border-radius:7;-fx-background-radius:7;" +
-                    "-fx-font-size:14px;-fx-text-fill:" + txtD + ";-fx-padding:11;" +
-                    "-fx-prompt-text-fill:" + txtS + ";"
+                        "-fx-background-color:" + optBg + ";-fx-border-color:" + optBdr + ";" +
+                                "-fx-border-radius:7;-fx-background-radius:7;" +
+                                "-fx-font-size:14px;-fx-text-fill:" + txtD + ";-fx-padding:11;" +
+                                "-fx-prompt-text-fill:" + txtS + ";"
                 );
                 ansField.textProperty().addListener((obs, o, n) -> {
                     if (n.isBlank()) answers.remove(idx); else answers.put(idx, n);
@@ -1247,18 +1336,18 @@ public class StudentPortal {
                     }
                     answers.put(idx, cur);
                     if (navBtns2[idx]!=null) navBtns2[idx].setStyle(
-                        flagged.contains(idx) ? qNavStyleActive("#b45309", UIUtils.darkMode)
-                                              : qNavStyleActive("#0f7d74", UIUtils.darkMode));
+                            flagged.contains(idx) ? qNavStyleActive("#b45309", UIUtils.darkMode)
+                                    : qNavStyleActive("#0f7d74", UIUtils.darkMode));
                     answeredCount.setText(answers.size() + " / " + totalQ);
                     autoSave.run();
                     btnSaveAns.setText("Answer Saved");
                     btnSaveAns.setStyle(
-                        "-fx-background-color:#0e7a56;-fx-text-fill:white;-fx-font-weight:700;" +
-                        "-fx-font-size:12px;-fx-background-radius:6;-fx-padding:9 18;-fx-cursor:hand;"
+                            "-fx-background-color:#0e7a56;-fx-text-fill:white;-fx-font-weight:700;" +
+                                    "-fx-font-size:12px;-fx-background-radius:6;-fx-padding:9 18;-fx-cursor:hand;"
                     );
                     String origStyle = "-fx-background-color:" + UIUtils.ACCENT_GREEN + ";-fx-text-fill:white;" +
-                        "-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;" +
-                        "-fx-padding:9 18;-fx-border-color:transparent;-fx-cursor:hand;";
+                            "-fx-font-weight:600;-fx-font-size:13px;-fx-background-radius:6;" +
+                            "-fx-padding:9 18;-fx-border-color:transparent;-fx-cursor:hand;";
                     PauseTransition resetSaved = new PauseTransition(Duration.seconds(1.8));
                     resetSaved.setOnFinished(ev -> {
                         btnSaveAns.setText("Save Answer");
@@ -1470,10 +1559,10 @@ public class StudentPortal {
 
             VBox cardBody = new VBox(8); cardBody.setPadding(new Insets(12, 16, 12, 14));
             cardBody.setStyle(
-                "-fx-background-color:" + card + ";" +
-                "-fx-background-radius:0 8 8 0;" +
-                "-fx-border-color:" + cardBorder + ";" +
-                "-fx-border-width:1 1 1 0;-fx-border-radius:0 8 8 0;"
+                    "-fx-background-color:" + card + ";" +
+                            "-fx-background-radius:0 8 8 0;" +
+                            "-fx-border-color:" + cardBorder + ";" +
+                            "-fx-border-width:1 1 1 0;-fx-border-radius:0 8 8 0;"
             );
             HBox.setHgrow(cardBody, Priority.ALWAYS);
 
@@ -1491,9 +1580,9 @@ public class StudentPortal {
             double earned = isCorrect ? qMark : 0;
             Label earnedChip = new Label(isCorrect ? "+" + (int)earned : (unanswered ? "No answer" : "0"));
             earnedChip.setStyle("-fx-font-size:10.5px;-fx-font-weight:700;" +
-                "-fx-text-fill:" + (isCorrect?"#0e7a56":(unanswered?txtS:"#c0392b")) + ";" +
-                "-fx-background-color:" + (isCorrect?"#d1f0e8":(unanswered?UIUtils.bgMuted():"#fde8e8")) + ";" +
-                "-fx-padding:2 8;-fx-background-radius:4;");
+                    "-fx-text-fill:" + (isCorrect?"#0e7a56":(unanswered?txtS:"#c0392b")) + ";" +
+                    "-fx-background-color:" + (isCorrect?"#d1f0e8":(unanswered?UIUtils.bgMuted():"#fde8e8")) + ";" +
+                    "-fx-padding:2 8;-fx-background-radius:4;");
             topRow.getChildren().addAll(0, java.util.List.of(qNumLbl, markChip, sp));
             topRow.getChildren().add(earnedChip);
 
@@ -1657,10 +1746,10 @@ public class StudentPortal {
 
         HBox statRow = new HBox(12); statRow.setAlignment(Pos.CENTER_LEFT);
         statRow.getChildren().addAll(
-            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avg), "Average Score",  UIUtils.ACCENT_TEAL),
-            UIUtils.statCard(UIUtils.ICO_TROPHY,    String.format("%.1f%%",best),"Best Score",     UIUtils.ACCENT_GREEN),
-            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(passed),       "Passed",         UIUtils.ACCENT_PURP),
-            UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(results.size()),"Total Taken",   UIUtils.ACCENT_ORG)
+                UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.format("%.1f%%",avg), "Average Score",  UIUtils.ACCENT_TEAL),
+                UIUtils.statCard(UIUtils.ICO_TROPHY,    String.format("%.1f%%",best),"Best Score",     UIUtils.ACCENT_GREEN),
+                UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(passed),       "Passed",         UIUtils.ACCENT_PURP),
+                UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(results.size()),"Total Taken",   UIUtils.ACCENT_ORG)
         );
 
         VBox chartCard = UIUtils.card(700); chartCard.setMaxWidth(Double.MAX_VALUE);
@@ -1737,8 +1826,8 @@ public class StudentPortal {
 
         for (Map.Entry<Integer,List<ExamResult>> entry : byExam.entrySet()) {
             List<ExamResult> top = entry.getValue().stream()
-                .sorted((a,b)->Double.compare(b.score,a.score)).limit(10)
-                .collect(java.util.stream.Collectors.toList());
+                    .sorted((a,b)->Double.compare(b.score,a.score)).limit(10)
+                    .collect(java.util.stream.Collectors.toList());
 
             ExamResult first = top.get(0);
             String examLabel = (first.examTitle!=null&&!first.examTitle.isBlank())?first.examTitle:first.examSubject;
@@ -1787,6 +1876,505 @@ public class StudentPortal {
         wrapInScroll(area, page);
     }
 
+    private static void renderAnnouncementsPage(javafx.scene.layout.AnchorPane area,
+                                                Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+
+        VBox page = new VBox(0);
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        // ── Header ───────────────────────────────────────────────────────────
+        VBox headerSection = new VBox(4);
+        headerSection.setPadding(new Insets(28, 38, 20, 38));
+
+        HBox titleRow = new HBox(14); titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Announcements"));
+        Label subL = UIUtils.subheading("Notices and reminders posted by your instructors");
+        headerSection.getChildren().addAll(titleRow, subL);
+
+        // ── Live announcement strip (top banner for newest non-expired) ──────
+        VBox bannerBox = new VBox(0);
+        bannerBox.setPadding(new Insets(0, 38, 0, 38));
+
+        // ── List ─────────────────────────────────────────────────────────────
+        VBox listSection = new VBox(10);
+        listSection.setPadding(new Insets(18, 38, 32, 38));
+
+        ServerClient.get().purgeExpiredAnnouncements();
+        java.util.List<Announcement> announcements = ServerClient.get().loadAnnouncements()
+                .stream().filter(a -> !a.isExpired()).collect(java.util.stream.Collectors.toList());
+        for (Announcement a : announcements) ServerClient.get().markAnnouncementRead(student.getID(), a.id);
+
+        if (announcements.isEmpty()) {
+            VBox empty = new VBox(12); empty.setAlignment(Pos.CENTER);
+            empty.setPadding(new Insets(52));
+            empty.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:9;" +
+                    "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;" +
+                    "-fx-border-style:dashed;");
+            StackPane ico = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, UIUtils.textSubtle(), 22));
+            ico.setPrefSize(52, 52);
+            ico.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:99;");
+            Label noTitle = new Label("No Announcements");
+            noTitle.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+            Label noSub = new Label("Your instructors haven't posted anything yet. Check back later.");
+            noSub.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            noSub.setWrapText(true); noSub.setMaxWidth(340);
+            empty.getChildren().addAll(ico, noTitle, noSub);
+            listSection.getChildren().add(empty);
+        } else {
+            // Pinned / newest banner
+            Announcement newest = announcements.get(0);
+            String bannerColor = (newest.color != null && !newest.color.isBlank()) ? newest.color : "#2563eb";
+            HBox banner = new HBox(12); banner.setAlignment(Pos.CENTER_LEFT);
+            banner.setPadding(new Insets(13, 18, 13, 18));
+            banner.setMaxWidth(Double.MAX_VALUE);
+            banner.setStyle(
+                    "-fx-background-color:" + bannerColor + "14;" +
+                            "-fx-background-radius:9;" +
+                            "-fx-border-color:" + bannerColor + "55;" +
+                            "-fx-border-radius:9;-fx-border-width:1.5;"
+            );
+            StackPane bannerIco = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, bannerColor, 15));
+            bannerIco.setPrefSize(34, 34);
+            bannerIco.setStyle("-fx-background-color:" + bannerColor + "22;-fx-background-radius:8;");
+
+            VBox bannerText = new VBox(3);
+            Label latestTag = new Label("LATEST");
+            latestTag.setStyle("-fx-font-size:9px;-fx-font-weight:700;-fx-text-fill:" + bannerColor +
+                    ";-fx-letter-spacing:1.5px;");
+            Label bannerTitle = new Label(newest.title);
+            bannerTitle.setStyle("-fx-font-size:13.5px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+            Label bannerBody = new Label(newest.body);
+            bannerBody.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            bannerBody.setWrapText(true);
+            bannerText.getChildren().addAll(latestTag, bannerTitle, bannerBody);
+            HBox.setHgrow(bannerText, Priority.ALWAYS);
+
+            Label bannerDate = new Label(newest.dateStr());
+            bannerDate.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+
+            banner.getChildren().addAll(bannerIco, bannerText, bannerDate);
+            bannerBox.getChildren().add(banner);
+            bannerBox.setPadding(new Insets(0, 38, 14, 38));
+
+            // All announcements as cards
+            for (Announcement a : announcements) {
+                listSection.getChildren().add(buildStudentAnnouncementCard(a, student, area, stage, app));
+            }
+        }
+
+        page.getChildren().addAll(headerSection, UIUtils.divider(), bannerBox, listSection);
+        wrapInScroll(area, page);
+    }
+
+    private static VBox buildStudentAnnouncementCard(Announcement a, Student student,
+                                                     javafx.scene.layout.AnchorPane area,
+                                                     Stage stage, HelloApplication app) {
+        String color = (a.color != null && !a.color.isBlank()) ? a.color : "#2563eb";
+
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.TOP_LEFT);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setStyle(
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;" +
+                        "-fx-border-color:" + UIUtils.border() + ";" +
+                        "-fx-border-radius:9;-fx-border-width:1;"
+        );
+        javafx.scene.effect.DropShadow ds = new javafx.scene.effect.DropShadow();
+        ds.setColor(Color.color(0,0,0, UIUtils.darkMode ? 0.16 : 0.04));
+        ds.setRadius(6); ds.setOffsetY(1); row.setEffect(ds);
+
+        // Left accent bar
+        Region bar = new Region();
+        bar.setPrefWidth(4); bar.setMinWidth(4);
+        bar.setStyle("-fx-background-color:" + color + ";-fx-background-radius:8 0 0 8;");
+
+        VBox body = new VBox(8); body.setPadding(new Insets(14, 18, 14, 16));
+        HBox.setHgrow(body, Priority.ALWAYS);
+
+        // Top row: icon + title + date + expiry
+        HBox topRow = new HBox(10); topRow.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane icoBox = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, color, 13));
+        icoBox.setPrefSize(28, 28);
+        icoBox.setStyle("-fx-background-color:" + color + "18;-fx-background-radius:6;");
+
+        Label titleLbl = new Label(a.title);
+        titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+
+        Label dateLbl = new Label(a.dateStr());
+        dateLbl.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";" +
+                "-fx-background-color:" + UIUtils.bgMuted() + ";-fx-padding:2 8;-fx-background-radius:4;");
+
+        String expStr = a.expireStr();
+        if (!expStr.equals("Never")) {
+            Label expLbl = new Label("Expires " + expStr);
+            expLbl.setStyle("-fx-font-size:10px;-fx-font-weight:600;-fx-text-fill:#b45309;" +
+                    "-fx-background-color:#fef3c7;-fx-padding:2 7;-fx-background-radius:4;");
+            topRow.getChildren().addAll(icoBox, titleLbl, dateLbl, expLbl);
+        } else {
+            topRow.getChildren().addAll(icoBox, titleLbl, dateLbl);
+        }
+
+        // Message text
+        Label bodyLbl = new Label(a.body);
+        bodyLbl.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.textMid() + ";-fx-line-spacing:2;");
+        bodyLbl.setWrapText(true);
+
+        VBox qaBox = buildAnnouncementQaSection(a, student, area, stage, app, false);
+        Button qaBtn = UIUtils.ghostBtn("", "Q&A", UIUtils.ACCENT_PURP);
+        qaBtn.setOnAction(e -> {
+            boolean show = !qaBox.isVisible();
+            qaBox.setVisible(show);
+            qaBox.setManaged(show);
+            qaBtn.setText(show ? "Hide Q&A" : "Q&A");
+        });
+        body.getChildren().addAll(topRow, bodyLbl, qaBtn, qaBox);
+        row.getChildren().addAll(bar, body);
+
+        VBox wrapper = new VBox(row);
+        wrapper.setMaxWidth(Double.MAX_VALUE);
+        return wrapper;
+    }
+
+    private static void renderInboxPage(javafx.scene.layout.AnchorPane area,
+                                        Stage stage, Student student, HelloApplication app) {
+        area.getChildren().clear();
+        BorderPane page = new BorderPane();
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        VBox header = new VBox(4);
+        header.setPadding(new Insets(28, 38, 18, 38));
+        HBox titleRow = new HBox(14);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(area, stage, student, app), UIUtils.heading("Messages"));
+        header.getChildren().addAll(titleRow, UIUtils.subheading("Search instructors and chat in a single messaging window"));
+
+        TextField searchField = UIUtils.styledField("Search teacher by name or email...");
+        searchField.setPrefHeight(38);
+
+        List<Teacher> teachers = ServerClient.get().loadAllTeachers();
+        List<DirectMessage> previews = ServerClient.get().loadConversationPreviewsForStudent(student.getID());
+        String preferredTeacher = previews.isEmpty() ? "" : previews.get(0).teacherEmail;
+
+        VBox contactList = new VBox(8);
+        contactList.setPadding(new Insets(16));
+        contactList.setPrefWidth(300);
+        contactList.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:0 1 0 0;");
+
+        VBox conversationHost = new VBox();
+        conversationHost.setPadding(new Insets(18));
+        conversationHost.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        final String[] selectedTeacher = {preferredTeacher};
+        Runnable[] refreshContacts = {null};
+        refreshContacts[0] = () -> rebuildStudentContacts(contactList, teachers, previews, searchField.getText(), selectedTeacher[0], picked -> {
+            selectedTeacher[0] = picked;
+            refreshContacts[0].run();
+            renderStudentConversation(conversationHost, area, stage, student, app, picked);
+            ServerClient.get().markConversationReadForStudent(picked, student.getID());
+        });
+
+        searchField.textProperty().addListener((obs, ov, nv) -> refreshContacts[0].run());
+        refreshContacts[0].run();
+        if (!selectedTeacher[0].isBlank()) {
+            ServerClient.get().markConversationReadForStudent(selectedTeacher[0], student.getID());
+            renderStudentConversation(conversationHost, area, stage, student, app, selectedTeacher[0]);
+        } else {
+            conversationHost.getChildren().add(emptyState(UIUtils.ICO_SEND, "No Teachers Found", "Once a teacher is available, you can start chatting here."));
+        }
+
+        VBox leftPane = new VBox(12, searchField, contactList);
+        leftPane.setPadding(new Insets(0, 0, 0, 38));
+        leftPane.setPrefWidth(338);
+
+        HBox body = new HBox(0, leftPane, conversationHost);
+        HBox.setHgrow(conversationHost, Priority.ALWAYS);
+        page.setTop(header);
+        page.setCenter(body);
+
+        ScrollPane sp = new ScrollPane(page);
+        sp.setFitToWidth(true);
+        sp.setFitToHeight(true);
+        sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+        area.getChildren().add(sp);
+        javafx.scene.layout.AnchorPane.setTopAnchor(sp, 0.0);
+        javafx.scene.layout.AnchorPane.setBottomAnchor(sp, 0.0);
+        javafx.scene.layout.AnchorPane.setLeftAnchor(sp, 0.0);
+        javafx.scene.layout.AnchorPane.setRightAnchor(sp, 0.0);
+        UIUtils.slideIn(page, true);
+    }
+
+    private static VBox buildAnnouncementQaSection(Announcement a, Student student,
+                                                   javafx.scene.layout.AnchorPane area,
+                                                   Stage stage, HelloApplication app,
+                                                   boolean teacherView) {
+        VBox qaWrap = new VBox(10);
+        qaWrap.setPadding(new Insets(12, 0, 0, 0));
+        qaWrap.setVisible(false);
+        qaWrap.setManaged(false);
+
+        HBox hdr = new HBox(8);
+        hdr.setAlignment(Pos.CENTER_LEFT);
+        hdr.getChildren().addAll(UIUtils.icon(UIUtils.ICO_INFO, UIUtils.ACCENT_PURP, 11),
+                UIUtils.sectionLabel("Questions & Answers"));
+        qaWrap.getChildren().add(hdr);
+
+        List<AnnouncementQuestion> questions = ServerClient.get().loadAnnouncementQuestions(a.id);
+        if (questions.isEmpty()) {
+            Label none = new Label("No questions yet.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            qaWrap.getChildren().add(none);
+        } else {
+            for (AnnouncementQuestion q : questions) {
+                qaWrap.getChildren().add(buildAnnouncementQuestionCardProfessional(q));
+            }
+        }
+
+        if (!teacherView) {
+            TextArea askArea = UIUtils.styledTextArea("Ask a question about this announcement...", 76);
+            Button askBtn = UIUtils.primaryBtn("", "Post Question", UIUtils.ACCENT_PURP);
+            askBtn.setOnAction(e -> {
+                String txt = askArea.getText().trim();
+                if (txt.isEmpty()) {
+                    UIUtils.Toast.error(area, "Question cannot be empty");
+                    return;
+                }
+                AnnouncementQuestion q = new AnnouncementQuestion();
+                q.announcementId = a.id;
+                q.studentId = student.getID();
+                q.studentName = student.getName();
+                q.question = txt;
+                q.createdAt = System.currentTimeMillis();
+                ServerClient.get().saveAnnouncementQuestion(q);
+                stage.setScene(createDashboardScene(stage, student, app, 5));
+                UIUtils.Toast.success(area, "Question posted");
+            });
+            qaWrap.getChildren().addAll(askArea, askBtn);
+        }
+        return qaWrap;
+    }
+
+    private static VBox buildAnnouncementQuestionCard(AnnouncementQuestion q) {
+        VBox box = new VBox(6);
+        box.setPadding(new Insets(12));
+        box.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:8;");
+
+        Label askMeta = new Label(q.studentName + " • " + q.createdStr());
+        askMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        Label question = new Label(q.question);
+        question.setWrapText(true);
+        question.setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textDark() + ";");
+        box.getChildren().addAll(askMeta, question);
+
+        if (q.isAnswered()) {
+            Label ansMeta = new Label("Teacher reply • " + q.answeredStr());
+            ansMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
+            Label answer = new Label(q.teacherAnswer);
+            answer.setWrapText(true);
+            answer.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            box.getChildren().addAll(ansMeta, answer);
+        } else {
+            Label pending = UIUtils.badge("Awaiting reply", UIUtils.ACCENT_ORG);
+            box.getChildren().add(pending);
+        }
+        return box;
+    }
+
+    /* private static VBox buildReplyBubble(MessageReply r) {
+        VBox box = new VBox(4);
+        box.setPadding(new Insets(10, 12, 10, 12));
+        String accent = "teacher".equalsIgnoreCase(r.senderRole) ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_GREEN;
+        box.setStyle("-fx-background-color:" + accent + "12;-fx-background-radius:8;-fx-border-color:" + accent + "35;-fx-border-radius:8;");
+        Label meta = new Label(r.senderName + " • " + r.dateTimeStr());
+        meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + accent + ";");
+        Label body = new Label(r.body);
+        body.setWrapText(true);
+        body.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textDark() + ";");
+        box.getChildren().addAll(meta, body);
+        return box;
+    }
+
+    */
+    private static VBox buildAnnouncementQuestionCardProfessional(AnnouncementQuestion q) {
+        VBox box = new VBox(6);
+        box.setPadding(new Insets(12));
+        box.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:8;");
+
+        Label askMeta = new Label(q.studentName + " • " + q.createdStr());
+        askMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        Label question = new Label(q.question);
+        question.setWrapText(true);
+        question.setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textDark() + ";");
+        box.getChildren().addAll(askMeta, question);
+
+        if (q.isAnswered()) {
+            String teacherLabel = q.answerTeacherName != null && !q.answerTeacherName.isBlank() ? q.answerTeacherName : "Teacher";
+            Label ansMeta = new Label(teacherLabel + " replied • " + q.answeredStr());
+            ansMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
+            Label answer = new Label(q.teacherAnswer);
+            answer.setWrapText(true);
+            answer.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            box.getChildren().addAll(ansMeta, answer);
+        } else {
+            box.getChildren().add(UIUtils.badge("Awaiting reply", UIUtils.ACCENT_ORG));
+        }
+        return box;
+    }
+
+    private static void rebuildStudentContacts(VBox host, List<Teacher> teachers, List<DirectMessage> previews,
+                                               String search, String selectedTeacherEmail,
+                                               java.util.function.Consumer<String> onPick) {
+        host.getChildren().clear();
+        String q = search == null ? "" : search.toLowerCase().trim();
+        Map<String, DirectMessage> previewMap = previews.stream().collect(java.util.stream.Collectors.toMap(p -> p.teacherEmail, p -> p, (a, b) -> a, LinkedHashMap::new));
+        boolean searching = !q.isBlank();
+
+        List<Teacher> filtered = teachers.stream()
+                .filter(t -> searching
+                        ? t.getUser().toLowerCase().contains(q) || t.getEmail().toLowerCase().contains(q)
+                        : previewMap.containsKey(t.getEmail()) || t.getEmail().equals(selectedTeacherEmail))
+                .collect(Collectors.toList());
+
+        for (Teacher t : filtered) {
+            DirectMessage preview = previewMap.get(t.getEmail());
+            VBox row = UIUtils.card(260);
+            row.setMaxWidth(Double.MAX_VALUE);
+            row.setPadding(new Insets(12));
+            row.setSpacing(6);
+            if (t.getEmail().equals(selectedTeacherEmail)) {
+                row.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "10;-fx-background-radius:8;-fx-border-color:" + UIUtils.ACCENT_GREEN + "55;-fx-border-radius:8;-fx-border-width:1;");
+            }
+            Label name = new Label(t.getUser());
+            name.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+            Label meta = new Label(t.getEmail());
+            meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            Label snippet = new Label(preview == null ? "No messages yet" : preview.body);
+            snippet.setWrapText(true);
+            snippet.setMaxWidth(220);
+            snippet.setStyle("-fx-font-size:11.5px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            row.getChildren().addAll(name, meta, snippet);
+            row.setOnMouseClicked(e -> onPick.accept(t.getEmail()));
+            host.getChildren().add(row);
+        }
+
+        if (filtered.isEmpty()) {
+            Label none = new Label("No teachers match your search.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            host.getChildren().add(none);
+        }
+    }
+
+    private static void renderStudentConversation(VBox host, javafx.scene.layout.AnchorPane area,
+                                                  Stage stage, Student student, HelloApplication app, String teacherEmail) {
+        host.getChildren().clear();
+        Teacher teacher = ServerClient.get().loadAllTeachers().stream()
+                .filter(t -> t.getEmail().equals(teacherEmail))
+                .findFirst().orElse(null);
+        if (teacher == null) {
+            host.getChildren().add(emptyState(UIUtils.ICO_SEND, "Conversation Unavailable", "Teacher record could not be found."));
+            return;
+        }
+
+        List<DirectMessage> messages = ServerClient.get().loadConversation(teacherEmail, student.getID());
+        VBox frame = new VBox(14);
+        frame.setMaxWidth(Double.MAX_VALUE);
+
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.CENTER_LEFT);
+        StackPane icon = new StackPane(UIUtils.icon(UIUtils.ICO_SEND, UIUtils.ACCENT_GREEN, 14));
+        icon.setPrefSize(34, 34);
+        icon.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "18;-fx-background-radius:9;");
+        VBox meta = new VBox(3);
+        Label name = new Label(teacher.getUser());
+        name.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label sub = new Label(teacher.getEmail());
+        sub.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        meta.getChildren().addAll(name, sub);
+        top.getChildren().addAll(icon, meta);
+
+        VBox stream = new VBox(8);
+        stream.setPadding(new Insets(16));
+        stream.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:10;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;");
+        if (messages.isEmpty()) {
+            Label none = new Label("Start the conversation with your teacher.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            stream.getChildren().add(none);
+        } else {
+            for (DirectMessage m : messages) stream.getChildren().add(buildDirectMessageBubble(m, () -> {
+                ServerClient.get().deleteDirectMessage(m.id);
+                renderInboxPage(area, stage, student, app);
+            }));
+        }
+
+        ScrollPane streamScroll = new ScrollPane(stream);
+        streamScroll.setFitToWidth(true);
+        streamScroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+        streamScroll.setPrefHeight(380);
+
+        TextArea composer = UIUtils.styledTextArea("Type your message here...", 90);
+        Button sendBtn = UIUtils.primaryBtn("", "Send", UIUtils.ACCENT_GREEN);
+        sendBtn.setOnAction(e -> {
+            String txt = composer.getText().trim();
+            if (txt.isEmpty()) return;
+            DirectMessage m = new DirectMessage();
+            m.teacherEmail = teacher.getEmail();
+            m.teacherName = teacher.getUser();
+            m.studentId = student.getID();
+            m.studentName = student.getName();
+            m.senderRole = "student";
+            m.senderName = student.getName();
+            m.body = txt;
+            m.createdAt = System.currentTimeMillis();
+            ServerClient.get().saveDirectMessage(m);
+            stage.setScene(createDashboardScene(stage, student, app, 4));
+            UIUtils.Toast.success(host, "Message sent");
+        });
+
+        frame.getChildren().addAll(top, streamScroll, composer, sendBtn);
+        host.getChildren().add(frame);
+    }
+
+    private static HBox buildDirectMessageBubble(DirectMessage m, Runnable onDelete) {
+        boolean mine = "student".equalsIgnoreCase(m.senderRole);
+        HBox wrap = new HBox();
+        wrap.setAlignment(mine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        VBox bubble = new VBox(5);
+        bubble.setMaxWidth(380);
+        bubble.setPadding(new Insets(10, 12, 10, 12));
+        String accent = mine ? UIUtils.ACCENT_GREEN : UIUtils.ACCENT_BLUE;
+        bubble.setStyle("-fx-background-color:" + accent + (mine ? "18" : "12") + ";-fx-background-radius:10;-fx-border-color:" + accent + "38;-fx-border-radius:10;");
+        Label meta = new Label(m.senderName + " • " + m.dateTimeStr());
+        meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + accent + ";");
+        Label body = new Label(m.body);
+        body.setWrapText(true);
+        body.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textDark() + ";");
+        bubble.getChildren().addAll(meta, body);
+        if (mine) {
+            Button del = UIUtils.ghostBtn("", "Delete", UIUtils.ACCENT_RED);
+            del.setPrefWidth(86);
+            del.setOnAction(e -> onDelete.run());
+            bubble.getChildren().add(del);
+        }
+        wrap.getChildren().add(bubble);
+        return wrap;
+    }
+
+    private static String chooseTeacherContact(Stage owner, List<Teacher> teachers, String currentEmail) {
+        if (teachers.isEmpty()) return null;
+        String initial = currentEmail != null && !currentEmail.isBlank() ? currentEmail + " — " +
+                teachers.stream().filter(t -> t.getEmail().equals(currentEmail)).findFirst().map(Teacher::getUser).orElse(currentEmail)
+                : teachers.get(0).getEmail() + " — " + teachers.get(0).getUser();
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(initial,
+                teachers.stream().map(t -> t.getEmail() + " — " + t.getUser()).toList());
+        dialog.initOwner(owner);
+        dialog.setTitle("New Chat");
+        dialog.setHeaderText("Start a conversation with a teacher");
+        dialog.setContentText("Teacher:");
+        return dialog.showAndWait().map(v -> v.split(" — ")[0]).orElse(null);
+    }
+
     private static void wrapInScroll(javafx.scene.layout.AnchorPane area, VBox page) {
         ScrollPane sp = new ScrollPane(page);
         sp.setFitToWidth(true); sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
@@ -1827,5 +2415,3 @@ public class StudentPortal {
         return h>0 ? String.format("%02d:%02d:%02d",h,m,sec) : String.format("%02d:%02d",m,sec);
     }
 }
-
-

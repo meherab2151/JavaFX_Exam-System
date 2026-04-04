@@ -97,6 +97,23 @@ public class RequestHandler implements Runnable {
                 case Protocol.ANNOUNCE_LOAD    -> handleAnnounceLoad();
                 case Protocol.ANNOUNCE_PURGE   -> handleAnnouncePurge();
 
+                case Protocol.ANNOUNCE_Q_SAVE      -> handleAnnouncementQuestionSave(p);
+                case Protocol.ANNOUNCE_Q_LOAD      -> handleAnnouncementQuestionLoad(p);
+                case Protocol.ANNOUNCE_Q_ANSWER    -> handleAnnouncementQuestionAnswer(p);
+
+                case Protocol.DM_SAVE                 -> handleDirectMessageSave(p);
+                case Protocol.DM_LOAD_CONVERSATION    -> handleDirectMessageConversationLoad(p);
+                case Protocol.DM_LOAD_PREVIEW_STUDENT -> handleDirectMessagePreviewStudentLoad(p);
+                case Protocol.DM_LOAD_PREVIEW_TEACHER -> handleDirectMessagePreviewTeacherLoad(p);
+                case Protocol.DM_MARK_READ_STUDENT    -> handleDirectMessageMarkReadStudent(p);
+                case Protocol.DM_MARK_READ_TEACHER    -> handleDirectMessageMarkReadTeacher(p);
+                case Protocol.DM_UNREAD_STUDENT       -> handleDirectMessageUnreadStudent(p);
+                case Protocol.DM_UNREAD_TEACHER       -> handleDirectMessageUnreadTeacher(p);
+                case Protocol.DM_DELETE               -> handleDirectMessageDelete(p);
+
+                case Protocol.ANNOUNCE_MARK_READ      -> handleAnnouncementMarkRead(p);
+                case Protocol.ANNOUNCE_UNREAD_STUDENT -> handleAnnouncementUnreadStudent(p);
+
                     default -> JsonUtil.err("Unknown action: " + action);
                 };
             } catch (Exception e) {
@@ -301,6 +318,89 @@ public class RequestHandler implements Runnable {
         Database.deleteExpiredAnnouncements(); return JsonUtil.ok();
     }
 
+    private String handleAnnouncementQuestionSave(Map<String, Object> p) {
+        AnnouncementQuestion q = new AnnouncementQuestion();
+        q.announcementId = JsonUtil.getInt(p, "announcementId");
+        q.studentId = JsonUtil.getStr(p, "studentId");
+        q.studentName = JsonUtil.getStr(p, "studentName");
+        q.question = JsonUtil.getStr(p, "question");
+        q.teacherAnswer = JsonUtil.getStr(p, "teacherAnswer");
+        q.answerTeacherName = JsonUtil.getStr(p, "answerTeacherName");
+        q.createdAt = JsonUtil.getLong(p, "createdAt");
+        q.answeredAt = JsonUtil.getLong(p, "answeredAt");
+        Database.saveAnnouncementQuestion(q);
+        return JsonUtil.ok(String.valueOf(q.id));
+    }
+
+    private String handleAnnouncementQuestionLoad(Map<String, Object> p) {
+        return JsonUtil.ok(toJsonArray(Database.loadQuestionsForAnnouncement(JsonUtil.getInt(p, "announcementId")), this::announcementQuestionToJson));
+    }
+
+    private String handleAnnouncementQuestionAnswer(Map<String, Object> p) {
+        Database.answerAnnouncementQuestion(JsonUtil.getInt(p, "id"), JsonUtil.getStr(p, "answer"), JsonUtil.getStr(p, "teacherName"));
+        return JsonUtil.ok();
+    }
+
+    private String handleDirectMessageSave(Map<String, Object> p) {
+        DirectMessage m = new DirectMessage();
+        m.teacherEmail = JsonUtil.getStr(p, "teacherEmail");
+        m.teacherName = JsonUtil.getStr(p, "teacherName");
+        m.studentId = JsonUtil.getStr(p, "studentId");
+        m.studentName = JsonUtil.getStr(p, "studentName");
+        m.senderRole = JsonUtil.getStr(p, "senderRole");
+        m.senderName = JsonUtil.getStr(p, "senderName");
+        m.body = JsonUtil.getStr(p, "body");
+        m.createdAt = JsonUtil.getLong(p, "createdAt");
+        Database.saveDirectMessage(m);
+        return JsonUtil.ok(String.valueOf(m.id));
+    }
+
+    private String handleDirectMessageConversationLoad(Map<String, Object> p) {
+        return JsonUtil.ok(toJsonArray(
+                Database.loadConversation(JsonUtil.getStr(p, "teacherEmail"), JsonUtil.getStr(p, "studentId")),
+                this::directMessageToJson));
+    }
+
+    private String handleDirectMessagePreviewStudentLoad(Map<String, Object> p) {
+        return JsonUtil.ok(toJsonArray(Database.loadConversationPreviewsForStudent(JsonUtil.getStr(p, "studentId")), this::directMessageToJson));
+    }
+
+    private String handleDirectMessagePreviewTeacherLoad(Map<String, Object> p) {
+        return JsonUtil.ok(toJsonArray(Database.loadConversationPreviewsForTeacher(JsonUtil.getStr(p, "teacherEmail")), this::directMessageToJson));
+    }
+
+    private String handleDirectMessageMarkReadStudent(Map<String, Object> p) {
+        Database.markConversationReadForStudent(JsonUtil.getStr(p, "teacherEmail"), JsonUtil.getStr(p, "studentId"));
+        return JsonUtil.ok();
+    }
+
+    private String handleDirectMessageMarkReadTeacher(Map<String, Object> p) {
+        Database.markConversationReadForTeacher(JsonUtil.getStr(p, "teacherEmail"), JsonUtil.getStr(p, "studentId"));
+        return JsonUtil.ok();
+    }
+
+    private String handleDirectMessageUnreadStudent(Map<String, Object> p) {
+        return JsonUtil.ok(String.valueOf(Database.countUnreadDirectMessagesForStudent(JsonUtil.getStr(p, "studentId"))));
+    }
+
+    private String handleDirectMessageUnreadTeacher(Map<String, Object> p) {
+        return JsonUtil.ok(String.valueOf(Database.countUnreadDirectMessagesForTeacher(JsonUtil.getStr(p, "teacherEmail"))));
+    }
+
+    private String handleDirectMessageDelete(Map<String, Object> p) {
+        Database.deleteDirectMessage(JsonUtil.getInt(p, "id"));
+        return JsonUtil.ok();
+    }
+
+    private String handleAnnouncementMarkRead(Map<String, Object> p) {
+        Database.markAnnouncementRead(JsonUtil.getStr(p, "studentId"), JsonUtil.getInt(p, "announcementId"));
+        return JsonUtil.ok();
+    }
+
+    private String handleAnnouncementUnreadStudent(Map<String, Object> p) {
+        return JsonUtil.ok(String.valueOf(Database.countUnreadAnnouncementsForStudent(JsonUtil.getStr(p, "studentId"))));
+    }
+
     @FunctionalInterface interface Serialiser<T> { String apply(T t); }
 
     private <T> String toJsonArray(List<T> list, Serialiser<T> fn) {
@@ -380,6 +480,35 @@ public class RequestHandler implements Runnable {
         return JsonUtil.obj()
             .put("id",a.id).put("title",a.title).put("body",a.body)
             .put("color",a.color).put("createdAt",a.createdAt).put("expireAt",a.expireAt)
+            .build();
+    }
+
+    private String announcementQuestionToJson(AnnouncementQuestion q) {
+        return JsonUtil.obj()
+            .put("id", q.id)
+            .put("announcementId", q.announcementId)
+            .put("studentId", q.studentId)
+            .put("studentName", q.studentName)
+            .put("question", q.question)
+            .put("teacherAnswer", nvl(q.teacherAnswer))
+            .put("answerTeacherName", nvl(q.answerTeacherName))
+            .put("createdAt", q.createdAt)
+            .put("answeredAt", q.answeredAt)
+            .build();
+    }
+
+    private String directMessageToJson(DirectMessage m) {
+        return JsonUtil.obj()
+            .put("id", m.id)
+            .put("teacherEmail", m.teacherEmail)
+            .put("teacherName", m.teacherName)
+            .put("studentId", m.studentId)
+            .put("studentName", m.studentName)
+            .put("senderRole", m.senderRole)
+            .put("senderName", m.senderName)
+            .put("body", m.body)
+            .put("createdAt", m.createdAt)
+            .put("readByRecipient", m.readByRecipient)
             .build();
     }
 

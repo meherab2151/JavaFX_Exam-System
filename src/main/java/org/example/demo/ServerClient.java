@@ -330,6 +330,97 @@ public final class ServerClient {
     }
     public void purgeExpiredAnnouncements() { send(Protocol.ANNOUNCE_PURGE, "{}"); }
 
+    public int saveAnnouncementQuestion(AnnouncementQuestion q) {
+        Map<String,Object> resp = send(Protocol.ANNOUNCE_Q_SAVE, JsonUtil.obj()
+                .put("announcementId", q.announcementId)
+                .put("studentId", q.studentId)
+                .put("studentName", q.studentName)
+                .put("question", q.question)
+                .put("teacherAnswer", nvl(q.teacherAnswer))
+                .put("answerTeacherName", nvl(q.answerTeacherName))
+                .put("createdAt", q.createdAt)
+                .put("answeredAt", q.answeredAt)
+                .build());
+        if (!JsonUtil.getBool(resp, "ok")) return -1;
+        try { return Integer.parseInt(JsonUtil.getStr(resp, "data")); } catch (NumberFormatException e) { return -1; }
+    }
+
+    public List<AnnouncementQuestion> loadAnnouncementQuestions(int announcementId) {
+        Map<String,Object> resp = send(Protocol.ANNOUNCE_Q_LOAD, JsonUtil.obj().put("announcementId", announcementId).build());
+        List<AnnouncementQuestion> list = new ArrayList<>();
+        if (JsonUtil.getBool(resp, "ok"))
+            for (Object item : JsonUtil.getList(resp, "data"))
+                if (item instanceof Map<?,?> m) list.add(mapToAnnouncementQuestion(cast(m)));
+        return list;
+    }
+
+    public void answerAnnouncementQuestion(int id, String answer, String teacherName) {
+        send(Protocol.ANNOUNCE_Q_ANSWER, JsonUtil.obj().put("id", id).put("answer", answer).put("teacherName", teacherName).build());
+    }
+
+    public int saveDirectMessage(DirectMessage m) {
+        Map<String,Object> resp = send(Protocol.DM_SAVE, JsonUtil.obj()
+                .put("teacherEmail", m.teacherEmail)
+                .put("teacherName", m.teacherName)
+                .put("studentId", m.studentId)
+                .put("studentName", m.studentName)
+                .put("senderRole", m.senderRole)
+                .put("senderName", m.senderName)
+                .put("body", m.body)
+                .put("createdAt", m.createdAt)
+                .build());
+        if (!JsonUtil.getBool(resp, "ok")) return -1;
+        try { return Integer.parseInt(JsonUtil.getStr(resp, "data")); } catch (NumberFormatException e) { return -1; }
+    }
+
+    public List<DirectMessage> loadConversation(String teacherEmail, String studentId) {
+        Map<String,Object> resp = send(Protocol.DM_LOAD_CONVERSATION,
+                JsonUtil.obj().put("teacherEmail", teacherEmail).put("studentId", studentId).build());
+        return parseDirectMessageList(resp);
+    }
+
+    public List<DirectMessage> loadConversationPreviewsForStudent(String studentId) {
+        return parseDirectMessageList(send(Protocol.DM_LOAD_PREVIEW_STUDENT, JsonUtil.obj().put("studentId", studentId).build()));
+    }
+
+    public List<DirectMessage> loadConversationPreviewsForTeacher(String teacherEmail) {
+        return parseDirectMessageList(send(Protocol.DM_LOAD_PREVIEW_TEACHER, JsonUtil.obj().put("teacherEmail", teacherEmail).build()));
+    }
+
+    public void markConversationReadForStudent(String teacherEmail, String studentId) {
+        send(Protocol.DM_MARK_READ_STUDENT, JsonUtil.obj().put("teacherEmail", teacherEmail).put("studentId", studentId).build());
+    }
+
+    public void markConversationReadForTeacher(String teacherEmail, String studentId) {
+        send(Protocol.DM_MARK_READ_TEACHER, JsonUtil.obj().put("teacherEmail", teacherEmail).put("studentId", studentId).build());
+    }
+
+    public int countUnreadConversationMessagesForStudent(String studentId) {
+        Map<String,Object> resp = send(Protocol.DM_UNREAD_STUDENT, JsonUtil.obj().put("studentId", studentId).build());
+        try { return JsonUtil.getBool(resp, "ok") ? Integer.parseInt(JsonUtil.getStr(resp, "data")) : 0; }
+        catch (NumberFormatException e) { return 0; }
+    }
+
+    public int countUnreadConversationMessagesForTeacher(String teacherEmail) {
+        Map<String,Object> resp = send(Protocol.DM_UNREAD_TEACHER, JsonUtil.obj().put("teacherEmail", teacherEmail).build());
+        try { return JsonUtil.getBool(resp, "ok") ? Integer.parseInt(JsonUtil.getStr(resp, "data")) : 0; }
+        catch (NumberFormatException e) { return 0; }
+    }
+
+    public void deleteDirectMessage(int id) {
+        send(Protocol.DM_DELETE, JsonUtil.obj().put("id", id).build());
+    }
+
+    public void markAnnouncementRead(String studentId, int announcementId) {
+        send(Protocol.ANNOUNCE_MARK_READ, JsonUtil.obj().put("studentId", studentId).put("announcementId", announcementId).build());
+    }
+
+    public int countUnreadAnnouncementsForStudent(String studentId) {
+        Map<String,Object> resp = send(Protocol.ANNOUNCE_UNREAD_STUDENT, JsonUtil.obj().put("studentId", studentId).build());
+        try { return JsonUtil.getBool(resp, "ok") ? Integer.parseInt(JsonUtil.getStr(resp, "data")) : 0; }
+        catch (NumberFormatException e) { return 0; }
+    }
+
     public boolean ping() { return JsonUtil.getBool(send(Protocol.PING, "{}"), "ok"); }
 
     private String questionToJson(Question q) {
@@ -437,11 +528,45 @@ public final class ServerClient {
         a.createdAt=JsonUtil.getLong(m,"createdAt"); a.expireAt=JsonUtil.getLong(m,"expireAt");
         return a;
     }
+    private AnnouncementQuestion mapToAnnouncementQuestion(Map<String,Object> m) {
+        AnnouncementQuestion q = new AnnouncementQuestion();
+        q.id = JsonUtil.getInt(m, "id");
+        q.announcementId = JsonUtil.getInt(m, "announcementId");
+        q.studentId = JsonUtil.getStr(m, "studentId");
+        q.studentName = JsonUtil.getStr(m, "studentName");
+        q.question = JsonUtil.getStr(m, "question");
+        q.teacherAnswer = JsonUtil.getStr(m, "teacherAnswer");
+        q.answerTeacherName = JsonUtil.getStr(m, "answerTeacherName");
+        q.createdAt = JsonUtil.getLong(m, "createdAt");
+        q.answeredAt = JsonUtil.getLong(m, "answeredAt");
+        return q;
+    }
+    private DirectMessage mapToDirectMessage(Map<String,Object> m) {
+        DirectMessage dm = new DirectMessage();
+        dm.id = JsonUtil.getInt(m, "id");
+        dm.teacherEmail = JsonUtil.getStr(m, "teacherEmail");
+        dm.teacherName = JsonUtil.getStr(m, "teacherName");
+        dm.studentId = JsonUtil.getStr(m, "studentId");
+        dm.studentName = JsonUtil.getStr(m, "studentName");
+        dm.senderRole = JsonUtil.getStr(m, "senderRole");
+        dm.senderName = JsonUtil.getStr(m, "senderName");
+        dm.body = JsonUtil.getStr(m, "body");
+        dm.createdAt = JsonUtil.getLong(m, "createdAt");
+        dm.readByRecipient = JsonUtil.getBool(m, "readByRecipient");
+        return dm;
+    }
     private List<ExamResult> parseResultList(Map<String,Object> resp) {
         List<ExamResult> list = new ArrayList<>();
         if (JsonUtil.getBool(resp,"ok"))
             for (Object item : JsonUtil.getList(resp,"data"))
                 if (item instanceof Map<?,?> m) list.add(mapToResult(cast(m)));
+        return list;
+    }
+    private List<DirectMessage> parseDirectMessageList(Map<String,Object> resp) {
+        List<DirectMessage> list = new ArrayList<>();
+        if (JsonUtil.getBool(resp, "ok"))
+            for (Object item : JsonUtil.getList(resp, "data"))
+                if (item instanceof Map<?,?> m) list.add(mapToDirectMessage(cast(m)));
         return list;
     }
 

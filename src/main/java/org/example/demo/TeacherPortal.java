@@ -24,6 +24,8 @@ public class TeacherPortal {
     }
 
     static int activeNavIndex = 0;
+    private static Timeline notificationTimeline;
+    private static int lastUnreadTeacherMessageCount = -1;
 
     private static VBox buildAuthPanel(String title, String sub) {
         VBox v = new VBox(0);
@@ -91,10 +93,10 @@ public class TeacherPortal {
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
-            title, sub, UIUtils.divider(),
-            new Label("EMAIL / USERNAME") {{ setStyle(lblS); }}, txtUser,
-            new Label("PASSWORD") {{ setStyle(lblS); }}, txtPass,
-            btnLogin, linkSignup, btnBack
+                title, sub, UIUtils.divider(),
+                new Label("EMAIL / USERNAME") {{ setStyle(lblS); }}, txtUser,
+                new Label("PASSWORD") {{ setStyle(lblS); }}, txtPass,
+                btnLogin, linkSignup, btnBack
         );
 
         ScrollPane sp = new ScrollPane(form);
@@ -143,12 +145,12 @@ public class TeacherPortal {
 
         String lblS = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
         form.getChildren().addAll(
-            title, UIUtils.divider(),
-            new Label("FULL NAME")  {{ setStyle(lblS); }}, txtName,
-            new Label("EMAIL")      {{ setStyle(lblS); }}, txtEmail,
-            new Label("PASSWORD")   {{ setStyle(lblS); }}, txtPass,
-            new Label("CONFIRM")    {{ setStyle(lblS); }}, txtConfirm,
-            btnReg, btnBack
+                title, UIUtils.divider(),
+                new Label("FULL NAME")  {{ setStyle(lblS); }}, txtName,
+                new Label("EMAIL")      {{ setStyle(lblS); }}, txtEmail,
+                new Label("PASSWORD")   {{ setStyle(lblS); }}, txtPass,
+                new Label("CONFIRM")    {{ setStyle(lblS); }}, txtConfirm,
+                btnReg, btnBack
         );
 
         ScrollPane sp = new ScrollPane(form);
@@ -166,6 +168,7 @@ public class TeacherPortal {
     }
 
     static Scene createDashboardScene(Stage stage, Teacher teacher, HelloApplication app, int startPage) {
+        stopNotificationTimeline();
         BorderPane root = new BorderPane();
 
         VBox sidebar = new VBox(0);
@@ -173,7 +176,7 @@ public class TeacherPortal {
         sidebar.setStyle("-fx-background-color:#111722;");
 
         StackPane themeSwitch = UIUtils.themeToggleSwitch(() ->
-            stage.setScene(createDashboardScene(stage, teacher, app, activeNavIndex))
+                stage.setScene(createDashboardScene(stage, teacher, app, activeNavIndex))
         );
         HBox switchRow = new HBox(themeSwitch);
         switchRow.setAlignment(Pos.CENTER_LEFT);
@@ -207,13 +210,16 @@ public class TeacherPortal {
         contentArea.setPrefSize(790, 600);
         contentArea.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
 
+        int unreadMessages = ServerClient.get().countUnreadConversationMessagesForTeacher(teacher.getEmail());
         String[][] navDefs = {
-            {UIUtils.ICO_DASHBOARD, "Dashboard",     UIUtils.ACCENT_TEAL},
-            {UIUtils.ICO_EXAM,      "Create Exam",   UIUtils.ACCENT_PURP},
-            {UIUtils.ICO_PLUS,      "Add Question",  UIUtils.ACCENT_YELL},
-            {UIUtils.ICO_BANK,      "Question Bank", UIUtils.ACCENT_GREEN},
-            {UIUtils.ICO_TROPHY,    "Leaderboard",   "#b45309"},
-            {UIUtils.ICO_ANALYTICS, "Analytics",     UIUtils.ACCENT_TEAL},
+                {UIUtils.ICO_DASHBOARD, "Dashboard",      UIUtils.ACCENT_TEAL},
+                {UIUtils.ICO_EXAM,      "Create Exam",    UIUtils.ACCENT_PURP},
+                {UIUtils.ICO_PLUS,      "Add Question",   UIUtils.ACCENT_YELL},
+                {UIUtils.ICO_BANK,      "Question Bank",  UIUtils.ACCENT_GREEN},
+                {UIUtils.ICO_TROPHY,    "Leaderboard",    "#b45309"},
+                {UIUtils.ICO_ANALYTICS, "Analytics",      UIUtils.ACCENT_TEAL},
+                {UIUtils.ICO_SEND,      navLabel("Messages", unreadMessages), UIUtils.ACCENT_GREEN},
+                {UIUtils.ICO_ANNOUNCE,  "Announcements",  UIUtils.ACCENT_BLUE},
         };
 
         StackPane[] navBtns = new StackPane[navDefs.length];
@@ -264,18 +270,51 @@ public class TeacherPortal {
         root.setCenter(contentArea);
 
         ServerClient.get().setExamEventListener(updatedExam ->
-            javafx.application.Platform.runLater(() -> {
-                if (activeNavIndex == 0)
-                    renderDashboardHome(contentArea, stage, teacher, app);
-            })
+                javafx.application.Platform.runLater(() -> {
+                    if (activeNavIndex == 0)
+                        renderDashboardHome(contentArea, stage, teacher, app);
+                })
         );
 
         UIUtils.modernSidebarSetActive(navBtns[startPage]);
         dispatchPage(startPage, contentArea, stage, teacher, app);
+        startNotificationPolling(teacher, contentArea, navBtns);
 
         Scene dashScene = new Scene(root, 1100, 660);
         javafx.application.Platform.runLater(() -> { stage.setWidth(1100); stage.setHeight(660); stage.centerOnScreen(); });
         return dashScene;
+    }
+
+    private static void startNotificationPolling(Teacher teacher, Pane contentArea, StackPane[] navBtns) {
+        lastUnreadTeacherMessageCount = ServerClient.get().countUnreadConversationMessagesForTeacher(teacher.getEmail());
+        updateSidebarLabel(navBtns[6], navLabel("Messages", lastUnreadTeacherMessageCount));
+        notificationTimeline = new Timeline(new KeyFrame(Duration.seconds(4), e -> {
+            int unread = ServerClient.get().countUnreadConversationMessagesForTeacher(teacher.getEmail());
+            if (unread > lastUnreadTeacherMessageCount) {
+                UIUtils.Toast.info(contentArea, (unread - lastUnreadTeacherMessageCount) + " new student message" + (unread - lastUnreadTeacherMessageCount == 1 ? "" : "s"));
+            }
+            lastUnreadTeacherMessageCount = unread;
+            updateSidebarLabel(navBtns[6], navLabel("Messages", unread));
+        }));
+        notificationTimeline.setCycleCount(Animation.INDEFINITE);
+        notificationTimeline.play();
+    }
+
+    private static void stopNotificationTimeline() {
+        if (notificationTimeline != null) {
+            notificationTimeline.stop();
+            notificationTimeline = null;
+        }
+    }
+
+    private static String navLabel(String base, int count) {
+        return count > 0 ? base + " (" + count + ")" : base;
+    }
+
+    private static void updateSidebarLabel(StackPane btn, String text) {
+        HBox row = (HBox) btn.getChildren().get(1);
+        Label label = (Label) row.getChildren().get(2);
+        label.setText(text);
     }
 
     private static void dispatchPage(int idx, Pane ca, Stage stage, Teacher teacher, HelloApplication app) {
@@ -286,6 +325,8 @@ public class TeacherPortal {
             case 3 -> QuestionBankBrowser.render(ca, stage, teacher, app);
             case 4 -> renderLeaderboard(ca, stage, teacher, app);
             case 5 -> renderAnalytics(ca, stage, teacher, app);
+            case 6 -> renderMessages(ca, stage, teacher, app);
+            case 7 -> renderAnnouncements(ca, stage, teacher, app);
         }
     }
 
@@ -339,12 +380,12 @@ public class TeacherPortal {
 
         HBox stats = new HBox(10);
         stats.getChildren().addAll(
-            UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),  "Live",        UIUtils.ACCENT_GREEN),
-            UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(schedCount), "Scheduled",   UIUtils.ACCENT_PURP),
-            UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(draftCount), "All Exams",   UIUtils.ACCENT_TEAL),
-            UIUtils.statCard(UIUtils.ICO_QUESTION,  String.valueOf(totalQ),     "Questions",   UIUtils.ACCENT_ORG),
-            UIUtils.statCard(UIUtils.ICO_USERS,     String.valueOf(studentCnt), "Students",    UIUtils.ACCENT_RED),
-            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.valueOf(subsCnt),    "Submissions", UIUtils.ACCENT_YELL)
+                UIUtils.statCard(UIUtils.ICO_LIVE,      String.valueOf(liveCount),  "Live",        UIUtils.ACCENT_GREEN),
+                UIUtils.statCard(UIUtils.ICO_SCHEDULE,  String.valueOf(schedCount), "Scheduled",   UIUtils.ACCENT_PURP),
+                UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(draftCount), "All Exams",   UIUtils.ACCENT_TEAL),
+                UIUtils.statCard(UIUtils.ICO_QUESTION,  String.valueOf(totalQ),     "Questions",   UIUtils.ACCENT_ORG),
+                UIUtils.statCard(UIUtils.ICO_USERS,     String.valueOf(studentCnt), "Students",    UIUtils.ACCENT_RED),
+                UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.valueOf(subsCnt),    "Submissions", UIUtils.ACCENT_YELL)
         );
 
         row1.getChildren().addAll(new VBox(2, greetL, dateL), stats);
@@ -432,8 +473,8 @@ public class TeacherPortal {
             Circle ripple = new Circle(4, Color.web(color)); ripple.setOpacity(0);
             ripple.setMouseTransparent(true);
             Timeline sonar = new Timeline(
-                new KeyFrame(Duration.ZERO,     new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
-                new KeyFrame(Duration.millis(900), new KeyValue(ripple.radiusProperty(), 10.0), new KeyValue(ripple.opacityProperty(), 0.0))
+                    new KeyFrame(Duration.ZERO,     new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
+                    new KeyFrame(Duration.millis(900), new KeyValue(ripple.radiusProperty(), 10.0), new KeyValue(ripple.opacityProperty(), 0.0))
             );
             sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
             StackPane dotStack = new StackPane(ripple, dot);
@@ -463,10 +504,10 @@ public class TeacherPortal {
         row.setMaxWidth(Double.MAX_VALUE);
         row.setPadding(new Insets(16, 20, 16, 20));
         row.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:9;-fx-border-color:" + UIUtils.border() + ";" +
-            "-fx-border-radius:9;-fx-border-width:1;" +
-            "-fx-border-style:dashed;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;-fx-border-color:" + UIUtils.border() + ";" +
+                        "-fx-border-radius:9;-fx-border-width:1;" +
+                        "-fx-border-style:dashed;"
         );
         Label lbl = new Label(msg);
         lbl.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
@@ -489,18 +530,18 @@ public class TeacherPortal {
         row.setPadding(new Insets(13, 18, 13, 18));
         row.setMaxWidth(Double.MAX_VALUE);
         row.setStyle(
-            "-fx-background-color:" + UIUtils.bgCard() + ";" +
-            "-fx-background-radius:9;" +
-            "-fx-border-color:rgba(14,122,86,0.35);" +
-            "-fx-border-radius:9;-fx-border-width:1.5;"
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;" +
+                        "-fx-border-color:rgba(14,122,86,0.35);" +
+                        "-fx-border-radius:9;-fx-border-width:1.5;"
         );
 
         Circle dot = new Circle(4, Color.web("#0e7a56"));
         Circle ripple = new Circle(4, Color.web("#0e7a56")); ripple.setOpacity(0);
         ripple.setMouseTransparent(true);
         Timeline sonar = new Timeline(
-            new KeyFrame(Duration.ZERO,    new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
-            new KeyFrame(Duration.millis(900), new KeyValue(ripple.radiusProperty(), 11.0), new KeyValue(ripple.opacityProperty(), 0.0))
+                new KeyFrame(Duration.ZERO,    new KeyValue(ripple.radiusProperty(), 4.0),  new KeyValue(ripple.opacityProperty(), 0.55)),
+                new KeyFrame(Duration.millis(900), new KeyValue(ripple.radiusProperty(), 11.0), new KeyValue(ripple.opacityProperty(), 0.0))
         );
         sonar.setCycleCount(Timeline.INDEFINITE); sonar.play();
         StackPane dotStack = new StackPane(ripple, dot);
@@ -779,11 +820,11 @@ public class TeacherPortal {
 
         HBox kpiRow = new HBox(12);
         kpiRow.getChildren().addAll(
-            UIUtils.statCard(UIUtils.ICO_USERS,     String.valueOf(studentCnt), "Students",        UIUtils.ACCENT_TEAL),
-            UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(examCnt),    "Total Exams",     UIUtils.ACCENT_PURP),
-            UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.valueOf(all.size()), "Submissions",     UIUtils.ACCENT_GREEN),
-            UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(passed),     "Passed",          UIUtils.ACCENT_ORG),
-            UIUtils.statCard(UIUtils.ICO_TROPHY,    String.format("%.1f%%", avgPct), "Avg Score", UIUtils.ACCENT_YELL)
+                UIUtils.statCard(UIUtils.ICO_USERS,     String.valueOf(studentCnt), "Students",        UIUtils.ACCENT_TEAL),
+                UIUtils.statCard(UIUtils.ICO_EXAM,      String.valueOf(examCnt),    "Total Exams",     UIUtils.ACCENT_PURP),
+                UIUtils.statCard(UIUtils.ICO_ANALYTICS, String.valueOf(all.size()), "Submissions",     UIUtils.ACCENT_GREEN),
+                UIUtils.statCard(UIUtils.ICO_CHECK,     String.valueOf(passed),     "Passed",          UIUtils.ACCENT_ORG),
+                UIUtils.statCard(UIUtils.ICO_TROPHY,    String.format("%.1f%%", avgPct), "Avg Score", UIUtils.ACCENT_YELL)
         );
         page.getChildren().add(kpiRow);
 
@@ -857,8 +898,745 @@ public class TeacherPortal {
         UIUtils.slideIn(page, true);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  ANNOUNCEMENTS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static void renderAnnouncements(Pane contentArea, Stage stage, Teacher teacher, HelloApplication app) {
+        contentArea.getChildren().clear();
+        ScrollPane scroll = new ScrollPane(); scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+
+        VBox page = new VBox(0);
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        // ── Header bar ──────────────────────────────────────────────────────
+        VBox headerSection = new VBox(4);
+        headerSection.setPadding(new Insets(28, 32, 20, 32));
+        headerSection.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        HBox titleRow = new HBox(14); titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(contentArea, stage, teacher, app), UIUtils.heading("Announcements"));
+        Label subL = UIUtils.subheading("Post notices and reminders visible to all students");
+
+        Button btnNew = UIUtils.primaryBtn("", "+ New Announcement", UIUtils.ACCENT_BLUE);
+        btnNew.setPrefHeight(38);
+        Region hSp = new Region(); HBox.setHgrow(hSp, Priority.ALWAYS);
+        HBox topRow = new HBox(12, titleRow, hSp, btnNew); topRow.setAlignment(Pos.CENTER_LEFT);
+
+        headerSection.getChildren().addAll(topRow, subL);
+
+        // ── List area ────────────────────────────────────────────────────────
+        VBox listSection = new VBox(0);
+        listSection.setPadding(new Insets(0, 32, 32, 32));
+        listSection.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        VBox listBox = new VBox(10);
+
+        Runnable[] refreshRef = {null};
+        refreshRef[0] = () -> {
+            listBox.getChildren().clear();
+            ServerClient.get().purgeExpiredAnnouncements();
+            List<Announcement> announcements = ServerClient.get().loadAnnouncements();
+
+            if (announcements.isEmpty()) {
+                VBox empty = new VBox(10); empty.setAlignment(Pos.CENTER);
+                empty.setPadding(new Insets(48));
+                empty.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:9;" +
+                        "-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;" +
+                        "-fx-border-style:dashed;");
+                StackPane ico = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, UIUtils.textSubtle(), 22));
+                ico.setPrefSize(52, 52);
+                ico.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:99;");
+                Label noTitle = new Label("No Announcements Yet");
+                noTitle.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+                Label noSub = new Label("Click '+ New Announcement' to post your first notice.");
+                noSub.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
+                empty.getChildren().addAll(ico, noTitle, noSub);
+                listBox.getChildren().add(empty);
+                return;
+            }
+
+            for (Announcement a : announcements) {
+                listBox.getChildren().add(buildAnnouncementRow(a, contentArea, refreshRef, teacher));
+            }
+        };
+
+        btnNew.setOnAction(e -> showAnnouncementComposer(null, contentArea, stage, refreshRef[0]));
+        refreshRef[0].run();
+
+        listSection.getChildren().add(listBox);
+        page.getChildren().addAll(headerSection, UIUtils.divider(), listSection);
+        wrapInScroll(contentArea, scroll, page);
+        UIUtils.slideIn(page, true);
+    }
+
+    private static VBox buildAnnouncementRow(Announcement a, Pane contentArea, Runnable[] refreshRef, Teacher teacher) {
+        // Accent color from the announcement
+        String color = (a.color != null && !a.color.isBlank()) ? a.color : "#2563eb";
+
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.TOP_LEFT);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setStyle(
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:9;" +
+                        "-fx-border-color:" + UIUtils.border() + ";" +
+                        "-fx-border-radius:9;-fx-border-width:1;"
+        );
+        javafx.scene.effect.DropShadow ds = new javafx.scene.effect.DropShadow();
+        ds.setColor(Color.color(0,0,0, UIUtils.darkMode ? 0.18 : 0.04));
+        ds.setRadius(6); ds.setOffsetY(1); row.setEffect(ds);
+
+        // Left color bar
+        Region bar = new Region();
+        bar.setPrefWidth(4); bar.setMinWidth(4);
+        bar.setStyle("-fx-background-color:" + color + ";-fx-background-radius:8 0 0 8;");
+
+        // Body
+        VBox body = new VBox(8); body.setPadding(new Insets(14, 16, 14, 16));
+        HBox.setHgrow(body, Priority.ALWAYS);
+
+        // Top: title + badges
+        HBox topRow = new HBox(9); topRow.setAlignment(Pos.CENTER_LEFT);
+        Label titleLbl = new Label(a.title);
+        titleLbl.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        titleLbl.setWrapText(false);
+
+        Label dateBadge = new Label(a.dateStr());
+        dateBadge.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";" +
+                "-fx-background-color:" + UIUtils.bgMuted() + ";-fx-padding:2 8;-fx-background-radius:4;");
+
+        String expStr = a.expireStr();
+        Label expBadge = new Label(expStr.equals("Never") ? "No Expiry" : "Expires " + expStr);
+        expBadge.setStyle("-fx-font-size:10.5px;-fx-font-weight:600;" +
+                "-fx-text-fill:" + (expStr.equals("Never") ? UIUtils.textSubtle() : "#b45309") + ";" +
+                "-fx-background-color:" + (expStr.equals("Never") ? UIUtils.bgMuted() : "#fef3c7") + ";" +
+                "-fx-padding:2 8;-fx-background-radius:4;");
+
+        Region rowSp = new Region(); HBox.setHgrow(rowSp, Priority.ALWAYS);
+
+        // Action buttons
+        Button btnEdit = new Button("Edit");
+        btnEdit.setStyle("-fx-background-color:transparent;-fx-text-fill:#0f7d74;-fx-font-weight:700;" +
+                "-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#0f7d7440;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;");
+        btnEdit.setOnMouseEntered(ev -> btnEdit.setStyle("-fx-background-color:#0f7d7414;-fx-text-fill:#0f7d74;" +
+                "-fx-font-weight:700;-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#0f7d7460;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;"));
+        btnEdit.setOnMouseExited(ev -> btnEdit.setStyle("-fx-background-color:transparent;-fx-text-fill:#0f7d74;" +
+                "-fx-font-weight:700;-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#0f7d7440;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;"));
+        btnEdit.setOnAction(ev -> showAnnouncementComposer(a, contentArea, null, refreshRef[0]));
+
+        Button btnDel = new Button("Delete");
+        btnDel.setStyle("-fx-background-color:transparent;-fx-text-fill:#c0392b;-fx-font-weight:700;" +
+                "-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#c0392b40;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;");
+        btnDel.setOnMouseEntered(ev -> btnDel.setStyle("-fx-background-color:#c0392b14;-fx-text-fill:#c0392b;" +
+                "-fx-font-weight:700;-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#c0392b60;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;"));
+        btnDel.setOnMouseExited(ev -> btnDel.setStyle("-fx-background-color:transparent;-fx-text-fill:#c0392b;" +
+                "-fx-font-weight:700;-fx-font-size:12px;-fx-padding:4 12;-fx-background-radius:5;" +
+                "-fx-border-color:#c0392b40;-fx-border-radius:5;-fx-border-width:1;-fx-cursor:hand;"));
+        btnDel.setOnAction(ev -> {
+            Alert conf = new Alert(Alert.AlertType.CONFIRMATION, "Delete this announcement?", ButtonType.YES, ButtonType.NO);
+            conf.setHeaderText(null);
+            conf.showAndWait().ifPresent(r -> {
+                if (r == ButtonType.YES) {
+                    ServerClient.get().deleteAnnouncement(a.id);
+                    if (refreshRef[0] != null) refreshRef[0].run();
+                }
+            });
+        });
+
+        topRow.getChildren().addAll(titleLbl, dateBadge, expBadge, rowSp, btnEdit, btnDel);
+
+        // Body text
+        Label bodyLbl = new Label(a.body);
+        bodyLbl.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.textMid() + ";");
+        bodyLbl.setWrapText(true);
+
+        // Color dot row
+        Circle colorDot = new Circle(5, Color.web(color));
+        Label colorLbl = new Label(colorName(color));
+        colorLbl.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        HBox colorRow = new HBox(6, colorDot, colorLbl); colorRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox qaBox = buildTeacherAnnouncementQaSection(a, contentArea, refreshRef[0], teacher);
+        Button qaBtn = UIUtils.ghostBtn("", "Q&A", UIUtils.ACCENT_BLUE);
+        qaBtn.setOnAction(e -> {
+            boolean show = !qaBox.isVisible();
+            qaBox.setVisible(show);
+            qaBox.setManaged(show);
+            qaBtn.setText(show ? "Hide Q&A" : "Q&A");
+        });
+        body.getChildren().addAll(topRow, bodyLbl, colorRow, qaBtn, qaBox);
+        row.getChildren().addAll(bar, body);
+        VBox wrapper = new VBox(row);
+        wrapper.setMaxWidth(Double.MAX_VALUE);
+        return wrapper;
+    }
+
+    private static void renderMessages(Pane contentArea, Stage stage, Teacher teacher, HelloApplication app) {
+        contentArea.getChildren().clear();
+        BorderPane page = new BorderPane();
+        page.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        VBox header = new VBox(4);
+        header.setPadding(new Insets(28, 32, 18, 32));
+        HBox titleRow = new HBox(14);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getChildren().addAll(backBtn(contentArea, stage, teacher, app), UIUtils.heading("Messages"));
+        header.getChildren().addAll(titleRow, UIUtils.subheading("Search students and chat in a focused messenger window"));
+
+        TextField searchField = UIUtils.styledField("Search student by name or ID...");
+        searchField.setPrefHeight(38);
+
+        List<Student> students = ServerClient.get().loadAllStudents();
+        List<DirectMessage> previews = ServerClient.get().loadConversationPreviewsForTeacher(teacher.getEmail());
+        String preferredStudent = previews.isEmpty() ? "" : previews.get(0).studentId;
+
+        VBox contactList = new VBox(8);
+        contactList.setPadding(new Insets(16));
+        contactList.setPrefWidth(300);
+        contactList.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-border-color:" + UIUtils.border() + ";-fx-border-width:0 1 0 0;");
+
+        VBox conversationHost = new VBox();
+        conversationHost.setPadding(new Insets(18));
+        conversationHost.setStyle("-fx-background-color:" + UIUtils.bgContent() + ";");
+
+        final String[] selectedStudentId = {preferredStudent};
+        Runnable[] refreshContacts = {null};
+        refreshContacts[0] = () -> rebuildTeacherContacts(contactList, students, previews, searchField.getText(), selectedStudentId[0], picked -> {
+            selectedStudentId[0] = picked;
+            refreshContacts[0].run();
+            renderTeacherConversation(conversationHost, contentArea, stage, teacher, app, picked);
+            ServerClient.get().markConversationReadForTeacher(teacher.getEmail(), picked);
+        });
+        searchField.textProperty().addListener((obs, ov, nv) -> refreshContacts[0].run());
+        refreshContacts[0].run();
+        if (!selectedStudentId[0].isBlank()) {
+            ServerClient.get().markConversationReadForTeacher(teacher.getEmail(), selectedStudentId[0]);
+            renderTeacherConversation(conversationHost, contentArea, stage, teacher, app, selectedStudentId[0]);
+        } else {
+            conversationHost.getChildren().add(emptyMessageState("No students yet", "Student conversations will appear here."));
+        }
+
+        VBox leftPane = new VBox(12, searchField, contactList);
+        leftPane.setPadding(new Insets(0, 0, 0, 32));
+        leftPane.setPrefWidth(332);
+
+        HBox body = new HBox(0, leftPane, conversationHost);
+        HBox.setHgrow(conversationHost, Priority.ALWAYS);
+        page.setTop(header);
+        page.setCenter(body);
+
+        ScrollPane sp = new ScrollPane(page);
+        sp.setFitToWidth(true);
+        sp.setFitToHeight(true);
+        sp.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+        contentArea.getChildren().add(sp);
+        if (contentArea instanceof AnchorPane ap) {
+            AnchorPane.setTopAnchor(sp, 0.0);
+            AnchorPane.setBottomAnchor(sp, 0.0);
+            AnchorPane.setLeftAnchor(sp, 0.0);
+            AnchorPane.setRightAnchor(sp, 0.0);
+        }
+        UIUtils.slideIn(page, true);
+    }
+
+    /* private static VBox buildTeacherMessageCard(PrivateMessage m) {
+        VBox card = UIUtils.card(700);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setPadding(new Insets(16));
+        card.setSpacing(10);
+
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.CENTER_LEFT);
+        StackPane icon = new StackPane(UIUtils.icon(UIUtils.ICO_SEND, UIUtils.ACCENT_GREEN, 14));
+        icon.setPrefSize(30, 30);
+        icon.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "18;-fx-background-radius:8;");
+        VBox meta = new VBox(3);
+        Label subject = new Label(m.subject);
+        subject.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label target = new Label("To " + m.studentName + " (" + m.studentId + ")  •  " + m.dateTimeStr());
+        target.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        meta.getChildren().addAll(subject, target);
+        Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+        Label status = UIUtils.badge(m.readByStudent ? "Opened" : "Unread", m.readByStudent ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_ORG);
+        top.getChildren().addAll(icon, meta, sp, status);
+
+        Label body = new Label(m.body);
+        body.setWrapText(true);
+        body.setStyle("-fx-font-size:13px;-fx-text-fill:" + UIUtils.textMid() + ";-fx-line-spacing:2;");
+        card.getChildren().addAll(top, body);
+
+        List<MessageReply> replies = ServerClient.get().loadRepliesForMessage(m.id);
+        if (!replies.isEmpty()) {
+            Label hdr = UIUtils.sectionLabel("Replies");
+            card.getChildren().add(hdr);
+            for (MessageReply r : replies) {
+                card.getChildren().add(buildTeacherReplyBubble(r));
+            }
+        }
+        return card;
+    }
+
+    private static VBox buildTeacherReplyBubble(MessageReply r) {
+        VBox box = new VBox(4);
+        box.setPadding(new Insets(10, 12, 10, 12));
+        String accent = "teacher".equalsIgnoreCase(r.senderRole) ? UIUtils.ACCENT_BLUE : UIUtils.ACCENT_GREEN;
+        box.setStyle("-fx-background-color:" + accent + "12;-fx-background-radius:8;-fx-border-color:" + accent + "35;-fx-border-radius:8;");
+        Label meta = new Label(r.senderName + " • " + r.dateTimeStr());
+        meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + accent + ";");
+        Label body = new Label(r.body);
+        body.setWrapText(true);
+        body.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textDark() + ";");
+        box.getChildren().addAll(meta, body);
+        return box;
+    }
+
+    */
+    private static VBox buildTeacherAnnouncementQaSection(Announcement a, Pane contentArea, Runnable refresh, Teacher currentTeacher) {
+        VBox qaWrap = new VBox(10);
+        qaWrap.setPadding(new Insets(12, 0, 0, 0));
+        qaWrap.setVisible(false);
+        qaWrap.setManaged(false);
+        HBox hdr = new HBox(8, UIUtils.icon(UIUtils.ICO_INFO, UIUtils.ACCENT_BLUE, 11), UIUtils.sectionLabel("Public Q&A"));
+        hdr.setAlignment(Pos.CENTER_LEFT);
+        qaWrap.getChildren().add(hdr);
+
+        List<AnnouncementQuestion> questions = ServerClient.get().loadAnnouncementQuestions(a.id);
+        if (questions.isEmpty()) {
+            Label none = new Label("No student questions yet.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            qaWrap.getChildren().add(none);
+            return qaWrap;
+        }
+
+        for (AnnouncementQuestion q : questions) {
+            VBox box = new VBox(8);
+            box.setPadding(new Insets(12));
+            box.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:8;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:8;");
+            Label askMeta = new Label(q.studentName + " (" + q.studentId + ") • " + q.createdStr());
+            askMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            Label question = new Label(q.question);
+            question.setWrapText(true);
+            question.setStyle("-fx-font-size:12.5px;-fx-font-weight:600;-fx-text-fill:" + UIUtils.textDark() + ";");
+            box.getChildren().addAll(askMeta, question);
+
+            if (q.isAnswered()) {
+                Label ansMeta = new Label("Answered • " + q.answeredStr());
+                ansMeta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.ACCENT_GREEN + ";");
+                Label answer = new Label(q.teacherAnswer);
+                answer.setWrapText(true);
+                answer.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textMid() + ";");
+                box.getChildren().addAll(ansMeta, answer);
+            } else {
+                TextArea answerArea = UIUtils.styledTextArea("Write a public answer visible to all students...", 70);
+                Button answerBtn = UIUtils.primaryBtn("", "Answer", UIUtils.ACCENT_BLUE);
+                answerBtn.setOnAction(ev -> {
+                    String txt = answerArea.getText().trim();
+                    if (txt.isEmpty()) {
+                        UIUtils.Toast.error(contentArea, "Answer cannot be empty");
+                        return;
+                    }
+                    ServerClient.get().answerAnnouncementQuestion(q.id, txt, currentTeacher != null ? currentTeacher.getUser() : "Teacher");
+                    if (refresh != null) refresh.run();
+                    UIUtils.Toast.success(contentArea, "Question answered");
+                });
+                box.getChildren().addAll(answerArea, answerBtn);
+            }
+            qaWrap.getChildren().add(box);
+        }
+        return qaWrap;
+    }
+
+    private static void rebuildTeacherContacts(VBox host, List<Student> students, List<DirectMessage> previews,
+                                               String search, String selectedStudentId,
+                                               java.util.function.Consumer<String> onPick) {
+        host.getChildren().clear();
+        String q = search == null ? "" : search.toLowerCase().trim();
+        Map<String, DirectMessage> previewMap = previews.stream().collect(java.util.stream.Collectors.toMap(p -> p.studentId, p -> p, (a, b) -> a, LinkedHashMap::new));
+        boolean searching = !q.isBlank();
+        List<Student> filtered = students.stream()
+                .filter(s -> searching
+                        ? s.getName().toLowerCase().contains(q) || s.getID().toLowerCase().contains(q)
+                        : previewMap.containsKey(s.getID()) || s.getID().equals(selectedStudentId))
+                .collect(Collectors.toList());
+
+        for (Student s : filtered) {
+            DirectMessage preview = previewMap.get(s.getID());
+            VBox row = UIUtils.card(255);
+            row.setMaxWidth(Double.MAX_VALUE);
+            row.setPadding(new Insets(12));
+            row.setSpacing(6);
+            if (s.getID().equals(selectedStudentId)) {
+                row.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "10;-fx-background-radius:8;-fx-border-color:" + UIUtils.ACCENT_GREEN + "55;-fx-border-radius:8;-fx-border-width:1;");
+            }
+            Label name = new Label(s.getName());
+            name.setStyle("-fx-font-size:13px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+            Label meta = new Label("ID " + s.getID());
+            meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            Label snippet = new Label(preview == null ? "No messages yet" : preview.body);
+            snippet.setWrapText(true);
+            snippet.setMaxWidth(210);
+            snippet.setStyle("-fx-font-size:11.5px;-fx-text-fill:" + UIUtils.textMid() + ";");
+            row.getChildren().addAll(name, meta, snippet);
+            row.setOnMouseClicked(e -> onPick.accept(s.getID()));
+            host.getChildren().add(row);
+        }
+
+        if (filtered.isEmpty()) {
+            Label none = new Label("No students match your search.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            host.getChildren().add(none);
+        }
+    }
+
+    private static void renderTeacherConversation(VBox host, Pane contentArea, Stage stage, Teacher teacher, HelloApplication app, String studentId) {
+        host.getChildren().clear();
+        Student student = ServerClient.get().loadAllStudents().stream()
+                .filter(s -> s.getID().equals(studentId))
+                .findFirst().orElse(null);
+        if (student == null) {
+            host.getChildren().add(emptyMessageState("Conversation unavailable", "Student record could not be found."));
+            return;
+        }
+
+        List<DirectMessage> messages = ServerClient.get().loadConversation(teacher.getEmail(), studentId);
+        VBox frame = new VBox(14);
+        frame.setMaxWidth(Double.MAX_VALUE);
+
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.CENTER_LEFT);
+        StackPane icon = new StackPane(UIUtils.icon(UIUtils.ICO_SEND, UIUtils.ACCENT_GREEN, 14));
+        icon.setPrefSize(34, 34);
+        icon.setStyle("-fx-background-color:" + UIUtils.ACCENT_GREEN + "18;-fx-background-radius:9;");
+        VBox meta = new VBox(3);
+        Label name = new Label(student.getName());
+        name.setStyle("-fx-font-size:15px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label sub = new Label("ID " + student.getID());
+        sub.setStyle("-fx-font-size:11px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+        meta.getChildren().addAll(name, sub);
+        top.getChildren().addAll(icon, meta);
+
+        VBox stream = new VBox(8);
+        stream.setPadding(new Insets(16));
+        stream.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:10;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:10;");
+        if (messages.isEmpty()) {
+            Label none = new Label("Start a conversation with this student.");
+            none.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textSubtle() + ";");
+            stream.getChildren().add(none);
+        } else {
+            for (DirectMessage m : messages) {
+                stream.getChildren().add(buildTeacherDirectMessageBubble(m, () -> {
+                    ServerClient.get().deleteDirectMessage(m.id);
+                    renderMessages(contentArea, stage, teacher, app);
+                }));
+            }
+        }
+
+        ScrollPane streamScroll = new ScrollPane(stream);
+        streamScroll.setFitToWidth(true);
+        streamScroll.setStyle("-fx-background:transparent;-fx-background-color:transparent;");
+        streamScroll.setPrefHeight(380);
+
+        TextArea composer = UIUtils.styledTextArea("Type your message here...", 90);
+        Button sendBtn = UIUtils.primaryBtn("", "Send", UIUtils.ACCENT_GREEN);
+        sendBtn.setOnAction(e -> {
+            String txt = composer.getText().trim();
+            if (txt.isEmpty()) return;
+            DirectMessage m = new DirectMessage();
+            m.teacherEmail = teacher.getEmail();
+            m.teacherName = teacher.getUser();
+            m.studentId = student.getID();
+            m.studentName = student.getName();
+            m.senderRole = "teacher";
+            m.senderName = teacher.getUser();
+            m.body = txt;
+            m.createdAt = System.currentTimeMillis();
+            ServerClient.get().saveDirectMessage(m);
+            stage.setScene(createDashboardScene(stage, teacher, app, 6));
+            UIUtils.Toast.success(contentArea, "Message sent");
+        });
+
+        frame.getChildren().addAll(top, streamScroll, composer, sendBtn);
+        host.getChildren().add(frame);
+    }
+
+    private static HBox buildTeacherDirectMessageBubble(DirectMessage m, Runnable onDelete) {
+        boolean mine = "teacher".equalsIgnoreCase(m.senderRole);
+        HBox wrap = new HBox();
+        wrap.setAlignment(mine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+        VBox bubble = new VBox(5);
+        bubble.setMaxWidth(390);
+        bubble.setPadding(new Insets(10, 12, 10, 12));
+        String accent = mine ? UIUtils.ACCENT_GREEN : UIUtils.ACCENT_BLUE;
+        bubble.setStyle("-fx-background-color:" + accent + (mine ? "18" : "12") + ";-fx-background-radius:10;-fx-border-color:" + accent + "38;-fx-border-radius:10;");
+        Label meta = new Label(m.senderName + " • " + m.dateTimeStr());
+        meta.setStyle("-fx-font-size:10.5px;-fx-text-fill:" + accent + ";");
+        Label body = new Label(m.body);
+        body.setWrapText(true);
+        body.setStyle("-fx-font-size:12.5px;-fx-text-fill:" + UIUtils.textDark() + ";");
+        bubble.getChildren().addAll(meta, body);
+        if (mine) {
+            Button del = UIUtils.ghostBtn("", "Delete", UIUtils.ACCENT_RED);
+            del.setPrefWidth(86);
+            del.setOnAction(e -> onDelete.run());
+            bubble.getChildren().add(del);
+        }
+        wrap.getChildren().add(bubble);
+        return wrap;
+    }
+
+    private static String chooseStudentContact(Stage owner, List<Student> students, String currentId) {
+        if (students.isEmpty()) return null;
+        Student current = students.stream().filter(s -> s.getID().equals(currentId)).findFirst().orElse(students.get(0));
+        String initial = current.getID() + " — " + current.getName();
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(initial,
+                students.stream().map(s -> s.getID() + " — " + s.getName()).toList());
+        dialog.initOwner(owner);
+        dialog.setTitle("New Chat");
+        dialog.setHeaderText("Start a conversation with a student");
+        dialog.setContentText("Student:");
+        return dialog.showAndWait().map(v -> v.split(" — ")[0]).orElse(null);
+    }
+
+    private static VBox emptyMessageState(String title, String sub) {
+        VBox empty = new VBox(10);
+        empty.setAlignment(Pos.CENTER);
+        empty.setPadding(new Insets(42));
+        empty.setStyle("-fx-background-color:" + UIUtils.bgCard() + ";-fx-background-radius:9;-fx-border-color:" + UIUtils.border() + ";-fx-border-radius:9;-fx-border-width:1;-fx-border-style:dashed;");
+        StackPane ico = new StackPane(UIUtils.icon(UIUtils.ICO_SEND, UIUtils.textSubtle(), 22));
+        ico.setPrefSize(52, 52);
+        ico.setStyle("-fx-background-color:" + UIUtils.bgMuted() + ";-fx-background-radius:99;");
+        Label t = new Label(title);
+        t.setStyle("-fx-font-size:14px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        Label s = new Label(sub);
+        s.setStyle("-fx-font-size:12px;-fx-text-fill:" + UIUtils.textMid() + ";");
+        empty.getChildren().addAll(ico, t, s);
+        return empty;
+    }
+
+    private static void showAnnouncementComposer(Announcement existing, Pane contentArea,
+                                                 Stage ownerStage, Runnable onSave) {
+        Stage st = new Stage();
+        st.initModality(Modality.APPLICATION_MODAL);
+        if (ownerStage != null) st.initOwner(ownerStage);
+        st.initStyle(StageStyle.UNDECORATED);
+        st.setResizable(false);
+
+        boolean editing = existing != null;
+
+        VBox root = new VBox(0);
+        root.setStyle(
+                "-fx-background-color:" + UIUtils.bgCard() + ";" +
+                        "-fx-background-radius:14;" +
+                        "-fx-border-color:" + UIUtils.border() + ";" +
+                        "-fx-border-radius:14;-fx-border-width:1;"
+        );
+        root.setEffect(new javafx.scene.effect.DropShadow(36, Color.color(0,0,0,0.18)));
+
+        // Header
+        VBox header = new VBox(3); header.setPadding(new Insets(18, 22, 16, 22));
+        header.setStyle("-fx-background-color:#111722;-fx-background-radius:14 14 0 0;");
+        StackPane headerIco = new StackPane(UIUtils.icon(UIUtils.ICO_ANNOUNCE, "#0f7d74", 16));
+        headerIco.setPrefSize(32, 32);
+        headerIco.setStyle("-fx-background-color:rgba(15,125,116,0.16);-fx-background-radius:7;");
+        Label headerTitle = new Label(editing ? "Edit Announcement" : "New Announcement");
+        headerTitle.setStyle("-fx-font-size:16px;-fx-font-weight:700;-fx-text-fill:#e8eaf2;");
+        Label headerSub = new Label(editing ? "Update the notice details below" : "Compose a notice for all students");
+        headerSub.setStyle("-fx-font-size:11px;-fx-text-fill:#4a566e;");
+        HBox headerRow = new HBox(12, headerIco, new VBox(3, headerTitle, headerSub) {{ setAlignment(Pos.CENTER_LEFT); }});
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+        header.getChildren().add(headerRow);
+
+        // Body
+        VBox body = new VBox(14); body.setPadding(new Insets(18, 22, 6, 22));
+
+        String capStyle = "-fx-font-size:10px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-letter-spacing:1.2px;";
+
+        // Title
+        Label titleCap = new Label("TITLE"); titleCap.setStyle(capStyle);
+        TextField titleField = UIUtils.styledField("e.g. Exam Schedule Change");
+        titleField.setPrefHeight(42);
+        if (editing) titleField.setText(existing.title);
+
+        // Body
+        Label bodyCap = new Label("MESSAGE"); bodyCap.setStyle(capStyle);
+        TextArea bodyArea = new TextArea(editing ? existing.body : "");
+        bodyArea.setPromptText("Write your announcement message here...");
+        bodyArea.setPrefHeight(100); bodyArea.setWrapText(true);
+        bodyArea.setStyle("-fx-font-size:13px;-fx-background-radius:6;-fx-border-color:" + UIUtils.border() +
+                ";-fx-background-color:" + UIUtils.bgInput() + ";-fx-text-fill:" + UIUtils.textDark() +
+                ";-fx-control-inner-background:" + UIUtils.bgInput() + ";");
+
+        // Color picker row
+        Label colorCap = new Label("HIGHLIGHT COLOUR"); colorCap.setStyle(capStyle);
+        String[][] colorOptions = {
+                {"#2563eb", "Blue"},   {"#0f7d74", "Teal"},  {"#0e7a56", "Green"},
+                {"#b45309", "Amber"},  {"#c0392b", "Red"},   {"#5046a0", "Purple"},
+        };
+        String[] selectedColor = { editing ? existing.color : "#2563eb" };
+
+        HBox colorRow = new HBox(8); colorRow.setAlignment(Pos.CENTER_LEFT);
+        ToggleGroup tg = new ToggleGroup();
+
+        for (String[] opt : colorOptions) {
+            RadioButton rb = new RadioButton();
+            rb.setToggleGroup(tg);
+            rb.setUserData(opt[0]);
+            Circle dot = new Circle(9, Color.web(opt[0]));
+            dot.setStroke(Color.web(opt[0], 0.4)); dot.setStrokeWidth(2);
+            StackPane dotWrap = new StackPane(dot);
+            dotWrap.setPrefSize(22, 22);
+
+            Circle selRing = new Circle(12); selRing.setFill(Color.TRANSPARENT);
+            selRing.setStroke(Color.web(opt[0])); selRing.setStrokeWidth(2); selRing.setOpacity(0);
+            StackPane swatch = new StackPane(selRing, dotWrap);
+            swatch.setPrefSize(26, 26); swatch.setCursor(javafx.scene.Cursor.HAND);
+            Tooltip.install(swatch, new Tooltip(opt[1]));
+
+            if (opt[0].equals(selectedColor[0])) { rb.setSelected(true); selRing.setOpacity(1); }
+
+            swatch.setOnMouseClicked(ev -> {
+                rb.setSelected(true);
+                selectedColor[0] = opt[0];
+                colorRow.getChildren().forEach(child -> {
+                    if (child instanceof StackPane sp2) {
+                        Circle ring = (Circle) sp2.getChildren().get(0);
+                        ring.setOpacity(sp2 == swatch ? 1 : 0);
+                    }
+                });
+            });
+            rb.selectedProperty().addListener((obs, o, n) -> selRing.setOpacity(n ? 1 : 0));
+            colorRow.getChildren().add(swatch);
+        }
+
+        // Expiry toggle
+        Label expCap = new Label("AUTO-EXPIRY"); expCap.setStyle(capStyle);
+        ToggleButton expToggle = new ToggleButton("No Expiry");
+        expToggle.setStyle("-fx-background-color:#0f7d7418;-fx-text-fill:#0f7d74;-fx-font-weight:700;" +
+                "-fx-font-size:12px;-fx-background-radius:6;-fx-padding:6 14;-fx-cursor:hand;");
+        expToggle.selectedProperty().addListener((obs, o, n) -> {
+            expToggle.setText(n ? "Expires on date" : "No Expiry");
+            expToggle.setStyle(n
+                    ? "-fx-background-color:#b4530918;-fx-text-fill:#b45309;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-padding:6 14;-fx-cursor:hand;"
+                    : "-fx-background-color:#0f7d7418;-fx-text-fill:#0f7d74;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-padding:6 14;-fx-cursor:hand;");
+        });
+
+        DatePicker expDate = new DatePicker(java.time.LocalDate.now().plusDays(7));
+        expDate.setPrefHeight(38);
+        expDate.setStyle("-fx-font-size:12.5px;");
+        expDate.setVisible(false); expDate.setManaged(false);
+
+        TextField expHH = new TextField("23"); expHH.setPrefWidth(44); expHH.setPrefHeight(36);
+        expHH.setStyle("-fx-font-family:Monospaced;-fx-font-size:14px;-fx-font-weight:700;-fx-alignment:center;" +
+                "-fx-background-color:" + UIUtils.bgInput() + ";-fx-border-color:" + UIUtils.border() +
+                ";-fx-border-radius:6;-fx-background-radius:6;");
+        TextField expMM = new TextField("59"); expMM.setPrefWidth(44); expMM.setPrefHeight(36);
+        expMM.setStyle(expHH.getStyle());
+        Label colon = new Label(":"); colon.setStyle("-fx-font-size:16px;-fx-font-weight:700;-fx-text-fill:" + UIUtils.textDark() + ";");
+        HBox timeRow = new HBox(6, expDate, expHH, colon, expMM); timeRow.setAlignment(Pos.CENTER_LEFT);
+        timeRow.setVisible(false); timeRow.setManaged(false);
+
+        if (editing && existing.expireAt > 0) {
+            expToggle.setSelected(true);
+            java.time.LocalDateTime ldt = java.time.Instant.ofEpochMilli(existing.expireAt)
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+            expDate.setValue(ldt.toLocalDate());
+            expHH.setText(String.format("%02d", ldt.getHour()));
+            expMM.setText(String.format("%02d", ldt.getMinute()));
+        }
+
+        expToggle.setOnAction(ev -> {
+            boolean on = expToggle.isSelected();
+            expDate.setVisible(on); expDate.setManaged(on);
+            timeRow.setVisible(on); timeRow.setManaged(on);
+        });
+
+        HBox expRow = new HBox(10, expToggle); expRow.setAlignment(Pos.CENTER_LEFT);
+
+        body.getChildren().addAll(titleCap, titleField, bodyCap, bodyArea,
+                colorCap, colorRow, expCap, expRow, timeRow);
+
+        // Button bar
+        HBox btnBar = new HBox(12); btnBar.setAlignment(Pos.CENTER_RIGHT);
+        btnBar.setPadding(new Insets(14, 22, 18, 22));
+        btnBar.setStyle("-fx-border-color:" + UIUtils.border() + ";-fx-border-width:1 0 0 0;");
+
+        Button btnCancel = UIUtils.ghostBtn("", "Cancel", UIUtils.TEXT_MID);
+        btnCancel.setPrefWidth(100); btnCancel.setPrefHeight(40);
+        Button btnSave   = UIUtils.primaryBtn("", editing ? "Save Changes" : "Post Announcement", UIUtils.ACCENT_BLUE);
+        btnSave.setPrefHeight(40);
+
+        btnCancel.setOnAction(ev -> st.close());
+        btnSave.setOnAction(ev -> {
+            String t = titleField.getText().trim();
+            String b = bodyArea.getText().trim();
+            if (t.isEmpty() || b.isEmpty()) {
+                UIUtils.Toast.error(contentArea, "Title and message cannot be empty");
+                return;
+            }
+            long expireAt = 0;
+            if (expToggle.isSelected()) {
+                try {
+                    int h = Integer.parseInt(expHH.getText().trim());
+                    int m = Integer.parseInt(expMM.getText().trim());
+                    java.time.LocalDateTime ldt = java.time.LocalDateTime.of(expDate.getValue(), java.time.LocalTime.of(h, m));
+                    expireAt = ldt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+                } catch (Exception ex) {
+                    UIUtils.Toast.error(contentArea, "Invalid expiry time"); return;
+                }
+            }
+
+            if (editing) {
+                // delete old and re-post (simplest approach matching existing API)
+                ServerClient.get().deleteAnnouncement(existing.id);
+            }
+            Announcement ann = new Announcement(t, b, selectedColor[0]);
+            ann.expireAt = expireAt;
+            ServerClient.get().saveAnnouncement(ann);
+            st.close();
+            if (onSave != null) onSave.run();
+            UIUtils.Toast.success(contentArea, editing ? "Announcement updated" : "Announcement posted");
+        });
+
+        btnBar.getChildren().addAll(btnCancel, btnSave);
+        root.getChildren().addAll(header, body, btnBar);
+
+        Scene sc = new Scene(new StackPane(root), 500, 560);
+        sc.setFill(Color.TRANSPARENT);
+        UIUtils.applyStyle(sc);
+        st.setScene(sc);
+
+        root.setScaleX(0.93); root.setScaleY(0.93); root.setOpacity(0);
+        javafx.animation.ScaleTransition sct = new javafx.animation.ScaleTransition(Duration.millis(200), root);
+        sct.setToX(1); sct.setToY(1); sct.setInterpolator(Interpolator.EASE_OUT);
+        javafx.animation.FadeTransition ft = new javafx.animation.FadeTransition(Duration.millis(200), root);
+        ft.setToValue(1);
+        new javafx.animation.ParallelTransition(sct, ft).play();
+        st.show();
+    }
+
+    private static String colorName(String hex) {
+        return switch (hex.toLowerCase()) {
+            case "#2563eb" -> "Blue";
+            case "#0f7d74" -> "Teal";
+            case "#0e7a56" -> "Green";
+            case "#b45309" -> "Amber";
+            case "#c0392b" -> "Red";
+            case "#5046a0" -> "Purple";
+            default        -> hex;
+        };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     private static VBox emptyStateCard(String svgIcon, String heading, String sub,
-                                        String btnLabel, String btnColor, Runnable btnAction) {
+                                       String btnLabel, String btnColor, Runnable btnAction) {
         VBox card = new VBox(10);
         card.setAlignment(Pos.CENTER);
         card.setPadding(new Insets(32, 24, 32, 24));
@@ -951,7 +1729,7 @@ public class TeacherPortal {
         warn.setPadding(new Insets(8, 12, 8, 12));
         warn.setStyle("-fx-background-color:#fffbeb;-fx-background-radius:7;-fx-border-color:#f59e0b44;-fx-border-radius:7;-fx-border-width:1;");
         warn.getChildren().addAll(UIUtils.icon(UIUtils.ICO_WARN, UIUtils.ACCENT_ORG, 13),
-            new Label("Exam auto-starts and auto-ends at the chosen times.") {{ setStyle("-fx-font-size:11px;-fx-text-fill:#b45309;-fx-font-weight:600;"); }});
+                new Label("Exam auto-starts and auto-ends at the chosen times.") {{ setStyle("-fx-font-size:11px;-fx-text-fill:#b45309;-fx-font-weight:600;"); }});
 
         DatePicker startDate = buildDatePicker(java.time.LocalDate.now().plusDays(1));
         TextField startHH = buildTimeField("09"), startMM = buildTimeField("00");
@@ -1166,8 +1944,8 @@ public class TeacherPortal {
             for (var entry : sel.entrySet()) {
                 int did = entry.getKey().getDbId();
                 allQ.stream().filter(lq -> lq.getDbId() == did).findFirst()
-                    .ifPresentOrElse(lq -> newSel.put(lq, entry.getValue()),
-                                     () -> newSel.put(entry.getKey(), entry.getValue()));
+                        .ifPresentOrElse(lq -> newSel.put(lq, entry.getValue()),
+                                () -> newSel.put(entry.getKey(), entry.getValue()));
             }
             sel.clear(); sel.putAll(newSel);
 
@@ -1219,8 +1997,8 @@ public class TeacherPortal {
                 for (int i=0;i<m.getOptions().length;i++) {
                     Label l = new Label((i+1)+".  "+m.getOptions()[i]);
                     l.setStyle(i==m.getCorrectIndex()
-                        ? "-fx-text-fill:#0e7a56;-fx-font-weight:700;-fx-font-size:11.5px;"
-                        : "-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-font-size:11.5px;");
+                            ? "-fx-text-fill:#0e7a56;-fx-font-weight:700;-fx-font-size:11.5px;"
+                            : "-fx-text-fill:" + UIUtils.textSubtle() + ";-fx-font-size:11.5px;");
                     c.getChildren().add(l);
                 }
             } else if (q instanceof TextQuestion tq) {
@@ -1313,7 +2091,7 @@ public class TeacherPortal {
         }
 
         private static void handleCreate(HelloApplication app, Pane ca, Stage stage, Teacher teacher,
-                                          StackPane wrapSub, StackPane wrapGrd, TextField fMark, TextField fDur) {
+                                         StackPane wrapSub, StackPane wrapGrd, TextField fMark, TextField fDur) {
             boolean valid = true;
             if (sSub==null)     { UIUtils.comboError(wrapSub); valid=false; }
             if (sGrd==null)     { UIUtils.comboError(wrapGrd); valid=false; }
@@ -1432,9 +2210,9 @@ public class TeacherPortal {
 
             VBox legend = new VBox(12); legend.setAlignment(Pos.CENTER_LEFT);
             String[][] types = {
-                {UIUtils.ACCENT_TEAL, "MCQ",   "Multiple choice, one correct"},
-                {UIUtils.ACCENT_PURP, "Text",  "Exact numeric answer"},
-                {UIUtils.ACCENT_GREEN,"Range", "Answer within a range"}
+                    {UIUtils.ACCENT_TEAL, "MCQ",   "Multiple choice, one correct"},
+                    {UIUtils.ACCENT_PURP, "Text",  "Exact numeric answer"},
+                    {UIUtils.ACCENT_GREEN,"Range", "Answer within a range"}
             };
             for (String[] t : types) {
                 HBox rowL = new HBox(10); rowL.setAlignment(Pos.CENTER_LEFT);
@@ -1656,7 +2434,7 @@ public class TeacherPortal {
         }
 
         private static void rebuildResults(VBox results, Pane ca, Stage stage, Teacher teacher, HelloApplication app,
-                                            String search, String subF, String grdF, String typF, Label totalLbl) {
+                                           String search, String subF, String grdF, String typF, Label totalLbl) {
             results.getChildren().clear();
             String sl = search==null?"":search.toLowerCase().trim();
             List<Question> filtered = ServerClient.get().loadAllQuestions().stream().filter(q -> {
@@ -1717,13 +2495,13 @@ public class TeacherPortal {
     private static MenuButton menuBtn() {
         MenuButton mb = new MenuButton("···");
         mb.setStyle(
-            "-fx-background-color:transparent;" +
-            "-fx-text-fill:" + UIUtils.textMid() + ";" +
-            "-fx-font-size:13.5px;-fx-font-weight:700;" +
-            "-fx-background-radius:6;" +
-            "-fx-border-color:" + UIUtils.border() + ";" +
-            "-fx-border-radius:6;-fx-border-width:1;" +
-            "-fx-padding:5 10;-fx-cursor:hand;"
+                "-fx-background-color:transparent;" +
+                        "-fx-text-fill:" + UIUtils.textMid() + ";" +
+                        "-fx-font-size:13.5px;-fx-font-weight:700;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-border-color:" + UIUtils.border() + ";" +
+                        "-fx-border-radius:6;-fx-border-width:1;" +
+                        "-fx-padding:5 10;-fx-cursor:hand;"
         );
         mb.setMinWidth(MenuButton.USE_PREF_SIZE);
         return mb;
@@ -1758,8 +2536,8 @@ public class TeacherPortal {
     private static TextField buildTimeField(String initial) {
         TextField tf = new TextField(initial); tf.setPrefWidth(44); tf.setPrefHeight(36);
         tf.setStyle("-fx-font-family:Monospaced;-fx-font-size:14px;-fx-font-weight:700;-fx-alignment:center;" +
-            "-fx-background-color:" + UIUtils.bgInput() + ";-fx-border-color:" + UIUtils.border() + ";" +
-            "-fx-border-radius:6;-fx-background-radius:6;-fx-padding:3 1;");
+                "-fx-background-color:" + UIUtils.bgInput() + ";-fx-border-color:" + UIUtils.border() + ";" +
+                "-fx-border-radius:6;-fx-background-radius:6;-fx-padding:3 1;");
         tf.textProperty().addListener((obs,ov,nv) -> { if(!nv.matches("\\d{0,2}")) tf.setText(ov); });
         return tf;
     }
@@ -1769,8 +2547,8 @@ public class TeacherPortal {
             boolean pm = tb.isSelected();
             tb.setText(pm?"PM":"AM");
             tb.setStyle(pm
-                ? "-fx-background-color:#5046a0;-fx-text-fill:white;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-cursor:hand;"
-                : "-fx-background-color:#0f7d74;-fx-text-fill:white;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-cursor:hand;"
+                    ? "-fx-background-color:#5046a0;-fx-text-fill:white;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-cursor:hand;"
+                    : "-fx-background-color:#0f7d74;-fx-text-fill:white;-fx-font-weight:700;-fx-font-size:12px;-fx-background-radius:6;-fx-cursor:hand;"
             );
         };
         applyStyle.run();

@@ -48,6 +48,23 @@ public final class Protocol {
     public static final String ANNOUNCE_LOAD    = "ANNOUNCE_LOAD";
     public static final String ANNOUNCE_PURGE   = "ANNOUNCE_PURGE";
 
+    public static final String ANNOUNCE_Q_SAVE          = "ANNOUNCE_Q_SAVE";
+    public static final String ANNOUNCE_Q_LOAD          = "ANNOUNCE_Q_LOAD";
+    public static final String ANNOUNCE_Q_ANSWER        = "ANNOUNCE_Q_ANSWER";
+
+    public static final String DM_SAVE                  = "DM_SAVE";
+    public static final String DM_LOAD_CONVERSATION     = "DM_LOAD_CONVERSATION";
+    public static final String DM_LOAD_PREVIEW_STUDENT  = "DM_LOAD_PREVIEW_STUDENT";
+    public static final String DM_LOAD_PREVIEW_TEACHER  = "DM_LOAD_PREVIEW_TEACHER";
+    public static final String DM_MARK_READ_STUDENT     = "DM_MARK_READ_STUDENT";
+    public static final String DM_MARK_READ_TEACHER     = "DM_MARK_READ_TEACHER";
+    public static final String DM_UNREAD_STUDENT        = "DM_UNREAD_STUDENT";
+    public static final String DM_UNREAD_TEACHER        = "DM_UNREAD_TEACHER";
+    public static final String DM_DELETE                = "DM_DELETE";
+
+    public static final String ANNOUNCE_MARK_READ       = "ANNOUNCE_MARK_READ";
+    public static final String ANNOUNCE_UNREAD_STUDENT  = "ANNOUNCE_UNREAD_STUDENT";
+
     public static final String PING             = "PING";
     public static final String BYE              = "BYE";
 
